@@ -9,6 +9,7 @@ from collections import defaultdict, deque
 from time import time
 
 from ..core.config import settings
+from registry.constants import HealthStatus
 
 logger = logging.getLogger(__name__)
 
@@ -358,7 +359,7 @@ class HealthMonitoringService:
         from ..services.server_service import server_service
         
         proxy_pass_url = server_info.get("proxy_pass_url")
-        previous_status = self.server_health_status.get(service_path, "unknown")
+        previous_status = self.server_health_status.get(service_path, HealthStatus.UNKNOWN)
         new_status = previous_status
         
         try:
@@ -370,15 +371,15 @@ class HealthMonitoringService:
                 
                 # If service transitioned to healthy (including auth-expired), fetch tool list (but don't block)
                 # Only do this for fully healthy status, not auth-expired
-                if previous_status != "healthy" and status_detail == "healthy":
+                if previous_status != HealthStatus.HEALTHY and status_detail == HealthStatus.HEALTHY:
                     asyncio.create_task(self._update_tools_background(service_path, proxy_pass_url))
             else:
                 new_status = status_detail  # Detailed error message from transport check
                 
         except httpx.TimeoutException:
-            new_status = "unhealthy: timeout"
+            new_status = HealthStatus.UNHEALTHY_TIMEOUT
         except httpx.ConnectError:
-            new_status = "unhealthy: connection failed"
+            new_status = HealthStatus.UNHEALTHY_CONNECTION_ERROR
         except Exception as e:
             new_status = f"error: {type(e).__name__}"
         
@@ -465,7 +466,7 @@ class HealthMonitoringService:
             tuple[bool, str]: (is_healthy, status_detail)
         """
         if not proxy_pass_url:
-            return False, "unhealthy: missing proxy URL"
+            return False, HealthStatus.UNHEALTHY_MISSING_PROXY_URL
             
         # Get transport information from server_info
         supported_transports = server_info.get("supported_transports", ["streamable-http"])
@@ -490,9 +491,9 @@ class HealthMonitoringService:
                         # If we can extract status code from response, check if it was 200
                         if hasattr(e, 'response') and e.response and e.response.status_code == 200:
                             logger.debug(f"SSE endpoint {proxy_pass_url} returned 200 OK before timeout - considering healthy")
-                            return True, "healthy"
+                            return True, HealthStatus.HEALTHY
                         # For SSE, timeout after initial connection usually means server is responding
-                        return True, "healthy"
+                        return True, HealthStatus.HEALTHY
                     except Exception as e:
                         logger.warning(f"SSE endpoint {proxy_pass_url} failed with exception: {type(e).__name__} - {e}")
                         return False, f"unhealthy: {type(e).__name__}"
@@ -500,7 +501,7 @@ class HealthMonitoringService:
                     logger.info(f"[TRACE] Detected MCP endpoint in URL, using standard HTTP handling")
                     response = await client.get(proxy_pass_url, headers=headers, follow_redirects=True)
                     if self._is_mcp_endpoint_healthy(response):
-                        return True, "healthy"
+                        return True, HealthStatus.HEALTHY
                     else:
                         return False, f"unhealthy: status {response.status_code}"
             except Exception as e:
@@ -531,14 +532,14 @@ class HealthMonitoringService:
                 if response.status_code in [401, 403]:
                     logger.info(f"[TRACE] Auth failure detected ({response.status_code}) for {endpoint}, trying ping without auth")
                     if await self._try_ping_without_auth(client, endpoint):
-                        return True, "healthy-auth-expired"
+                        return True, HealthStatus.HEALTHY_AUTH_EXPIRED
                     else:
                         return False, f"unhealthy: auth failed and ping without auth failed"
                 
                 # Check normal health status
                 if self._is_mcp_endpoint_healthy_streamable(response):
                     logger.info(f"Health check succeeded at {endpoint}")
-                    return True, "healthy"
+                    return True, HealthStatus.HEALTHY
                 else:
                     logger.warning(f"Health check failed for {endpoint}: Status {response.status_code}, Response: {response.text}")
                     return False, f"unhealthy: status {response.status_code}"
@@ -558,14 +559,14 @@ class HealthMonitoringService:
                 timeout = httpx.Timeout(connect=5.0, read=2.0, write=5.0, pool=5.0)
                 response = await client.get(sse_endpoint, headers=headers, follow_redirects=True, timeout=timeout)
                 if self._is_mcp_endpoint_healthy(response):
-                    return True, "healthy"
+                    return True, HealthStatus.HEALTHY
             except (httpx.TimeoutException, asyncio.TimeoutError) as e:
                 # For SSE endpoints, timeout while reading streaming response is normal after getting 200 OK
                 logger.info(f"SSE endpoint {sse_endpoint} timed out while streaming (expected): {e}")
                 # If we can extract status code from response, check if it was 200
                 if hasattr(e, 'response') and e.response and e.response.status_code == 200:
                     logger.info(f"SSE endpoint {sse_endpoint} returned 200 OK before timeout - considering healthy")
-                    return True, "healthy"
+                    return True, HealthStatus.HEALTHY
                 # For SSE, timeout after initial connection usually means server is responding
                 return True, "healthy"
             except Exception as e:
@@ -588,7 +589,7 @@ class HealthMonitoringService:
                 logger.info(f"[TRACE] Response status: {response.status_code}")
                 if self._is_mcp_endpoint_healthy_streamable(response):
                     logger.info(f"Health check succeeded at {endpoint}")
-                    return True, "healthy"
+                    return True, HealthStatus.HEALTHY
                 else:
                     logger.warning(f"Health check failed for {endpoint}: Status {response.status_code}, Response: {response.text}")
                     return False, f"unhealthy: status {response.status_code}"
@@ -603,14 +604,14 @@ class HealthMonitoringService:
                 timeout = httpx.Timeout(connect=5.0, read=2.0, write=5.0, pool=5.0)
                 response = await client.get(sse_endpoint, headers=headers, follow_redirects=True, timeout=timeout)
                 if self._is_mcp_endpoint_healthy(response):
-                    return True, "healthy"
+                    return True, HealthStatus.HEALTHY
             except (httpx.TimeoutException, asyncio.TimeoutError) as e:
                 # For SSE endpoints, timeout while reading streaming response is normal after getting 200 OK
                 logger.info(f"SSE endpoint {sse_endpoint} timed out while streaming (expected): {e}")
                 # If we can extract status code from response, check if it was 200
                 if hasattr(e, 'response') and e.response and e.response.status_code == 200:
                     logger.info(f"SSE endpoint {sse_endpoint} returned 200 OK before timeout - considering healthy")
-                    return True, "healthy"
+                    return True, HealthStatus.HEALTHY
                 # For SSE, timeout after initial connection usually means server is responding
                 return True, "healthy"
             except Exception as e:
@@ -770,9 +771,9 @@ class HealthMonitoringService:
             return current_status, last_checked_time
 
         # Set status to 'checking' before performing the check
-        logger.info(f"Setting status to 'checking' for {service_path} ({proxy_pass_url})...")
-        previous_status = self.server_health_status.get(service_path, "unknown")
-        self.server_health_status[service_path] = "checking"
+        logger.info(f"Setting status to '{HealthStatus.CHECKING}' for {service_path} ({proxy_pass_url})...")
+        previous_status = self.server_health_status.get(service_path, HealthStatus.UNKNOWN)
+        self.server_health_status[service_path] = HealthStatus.CHECKING
 
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(settings.health_check_timeout_seconds)) as client:
@@ -842,8 +843,8 @@ class HealthMonitoringService:
             # Use cached status, only update if transitioning from disabled
             cached_status = self.server_health_status.get(service_path, "unknown")
             if cached_status == "disabled":
-                status = "checking"
-                self.server_health_status[service_path] = "checking"
+                status = HealthStatus.CHECKING
+                self.server_health_status[service_path] = HealthStatus.CHECKING
             else:
                 status = cached_status
         
