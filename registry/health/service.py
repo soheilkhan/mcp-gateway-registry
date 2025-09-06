@@ -363,16 +363,17 @@ class HealthMonitoringService:
         
         try:
             # Try to reach the service endpoint using transport-aware checking
-            success = await self._check_server_endpoint_transport_aware(client, proxy_pass_url, server_info)
+            is_healthy, status_detail = await self._check_server_endpoint_transport_aware(client, proxy_pass_url, server_info)
             
-            if success:
-                new_status = "healthy"
+            if is_healthy:
+                new_status = status_detail  # Could be "healthy" or "healthy-auth-expired"
                 
-                # If service transitioned to healthy, fetch tool list (but don't block)
-                if previous_status != "healthy":
+                # If service transitioned to healthy (including auth-expired), fetch tool list (but don't block)
+                # Only do this for fully healthy status, not auth-expired
+                if previous_status != "healthy" and status_detail == "healthy":
                     asyncio.create_task(self._update_tools_background(service_path, proxy_pass_url))
             else:
-                new_status = "unhealthy: endpoint check failed"
+                new_status = status_detail  # Detailed error message from transport check
                 
         except httpx.TimeoutException:
             new_status = "unhealthy: timeout"
@@ -416,10 +417,55 @@ class HealthMonitoringService:
         return headers
 
 
-    async def _check_server_endpoint_transport_aware(self, client: httpx.AsyncClient, proxy_pass_url: str, server_info: Dict) -> bool:
-        """Check server endpoint using transport-aware logic."""
-        if not proxy_pass_url:
+    async def _try_ping_without_auth(self, client: httpx.AsyncClient, endpoint: str) -> bool:
+        """
+        Try a simple ping without authentication headers.
+        Used as fallback when auth fails to determine if server is reachable.
+        
+        Args:
+            client: httpx AsyncClient instance
+            endpoint: The MCP endpoint URL to ping
+            
+        Returns:
+            bool: True if server responds (indicating it's reachable but auth expired)
+        """
+        try:
+            # Minimal headers without auth
+            headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+            ping_payload = '{ "jsonrpc": "2.0", "id": "0", "method": "ping" }'
+            
+            response = await client.post(
+                endpoint, 
+                headers=headers, 
+                content=ping_payload,
+                timeout=httpx.Timeout(5.0),
+                follow_redirects=True
+            )
+            
+            # Check if we get any valid response (even auth errors indicate server is up)
+            if response.status_code in [200, 400, 401, 403]:
+                logger.info(f"Ping without auth succeeded for {endpoint} - server is reachable but auth may have expired")
+                return True
+            else:
+                logger.warning(f"Ping without auth failed for {endpoint}: Status {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.warning(f"Ping without auth failed for {endpoint}: {type(e).__name__} - {e}")
             return False
+
+
+    async def _check_server_endpoint_transport_aware(self, client: httpx.AsyncClient, proxy_pass_url: str, server_info: Dict) -> tuple[bool, str]:
+        """Check server endpoint using transport-aware logic.
+        
+        Returns:
+            tuple[bool, str]: (is_healthy, status_detail)
+        """
+        if not proxy_pass_url:
+            return False, "unhealthy: missing proxy URL"
             
         # Get transport information from server_info
         supported_transports = server_info.get("supported_transports", ["streamable-http"])
@@ -444,19 +490,22 @@ class HealthMonitoringService:
                         # If we can extract status code from response, check if it was 200
                         if hasattr(e, 'response') and e.response and e.response.status_code == 200:
                             logger.debug(f"SSE endpoint {proxy_pass_url} returned 200 OK before timeout - considering healthy")
-                            return True
+                            return True, "healthy"
                         # For SSE, timeout after initial connection usually means server is responding
-                        return True
+                        return True, "healthy"
                     except Exception as e:
                         logger.warning(f"SSE endpoint {proxy_pass_url} failed with exception: {type(e).__name__} - {e}")
-                        return False
+                        return False, f"unhealthy: {type(e).__name__}"
                 else:
                     logger.info(f"[TRACE] Detected MCP endpoint in URL, using standard HTTP handling")
                     response = await client.get(proxy_pass_url, headers=headers, follow_redirects=True)
-                    return self._is_mcp_endpoint_healthy(response)
+                    if self._is_mcp_endpoint_healthy(response):
+                        return True, "healthy"
+                    else:
+                        return False, f"unhealthy: status {response.status_code}"
             except Exception as e:
                 logger.warning(f"Health check failed for {proxy_pass_url}: {type(e).__name__} - {e}")
-                return False
+                return False, f"unhealthy: {type(e).__name__}"
         
         # Try endpoints based on supported transports, prioritizing streamable-http
         logger.info(f"[TRACE] No transport endpoint in URL: {proxy_pass_url}")
@@ -477,13 +526,26 @@ class HealthMonitoringService:
                 logger.info(f"[TRACE] Headers being sent: {headers}")
                 response = await client.post(endpoint, headers=headers, content=ping_payload, follow_redirects=True)
                 logger.info(f"[TRACE] Response status: {response.status_code}")
+                
+                # Check for auth failures first
+                if response.status_code in [401, 403]:
+                    logger.info(f"[TRACE] Auth failure detected ({response.status_code}) for {endpoint}, trying ping without auth")
+                    if await self._try_ping_without_auth(client, endpoint):
+                        return True, "healthy-auth-expired"
+                    else:
+                        return False, f"unhealthy: auth failed and ping without auth failed"
+                
+                # Check normal health status
                 if self._is_mcp_endpoint_healthy_streamable(response):
                     logger.info(f"Health check succeeded at {endpoint}")
-                    return True
+                    return True, "healthy"
                 else:
                     logger.warning(f"Health check failed for {endpoint}: Status {response.status_code}, Response: {response.text}")
+                    return False, f"unhealthy: status {response.status_code}"
+                    
             except Exception as e:
                 logger.warning(f"Health check failed for {endpoint}: {type(e).__name__} - {e}")
+                return False, f"unhealthy: {type(e).__name__}"
         
         # Fallback to SSE
         if "sse" in supported_transports:
@@ -496,16 +558,16 @@ class HealthMonitoringService:
                 timeout = httpx.Timeout(connect=5.0, read=2.0, write=5.0, pool=5.0)
                 response = await client.get(sse_endpoint, headers=headers, follow_redirects=True, timeout=timeout)
                 if self._is_mcp_endpoint_healthy(response):
-                    return True
+                    return True, "healthy"
             except (httpx.TimeoutException, asyncio.TimeoutError) as e:
                 # For SSE endpoints, timeout while reading streaming response is normal after getting 200 OK
                 logger.info(f"SSE endpoint {sse_endpoint} timed out while streaming (expected): {e}")
                 # If we can extract status code from response, check if it was 200
                 if hasattr(e, 'response') and e.response and e.response.status_code == 200:
                     logger.info(f"SSE endpoint {sse_endpoint} returned 200 OK before timeout - considering healthy")
-                    return True
+                    return True, "healthy"
                 # For SSE, timeout after initial connection usually means server is responding
-                return True
+                return True, "healthy"
             except Exception as e:
                 logger.error(f"SSE endpoint {sse_endpoint} failed with exception: {type(e).__name__} - {e}")
                 pass
@@ -526,9 +588,10 @@ class HealthMonitoringService:
                 logger.info(f"[TRACE] Response status: {response.status_code}")
                 if self._is_mcp_endpoint_healthy_streamable(response):
                     logger.info(f"Health check succeeded at {endpoint}")
-                    return True
+                    return True, "healthy"
                 else:
                     logger.warning(f"Health check failed for {endpoint}: Status {response.status_code}, Response: {response.text}")
+                    return False, f"unhealthy: status {response.status_code}"
             except Exception as e:
                 logger.warning(f"Health check failed for {endpoint}: {type(e).__name__} - {e}")
                 
@@ -540,21 +603,21 @@ class HealthMonitoringService:
                 timeout = httpx.Timeout(connect=5.0, read=2.0, write=5.0, pool=5.0)
                 response = await client.get(sse_endpoint, headers=headers, follow_redirects=True, timeout=timeout)
                 if self._is_mcp_endpoint_healthy(response):
-                    return True
+                    return True, "healthy"
             except (httpx.TimeoutException, asyncio.TimeoutError) as e:
                 # For SSE endpoints, timeout while reading streaming response is normal after getting 200 OK
                 logger.info(f"SSE endpoint {sse_endpoint} timed out while streaming (expected): {e}")
                 # If we can extract status code from response, check if it was 200
                 if hasattr(e, 'response') and e.response and e.response.status_code == 200:
                     logger.info(f"SSE endpoint {sse_endpoint} returned 200 OK before timeout - considering healthy")
-                    return True
+                    return True, "healthy"
                 # For SSE, timeout after initial connection usually means server is responding
-                return True
+                return True, "healthy"
             except Exception as e:
                 logger.error(f"SSE endpoint {sse_endpoint} failed with exception: {type(e).__name__} - {e}")
                 pass
         
-        return False
+        return False, "unhealthy: all transport checks failed"
 
 
     def _is_mcp_endpoint_healthy_streamable(self, response) -> bool:
@@ -714,18 +777,21 @@ class HealthMonitoringService:
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(settings.health_check_timeout_seconds)) as client:
                 # Use transport-aware endpoint checking
-                success = await self._check_server_endpoint_transport_aware(client, proxy_pass_url, server_info)
+                is_healthy, status_detail = await self._check_server_endpoint_transport_aware(client, proxy_pass_url, server_info)
                 
-                if success:
-                    current_status = "healthy"
-                    logger.info(f"Health check successful for {service_path} ({proxy_pass_url}).")
+                if is_healthy:
+                    current_status = status_detail  # Could be "healthy" or "healthy-auth-expired"
+                    logger.info(f"Health check successful for {service_path} ({proxy_pass_url}): {status_detail}")
                     
-                    # Schedule tool list fetch in background (don't block the response)
-                    asyncio.create_task(self._update_tools_background(service_path, proxy_pass_url))
+                    # Schedule tool list fetch in background only for fully healthy status
+                    if status_detail == "healthy":
+                        asyncio.create_task(self._update_tools_background(service_path, proxy_pass_url))
+                    elif status_detail == "healthy-auth-expired":
+                        logger.warning(f"Auth token expired for {service_path} but server is reachable")
                         
                 else:
-                    current_status = "unhealthy: endpoint check failed"
-                    logger.info(f"Health check failed for {service_path} ({proxy_pass_url}).")
+                    current_status = status_detail  # Detailed error from transport check
+                    logger.info(f"Health check failed for {service_path} ({proxy_pass_url}): {status_detail}")
                     
         except httpx.TimeoutException:
             current_status = "unhealthy: timeout"
