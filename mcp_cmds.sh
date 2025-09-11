@@ -80,15 +80,23 @@ load_auth_credentials() {
         
         # Extract credentials from JSON file
         AUTH_TOKEN="Bearer $(jq -r '.access_token' "$token_file")"
-        USER_POOL_ID=$(jq -r '.user_pool_id' "$token_file")
-        CLIENT_ID=$(jq -r '.client_id' "$token_file")
-        REGION=$(jq -r '.region' "$token_file")
+        USER_POOL_ID=$(jq -r '.user_pool_id // "dummy-pool-id"' "$token_file")
+        CLIENT_ID=$(jq -r '.client_id // "dummy-client-id"' "$token_file")
+        REGION=$(jq -r '.region // "us-east-1"' "$token_file")
+        PROVIDER=$(jq -r '.provider // "unknown"' "$token_file")
         
-        # Validate that all required fields were extracted
-        if [ "$AUTH_TOKEN" = "Bearer null" ] || [ "$USER_POOL_ID" = "null" ] || [ "$CLIENT_ID" = "null" ] || [ "$REGION" = "null" ]; then
-            echo "ERROR: Failed to read required credentials from $token_file"
-            echo "Required fields: access_token, user_pool_id, client_id, region"
+        # Validate that access token was extracted
+        if [ "$AUTH_TOKEN" = "Bearer null" ] || [ "$AUTH_TOKEN" = "Bearer " ]; then
+            echo "ERROR: Failed to read access_token from $token_file"
+            echo "Required field: access_token"
+            echo "Optional fields (for Cognito): user_pool_id, client_id, region"
             exit 1
+        fi
+        
+        # Check if this is a Keycloak token
+        if [ "$PROVIDER" = "keycloak_m2m" ] || [ "$PROVIDER" = "keycloak" ]; then
+            echo "Detected Keycloak token - using simplified authentication"
+            USE_KEYCLOAK_AUTH=1
         fi
         
         echo "Successfully loaded authentication credentials from $token_file"
@@ -164,9 +172,13 @@ make_request() {
     # Add authentication headers only if available (user token or non-localhost)
     if [ -n "$AUTH_TOKEN" ]; then
         curl_cmd="$curl_cmd --header 'X-Authorization: $AUTH_TOKEN'"
-        curl_cmd="$curl_cmd --header 'X-User-Pool-Id: $USER_POOL_ID'"
-        curl_cmd="$curl_cmd --header 'X-Client-Id: $CLIENT_ID'"
-        curl_cmd="$curl_cmd --header 'X-Region: $REGION'"
+        
+        # Only add Cognito headers if not using Keycloak
+        if [ "$USE_KEYCLOAK_AUTH" != "1" ]; then
+            curl_cmd="$curl_cmd --header 'X-User-Pool-Id: $USER_POOL_ID'"
+            curl_cmd="$curl_cmd --header 'X-Client-Id: $CLIENT_ID'"
+            curl_cmd="$curl_cmd --header 'X-Region: $REGION'"
+        fi
     fi
     
     curl_cmd="$curl_cmd --data '$data' '$GATEWAY_URL'"
@@ -219,9 +231,13 @@ establish_session() {
     # Add authentication headers only if available (user token or non-localhost)
     if [ -n "$AUTH_TOKEN" ]; then
         curl_cmd="$curl_cmd -H 'X-Authorization: $AUTH_TOKEN'"
-        curl_cmd="$curl_cmd -H 'X-User-Pool-Id: $USER_POOL_ID'"
-        curl_cmd="$curl_cmd -H 'X-Client-Id: $CLIENT_ID'"
-        curl_cmd="$curl_cmd -H 'X-Region: $REGION'"
+        
+        # Only add Cognito headers if not using Keycloak
+        if [ "$USE_KEYCLOAK_AUTH" != "1" ]; then
+            curl_cmd="$curl_cmd -H 'X-User-Pool-Id: $USER_POOL_ID'"
+            curl_cmd="$curl_cmd -H 'X-Client-Id: $CLIENT_ID'"
+            curl_cmd="$curl_cmd -H 'X-Region: $REGION'"
+        fi
     fi
     
     curl_cmd="$curl_cmd -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test-client\",\"version\":\"1.0.0\"}}}'"
@@ -245,9 +261,13 @@ establish_session() {
         # Add authentication headers only if available (user token or non-localhost)
         if [ -n "$AUTH_TOKEN" ]; then
             init_cmd="$init_cmd -H 'X-Authorization: $AUTH_TOKEN'"
-            init_cmd="$init_cmd -H 'X-User-Pool-Id: $USER_POOL_ID'"
-            init_cmd="$init_cmd -H 'X-Client-Id: $CLIENT_ID'"
-            init_cmd="$init_cmd -H 'X-Region: $REGION'"
+            
+            # Only add Cognito headers if not using Keycloak
+            if [ "$USE_KEYCLOAK_AUTH" != "1" ]; then
+                init_cmd="$init_cmd -H 'X-User-Pool-Id: $USER_POOL_ID'"
+                init_cmd="$init_cmd -H 'X-Client-Id: $CLIENT_ID'"
+                init_cmd="$init_cmd -H 'X-Region: $REGION'"
+            fi
         fi
         
         init_cmd="$init_cmd -d '{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}'"

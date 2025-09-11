@@ -198,8 +198,8 @@ def _determine_refresh_method(token_data: Dict, filename: str) -> Optional[str]:
     if 'bedrock' in provider or 'agentcore' in provider:
         return 'agentcore'
     
-    # Check for OAuth providers (Atlassian, Google, GitHub, etc.)
-    oauth_providers = ['atlassian', 'google', 'github', 'microsoft', 'oauth']
+    # Check for OAuth providers (including Keycloak and Cognito M2M)
+    oauth_providers = ['atlassian', 'google', 'github', 'microsoft', 'oauth', 'keycloak', 'cognito']
     if any(p in provider for p in oauth_providers):
         return 'oauth'
     
@@ -287,7 +287,7 @@ def _refresh_oauth_token(token_data: Dict, filename: str) -> bool:
     # Determine which OAuth script to use
     if 'ingress' in filename.lower():
         script_name = "ingress_oauth.py"
-        # Ingress uses Cognito M2M and doesn't accept --provider argument
+        # Ingress supports both Cognito and Keycloak M2M, doesn't use --provider argument
         use_provider_arg = False
     else:
         script_name = "egress_oauth.py"  # Default to egress
@@ -307,16 +307,19 @@ def _refresh_oauth_token(token_data: Dict, filename: str) -> bool:
         cmd = ["uv", "run", "python", str(script_path)]
         
         # Only add --provider for egress OAuth (not ingress)
+        # Ingress OAuth auto-detects Cognito vs Keycloak based on AUTH_PROVIDER env var
         if use_provider_arg:
             cmd.extend(["--provider", provider])
         
         logger.debug(f"Running OAuth refresh command: {' '.join(cmd)}")
         logger.debug(f"Working directory: {PROJECT_ROOT.absolute()}")
         
-        # Check if we have a refresh token
-        if 'refresh_token' in token_data:
-            # The script should handle refresh token flow
-            pass
+        # For Keycloak and Cognito M2M tokens, we don't typically have refresh tokens
+        # The client_credentials flow will generate a new token
+        if provider in ['keycloak_m2m', 'cognito_m2m']:
+            logger.info(f"M2M token detected ({provider}), using client_credentials flow")
+        elif 'refresh_token' in token_data:
+            logger.info("Refresh token available, script will handle refresh flow")
         
         result = subprocess.run(
             cmd,
@@ -473,12 +476,31 @@ def _get_ingress_headers(ingress_file: Path) -> Dict[str, str]:
         try:
             with open(ingress_file, 'r') as f:
                 ingress_data = json.load(f)
-                headers = {
-                    "X-Authorization": f"Bearer {ingress_data.get('access_token', '')}",
-                    "X-User-Pool-Id": ingress_data.get('user_pool_id', ''),
-                    "X-Client-Id": ingress_data.get('client_id', ''),
-                    "X-Region": ingress_data.get('region', 'us-east-1')
-                }
+                
+                # Always include the access token
+                headers["X-Authorization"] = f"Bearer {ingress_data.get('access_token', '')}"
+                
+                # Add provider-specific headers
+                provider = ingress_data.get('provider', 'cognito_m2m')
+                logger.debug(f"Detected ingress provider: {provider}")
+                
+                if provider == 'keycloak_m2m':
+                    # Keycloak-specific headers
+                    headers.update({
+                        "X-Client-Id": ingress_data.get('client_id', ''),
+                        "X-Keycloak-Realm": ingress_data.get('realm', ''),
+                        "X-Keycloak-URL": ingress_data.get('keycloak_url', '')
+                    })
+                    logger.debug(f"Using Keycloak headers: realm={ingress_data.get('realm', '')}")
+                else:  # cognito_m2m (default)
+                    # Cognito-specific headers
+                    headers.update({
+                        "X-User-Pool-Id": ingress_data.get('user_pool_id', ''),
+                        "X-Client-Id": ingress_data.get('client_id', ''),
+                        "X-Region": ingress_data.get('region', 'us-east-1')
+                    })
+                    logger.debug(f"Using Cognito headers: pool_id={ingress_data.get('user_pool_id', '')}")
+                    
         except (json.JSONDecodeError, IOError) as e:
             logger.warning(f"Failed to read ingress file: {e}")
     

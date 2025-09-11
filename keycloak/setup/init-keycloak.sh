@@ -4,7 +4,9 @@
 
 set -e
 
-KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080}"
+# Use admin URL for API calls, fallback to localhost
+KEYCLOAK_ADMIN_URL_OVERRIDE="${KEYCLOAK_ADMIN_URL:-http://localhost:8080}"
+KEYCLOAK_URL="$KEYCLOAK_ADMIN_URL_OVERRIDE"
 REALM="mcp-gateway"
 KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN:-admin}"
 KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}"
@@ -67,6 +69,12 @@ create_realm() {
     local token=$1
     
     echo "Creating MCP Gateway realm..."
+    
+    # Check if realm already exists
+    if realm_exists "$token"; then
+        echo -e "${YELLOW}Realm already exists. Skipping creation...${NC}"
+        return 0
+    fi
     
     # Create basic realm
     local realm_json='{
@@ -186,6 +194,153 @@ create_groups() {
     echo -e "${GREEN}Groups created successfully!${NC}"
 }
 
+# Function to create custom scopes
+create_scopes() {
+    local token=$1
+    
+    echo "Creating custom MCP scopes..."
+    
+    local scopes=("mcp-servers-unrestricted/read" "mcp-servers-unrestricted/execute" "mcp-servers-restricted/read" "mcp-servers-restricted/execute")
+    
+    for scope in "${scopes[@]}"; do
+        local scope_json='{
+            "name": "'$scope'",
+            "description": "MCP Gateway scope for '$scope' access",
+            "protocol": "openid-connect"
+        }'
+        
+        local response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/client-scopes" \
+            -H "Authorization: Bearer ${token}" \
+            -H "Content-Type: application/json" \
+            -d "$scope_json")
+        
+        if [ "$response" = "201" ]; then
+            echo "  - Created scope: $scope"
+        elif [ "$response" = "409" ]; then
+            echo "  - Scope already exists: $scope"
+        else
+            echo -e "${RED}  - Failed to create scope: $scope (HTTP $response)${NC}"
+        fi
+    done
+    
+    echo -e "${GREEN}Custom scopes created successfully!${NC}"
+}
+
+# Function to assign scopes to M2M client
+setup_m2m_scopes() {
+    local token=$1
+    
+    echo "Setting up M2M client scopes..."
+    
+    # Get M2M client ID
+    local m2m_client_id=$(curl -s -H "Authorization: Bearer ${token}" \
+        "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=mcp-gateway-m2m" | \
+        jq -r '.[0].id')
+    
+    if [ -z "$m2m_client_id" ] || [ "$m2m_client_id" = "null" ]; then
+        echo -e "${RED}Error: Could not find mcp-gateway-m2m client${NC}"
+        return 1
+    fi
+    
+    # Get all available client scopes
+    local scopes=("mcp-servers-unrestricted/read" "mcp-servers-unrestricted/execute" "mcp-servers-restricted/read" "mcp-servers-restricted/execute")
+    
+    for scope in "${scopes[@]}"; do
+        # Get scope ID
+        local scope_id=$(curl -s -H "Authorization: Bearer ${token}" \
+            "${KEYCLOAK_URL}/admin/realms/${REALM}/client-scopes" | \
+            jq -r '.[] | select(.name=="'$scope'") | .id')
+        
+        if [ ! -z "$scope_id" ] && [ "$scope_id" != "null" ]; then
+            # Add scope as default client scope
+            local response=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${m2m_client_id}/default-client-scopes/${scope_id}" \
+                -H "Authorization: Bearer ${token}")
+            
+            if [ "$response" = "204" ]; then
+                echo "  - Assigned scope: $scope"
+            else
+                echo -e "${YELLOW}  - Warning: Could not assign scope $scope (HTTP $response)${NC}"
+            fi
+        else
+            echo -e "${RED}  - Error: Could not find scope: $scope${NC}"
+        fi
+    done
+    
+    echo -e "${GREEN}M2M client scopes configured successfully!${NC}"
+}
+
+# Function to create service account user for M2M client
+create_service_account_user() {
+    local token=$1
+    local service_account_username="service-account-mcp-gateway-m2m"
+    
+    echo "Creating service account user: $service_account_username"
+    
+    # Check if user already exists
+    local existing_user=$(curl -s -H "Authorization: Bearer ${token}" \
+        "${KEYCLOAK_URL}/admin/realms/${REALM}/users?username=$service_account_username" | \
+        jq -r '.[0].id // empty')
+    
+    if [ ! -z "$existing_user" ]; then
+        echo -e "${YELLOW}Service account user already exists with ID: $existing_user${NC}"
+        return 0
+    fi
+    
+    # Create service account user
+    local user_json='{
+        "username": "'$service_account_username'",
+        "enabled": true,
+        "emailVerified": true,
+        "serviceAccountClientId": "mcp-gateway-m2m"
+    }'
+    
+    local response=$(curl -s -o /dev/null -w "%{http_code}" \
+        -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users" \
+        -H "Authorization: Bearer ${token}" \
+        -H "Content-Type: application/json" \
+        -d "$user_json")
+    
+    if [ "$response" = "201" ]; then
+        echo -e "${GREEN}Service account user created successfully!${NC}"
+        
+        # Get the newly created user ID
+        local user_id=$(curl -s -H "Authorization: Bearer ${token}" \
+            "${KEYCLOAK_URL}/admin/realms/${REALM}/users?username=$service_account_username" | \
+            jq -r '.[0].id')
+        
+        echo "Created service account user with ID: $user_id"
+        
+        # Assign user to mcp-servers-unrestricted group
+        local group_id=$(curl -s -H "Authorization: Bearer ${token}" \
+            "${KEYCLOAK_URL}/admin/realms/${REALM}/groups" | \
+            jq -r '.[] | select(.name=="mcp-servers-unrestricted") | .id')
+        
+        if [ ! -z "$group_id" ] && [ "$group_id" != "null" ]; then
+            local group_response=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/$user_id/groups/$group_id" \
+                -H "Authorization: Bearer ${token}")
+            
+            if [ "$group_response" = "204" ]; then
+                echo -e "${GREEN}Service account assigned to mcp-servers-unrestricted group!${NC}"
+            else
+                echo -e "${YELLOW}Warning: Could not assign service account to group (HTTP $group_response)${NC}"
+            fi
+        else
+            echo -e "${RED}Error: Could not find mcp-servers-unrestricted group${NC}"
+        fi
+        
+        return 0
+    elif [ "$response" = "409" ]; then
+        echo -e "${YELLOW}Service account user already exists. Continuing...${NC}"
+        return 0
+    else
+        echo -e "${RED}Failed to create service account user. HTTP status: ${response}${NC}"
+        return 1
+    fi
+}
+
 # Function to create test users
 create_users() {
     local token=$1
@@ -280,11 +435,18 @@ create_users() {
     local admin_username="admin"
     local test_username="testuser"
     
-    # Assign admin user to admin group only
+    # Assign admin user to admin group and unrestricted servers group
     if [ ! -z "$admin_user_id" ] && [ ! -z "$admin_group_id" ]; then
         curl -s -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/$admin_user_id/groups/$admin_group_id" \
             -H "Authorization: Bearer ${token}" > /dev/null
         echo "  - $admin_username assigned to mcp-registry-admin group"
+    fi
+    
+    # Also assign admin to unrestricted servers group for full access
+    if [ ! -z "$admin_user_id" ] && [ ! -z "$unrestricted_group_id" ]; then
+        curl -s -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/$admin_user_id/groups/$unrestricted_group_id" \
+            -H "Authorization: Bearer ${token}" > /dev/null
+        echo "  - $admin_username assigned to mcp-servers-unrestricted group"
     fi
     
     # Assign test user to all groups except admin
@@ -355,6 +517,54 @@ setup_client_secrets() {
     echo "Add these to your .env file for the MCP Gateway Registry"
 }
 
+# Function to setup groups mapper for the web client
+setup_groups_mapper() {
+    local token=$1
+    
+    echo "Setting up groups mapper for OAuth2 client..."
+    
+    # Get web client ID
+    local web_client_id=$(curl -s -H "Authorization: Bearer ${token}" \
+        "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=mcp-gateway-web" | \
+        jq -r '.[0].id')
+    
+    if [ -z "$web_client_id" ] || [ "$web_client_id" = "null" ]; then
+        echo -e "${RED}Error: Could not find mcp-gateway-web client${NC}"
+        return 1
+    fi
+    
+    # Create groups mapper JSON
+    local groups_mapper_json='{
+        "name": "groups",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-group-membership-mapper",
+        "consentRequired": false,
+        "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "userinfo.token.claim": "true"
+        }
+    }'
+    
+    # Add the groups mapper to the client
+    local response=$(curl -s -o /dev/null -w "%{http_code}" \
+        -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${web_client_id}/protocol-mappers/models" \
+        -H "Authorization: Bearer ${token}" \
+        -H "Content-Type: application/json" \
+        -d "$groups_mapper_json")
+    
+    if [ "$response" = "201" ]; then
+        echo -e "${GREEN}Groups mapper created successfully!${NC}"
+    elif [ "$response" = "409" ]; then
+        echo -e "${YELLOW}Groups mapper already exists. Continuing...${NC}"
+    else
+        echo -e "${RED}Failed to create groups mapper. HTTP status: ${response}${NC}"
+        return 1
+    fi
+}
+
 # Main execution
 main() {
     # Get script directory and find .env file
@@ -404,9 +614,13 @@ main() {
     # Create realm and configure it step by step
     if create_realm "$TOKEN"; then
         create_clients "$TOKEN"
+        create_scopes "$TOKEN"
         create_groups "$TOKEN"
         create_users "$TOKEN"
+        create_service_account_user "$TOKEN"
         setup_client_secrets "$TOKEN"
+        setup_groups_mapper "$TOKEN"
+        setup_m2m_scopes "$TOKEN"
     else
         exit 1
     fi
