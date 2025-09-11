@@ -51,13 +51,46 @@ Based on your selection, configure the corresponding provider-specific variables
 | `KEYCLOAK_ADMIN` | Keycloak admin username | `admin` | ✅ |
 | `KEYCLOAK_ADMIN_PASSWORD` | Keycloak admin password | `SecureKeycloakAdmin123!` | ✅ |
 | `KEYCLOAK_DB_PASSWORD` | Keycloak database password | `SecureKeycloakDB123!` | ✅ |
-| `KEYCLOAK_CLIENT_ID` | Keycloak web client ID | `mcp-gateway-web` | ✅ |
-| `KEYCLOAK_CLIENT_SECRET` | Keycloak web client secret | `0tiBtgQFcaBiwHXIxDws...` | ✅ |
-| `KEYCLOAK_M2M_CLIENT_ID` | Keycloak M2M client ID | `mcp-gateway-m2m` | ✅ |
-| `KEYCLOAK_M2M_CLIENT_SECRET` | Keycloak M2M client secret | `ZJqbsamnQs79hbUbkJLB...` | ✅ |
+| `KEYCLOAK_CLIENT_ID` | Keycloak web client ID (see note below) | `mcp-gateway-web` | ✅ |
+| `KEYCLOAK_CLIENT_SECRET` | Keycloak web client secret (auto-generated) | `0tiBtgQFcaBiwHXIxDws...` | ✅ |
+| `KEYCLOAK_M2M_CLIENT_ID` | Keycloak M2M client ID (see note below) | `mcp-gateway-m2m` | ✅ |
+| `KEYCLOAK_M2M_CLIENT_SECRET` | Keycloak M2M client secret (auto-generated) | `ZJqbsamnQs79hbUbkJLB...` | ✅ |
 | `KEYCLOAK_ENABLED` | Enable Keycloak in OAuth2 providers | `true` | ✅ |
 | `INITIAL_ADMIN_PASSWORD` | Initial admin user password | `changeme` | For setup |
 | `INITIAL_USER_PASSWORD` | Initial test user password | `testpass` | For setup |
+
+**Note: Getting Keycloak Client IDs and Secrets**
+
+The client IDs and secrets are automatically generated when you run the Keycloak initialization script:
+
+```bash
+cd keycloak/setup
+./init-keycloak.sh
+```
+
+The script will:
+1. Create the clients with the IDs you specify (`mcp-gateway-web` and `mcp-gateway-m2m`)
+2. Generate secure random secrets for each client
+3. Display the generated secrets at the end of the script output
+4. Save them to a file for your reference
+
+**To retrieve existing client secrets from a running Keycloak instance:**
+
+```bash
+# Method 1: Using Keycloak Admin Console (Web UI)
+# 1. Navigate to https://your-keycloak-url/admin
+# 2. Login with admin credentials
+# 3. Select your realm (mcp-gateway)
+# 4. Go to Clients → Select your client
+# 5. Go to Credentials tab
+# 6. Copy the Secret value
+
+# Method 2: Using Keycloak Admin CLI
+docker exec keycloak /opt/keycloak/bin/kcadm.sh get clients -r mcp-gateway --fields id,clientId,secret
+
+# Method 3: Check the initialization script output
+# The init-keycloak.sh script displays the secrets when it creates them
+```
 
 ### Amazon Cognito Configuration (if AUTH_PROVIDER=cognito)
 
