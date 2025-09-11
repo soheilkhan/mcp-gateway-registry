@@ -77,7 +77,13 @@ The script will:
 **To retrieve existing client secrets from a running Keycloak instance:**
 
 ```bash
-# Method 1: Using Keycloak Admin Console (Web UI)
+# Method 1: Use the helper script (Recommended)
+cd keycloak/setup
+export KEYCLOAK_ADMIN_PASSWORD="your-admin-password"
+./get-client-secrets.sh
+# This will display the secrets and save them to retrieved-keycloak-secrets.txt
+
+# Method 2: Using Keycloak Admin Console (Web UI)
 # 1. Navigate to https://your-keycloak-url/admin
 # 2. Login with admin credentials
 # 3. Select your realm (mcp-gateway)
@@ -85,11 +91,9 @@ The script will:
 # 5. Go to Credentials tab
 # 6. Copy the Secret value
 
-# Method 2: Using Keycloak Admin CLI
-docker exec keycloak /opt/keycloak/bin/kcadm.sh get clients -r mcp-gateway --fields id,clientId,secret
-
-# Method 3: Check the initialization script output
-# The init-keycloak.sh script displays the secrets when it creates them
+# Method 3: Check the original initialization output
+# The init-keycloak.sh script saves secrets to keycloak-client-secrets.txt
+cat keycloak/setup/keycloak-client-secrets.txt
 ```
 
 ### Amazon Cognito Configuration (if AUTH_PROVIDER=cognito)
