@@ -317,7 +317,7 @@ Transform how both autonomous AI agents and development teams access enterprise 
 
 **Supported Identity Providers:**
 - **Keycloak** - Enterprise-grade open-source identity and access management with individual agent audit trails
-- **Amazon Cognito** - AWS managed identity service
+- **Amazon Cognito** - Amazon managed identity service
 - Any OAuth 2.0 compatible provider
 
 **Fine-Grained Permissions:**

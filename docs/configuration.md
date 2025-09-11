@@ -22,17 +22,51 @@ This document provides a comprehensive reference for all configuration files in 
 **File:** `.env` (Project root)
 **Purpose:** Core project settings, registry URLs, and primary authentication credentials.
 
-### Required Variables
+### Authentication Provider Selection
+
+The MCP Gateway Registry supports multiple authentication providers. Choose one by setting the `AUTH_PROVIDER` environment variable:
+
+- **`keycloak`**: Enterprise-grade open-source identity and access management with individual agent audit trails
+- **`cognito`**: Amazon managed authentication service
+
+Based on your selection, configure the corresponding provider-specific variables below.
+
+### Core Variables
 
 | Variable | Description | Example | Required |
 |----------|-------------|---------|----------|
 | `REGISTRY_URL` | Public URL of the MCP Gateway Registry | `https://mcpgateway.ddns.net` | ✅ |
 | `ADMIN_USER` | Registry admin username | `admin` | ✅ |
 | `ADMIN_PASSWORD` | Registry admin password | `your-secure-password` | ✅ |
-| `AWS_REGION` | AWS region for Cognito services | `us-east-1` | ✅ |
-| `COGNITO_USER_POOL_ID` | AWS Cognito User Pool ID | `us-east-1_vm1115QSU` | ✅ |
-| `COGNITO_CLIENT_ID` | AWS Cognito App Client ID | `3aju04s66t...` | ✅ |
-| `COGNITO_CLIENT_SECRET` | AWS Cognito App Client Secret | `85ps32t55df39hm61k966fqjurj...` | ✅ |
+| `AUTH_PROVIDER` | Authentication provider (`cognito` or `keycloak`) | `keycloak` | ✅ |
+| `AWS_REGION` | AWS region for services | `us-east-1` | ✅ |
+
+### Keycloak Configuration (if AUTH_PROVIDER=keycloak)
+
+| Variable | Description | Example | Required |
+|----------|-------------|---------|----------|
+| `KEYCLOAK_URL` | Keycloak server URL (external/browser access) | `https://mcpgateway.ddns.net` | ✅ |
+| `KEYCLOAK_ADMIN_URL` | Keycloak admin URL (for setup scripts) | `http://localhost:8080` | ✅ |
+| `KEYCLOAK_REALM` | Keycloak realm name | `mcp-gateway` | ✅ |
+| `KEYCLOAK_ADMIN` | Keycloak admin username | `admin` | ✅ |
+| `KEYCLOAK_ADMIN_PASSWORD` | Keycloak admin password | `SecureKeycloakAdmin123!` | ✅ |
+| `KEYCLOAK_DB_PASSWORD` | Keycloak database password | `SecureKeycloakDB123!` | ✅ |
+| `KEYCLOAK_CLIENT_ID` | Keycloak web client ID | `mcp-gateway-web` | ✅ |
+| `KEYCLOAK_CLIENT_SECRET` | Keycloak web client secret | `0tiBtgQFcaBiwHXIxDws...` | ✅ |
+| `KEYCLOAK_M2M_CLIENT_ID` | Keycloak M2M client ID | `mcp-gateway-m2m` | ✅ |
+| `KEYCLOAK_M2M_CLIENT_SECRET` | Keycloak M2M client secret | `ZJqbsamnQs79hbUbkJLB...` | ✅ |
+| `KEYCLOAK_ENABLED` | Enable Keycloak in OAuth2 providers | `true` | ✅ |
+| `INITIAL_ADMIN_PASSWORD` | Initial admin user password | `changeme` | For setup |
+| `INITIAL_USER_PASSWORD` | Initial test user password | `testpass` | For setup |
+
+### Amazon Cognito Configuration (if AUTH_PROVIDER=cognito)
+
+| Variable | Description | Example | Required |
+|----------|-------------|---------|----------|
+| `COGNITO_USER_POOL_ID` | Amazon Cognito User Pool ID | `us-east-1_vm1115QSU` | ✅ |
+| `COGNITO_CLIENT_ID` | Amazon Cognito App Client ID | `3aju04s66t...` | ✅ |
+| `COGNITO_CLIENT_SECRET` | Amazon Cognito App Client Secret | `85ps32t55df39hm61k966fqjurj...` | ✅ |
+| `COGNITO_DOMAIN` | Cognito domain (optional) | `auto` | Optional |
 
 ### Optional Variables
 
@@ -46,12 +80,71 @@ This document provides a comprehensive reference for all configuration files in 
 
 ---
 
+## Keycloak Setup and Configuration
+
+When using Keycloak as your authentication provider, the system provides comprehensive setup scripts and configuration options:
+
+### Initial Setup
+
+Run the Keycloak initialization script to set up the realm, clients, and groups:
+
+```bash
+cd keycloak/setup
+./init-keycloak.sh
+```
+
+This script will:
+1. Create the `mcp-gateway` realm
+2. Set up web and M2M clients with proper configurations
+3. Create necessary groups (`mcp-servers-unrestricted`, `mcp-servers-restricted`)
+4. Configure group mappers for JWT token claims
+5. Create initial admin and test users
+
+### Service Account Management
+
+For individual AI agent audit trails, create service accounts:
+
+```bash
+# Create individual agent service account
+./setup-agent-service-account.sh --agent-id sre-agent --group mcp-servers-unrestricted
+
+# Create shared M2M service account
+./setup-m2m-service-account.sh
+```
+
+### Token Generation
+
+Generate tokens for Keycloak authentication:
+
+```bash
+# Generate M2M token for ingress
+uv run python credentials-provider/token_refresher.py
+
+# Generate agent-specific token
+uv run python credentials-provider/token_refresher.py --agent-id sre-agent
+```
+
+For detailed Keycloak integration documentation, see [Keycloak Integration Guide](keycloak-integration.md).
+
+---
+
 ## OAuth Environment Configuration
 
 **File:** `credentials-provider/oauth/.env`
 **Purpose:** OAuth provider credentials for ingress and egress authentication flows.
 
-### Ingress Authentication (Required)
+### Ingress Authentication
+
+#### For Keycloak (if AUTH_PROVIDER=keycloak)
+
+| Variable | Description | Example | Required |
+|----------|-------------|---------|----------|
+| `KEYCLOAK_URL` | Keycloak server URL | `https://mcpgateway.ddns.net` | ✅ |
+| `KEYCLOAK_REALM` | Keycloak realm | `mcp-gateway` | ✅ |
+| `KEYCLOAK_M2M_CLIENT_ID` | M2M client ID | `mcp-gateway-m2m` | ✅ |
+| `KEYCLOAK_M2M_CLIENT_SECRET` | M2M client secret | `ZJqbsamnQs79hbUbkJLB...` | ✅ |
+
+#### For Cognito (if AUTH_PROVIDER=cognito)
 
 | Variable | Description | Example | Required |
 |----------|-------------|---------|----------|
@@ -114,11 +207,28 @@ Support for multiple OAuth provider configurations using numbered suffixes (`_1`
 **File:** `auth_server/oauth2_providers.yml`
 **Purpose:** OAuth2 provider definitions for web-based authentication flows.
 
-### Provider Configuration Fields
+### Keycloak Provider Configuration
+
+When using Keycloak as the authentication provider, the following configuration is used:
 
 | Field | Description | Required | Example |
 |-------|-------------|----------|---------|
-| `display_name` | Human-readable provider name | ✅ | `"AWS Cognito"` |
+| `display_name` | Human-readable name | ✅ | `"Keycloak"` |
+| `client_id` | OAuth client ID | ✅ | `"${KEYCLOAK_CLIENT_ID}"` |
+| `client_secret` | OAuth client secret | ✅ | `"${KEYCLOAK_CLIENT_SECRET}"` |
+| `auth_url` | Authorization endpoint | ✅ | `"${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth"` |
+| `token_url` | Token endpoint | ✅ | `"${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token"` |
+| `user_info_url` | User info endpoint | ✅ | `"${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/userinfo"` |
+| `logout_url` | Logout endpoint | ✅ | `"${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout"` |
+| `scopes` | OAuth scopes | ✅ | `["openid", "email", "profile"]` |
+| `groups_claim` | JWT claim for groups | ✅ | `"groups"` |
+| `enabled` | Provider enabled | ✅ | `true` |
+
+### General Provider Configuration Fields
+
+| Field | Description | Required | Example |
+|-------|-------------|----------|---------|
+| `display_name` | Human-readable provider name | ✅ | `"Amazon Cognito"` |
 | `client_id` | OAuth client ID (can use env vars) | ✅ | `"${COGNITO_CLIENT_ID}"` |
 | `client_secret` | OAuth client secret (can use env vars) | ✅ | `"${COGNITO_CLIENT_SECRET}"` |
 | `auth_url` | Authorization endpoint URL | ✅ | `"https://domain.auth.region.amazoncognito.com/oauth2/authorize"` |
@@ -136,9 +246,10 @@ Support for multiple OAuth provider configurations using numbered suffixes (`_1`
 
 ### Supported Providers
 
-- **AWS Cognito**: Primary authentication provider
-- **GitHub**: Repository and development services
-- **Google**: Google Workspace and consumer services
+- **Keycloak**: Enterprise-grade open-source identity and access management
+- **Amazon Cognito**: Amazon managed authentication service
+- **GitHub**: Repository and development services (planned)
+- **Google**: Google Workspace and consumer services (planned)
 
 ---
 
