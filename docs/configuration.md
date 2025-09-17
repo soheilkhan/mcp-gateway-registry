@@ -9,7 +9,6 @@ This document provides a comprehensive reference for all configuration files in 
 | [`.env`](#main-environment-configuration) | Main project environment variables | Environment | Project root | `.env.example` | **Yes** - Required |
 | [`.env` (OAuth)](#oauth-environment-configuration) | OAuth provider credentials | Environment | `credentials-provider/oauth/` | `.env.example` | **Yes** - Required |
 | [`.env` (AgentCore)](#agentcore-environment-configuration) | AgentCore authentication config | Environment | `credentials-provider/agentcore-auth/` | `.env.example` | **Optional** - Only if using AgentCore |
-| [`config.yaml` (AgentCore)](#agentcore-yaml-configuration) | AgentCore gateway settings | YAML | `credentials-provider/agentcore-auth/` | `config.yaml.example` | **Optional** - Only if using AgentCore |
 | [`oauth2_providers.yml`](#oauth2-providers-configuration) | OAuth2 provider definitions | YAML | `auth_server/` | - | **No** - Pre-configured |
 | [`scopes.yml`](#scopes-configuration) | Fine-grained access control scopes | YAML | `auth_server/` | - | **Rarely** - Only for custom permissions |
 | [`oauth_providers.yaml`](#oauth-providers-mapping) | Provider-specific OAuth configurations | YAML | `credentials-provider/oauth/` | - | **No** - Pre-configured |
@@ -45,7 +44,8 @@ Based on your selection, configure the corresponding provider-specific variables
 
 | Variable | Description | Example | Required |
 |----------|-------------|---------|----------|
-| `KEYCLOAK_URL` | Keycloak server URL (external/browser access) | `https://mcpgateway.ddns.net` | ✅ |
+| `KEYCLOAK_URL` | Keycloak server URL (internal/Docker network) | `http://keycloak:8080` | ✅ |
+| `KEYCLOAK_EXTERNAL_URL` | Keycloak server URL (external/browser access) | `https://mcpgateway.ddns.net` | ✅ |
 | `KEYCLOAK_ADMIN_URL` | Keycloak admin URL (for setup scripts) | `http://localhost:8080` | ✅ |
 | `KEYCLOAK_REALM` | Keycloak realm name | `mcp-gateway` | ✅ |
 | `KEYCLOAK_ADMIN` | Keycloak admin username | `admin` | ✅ |
@@ -80,8 +80,8 @@ The script will:
 # Method 1: Use the helper script (Recommended)
 cd keycloak/setup
 export KEYCLOAK_ADMIN_PASSWORD="your-admin-password"
-./get-client-secrets.sh
-# This will display the secrets and save them to retrieved-keycloak-secrets.txt
+./get-all-client-credentials.sh
+# This will display the secrets and save them to .oauth-tokens/keycloak-client-secrets.txt
 
 # Method 2: Using Keycloak Admin Console (Web UI)
 # 1. Navigate to https://your-keycloak-url/admin
@@ -114,6 +114,7 @@ cat keycloak/setup/keycloak-client-secrets.txt
 | `SECRET_KEY` | Application secret key | Auto-generated if not provided | Auto-generated |
 | `ATLASSIAN_AUTH_TOKEN` | Atlassian OAuth token | Auto-populated from credentials | - |
 | `SRE_GATEWAY_AUTH_TOKEN` | SRE Gateway auth token | Auto-populated from credentials | - |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude models | `sk-ant-api03-...` | For AI functionality |
 
 ---
 
@@ -215,27 +216,40 @@ Support for multiple OAuth provider configurations using numbered suffixes (`_1`
 ## AgentCore Environment Configuration
 
 **File:** `credentials-provider/agentcore-auth/.env`
-**Purpose:** Amazon Bedrock AgentCore authentication configuration.
+**Purpose:** Amazon Bedrock AgentCore authentication configuration with support for multiple gateways.
+
+### Shared Configuration
 
 | Variable | Description | Example | Required |
 |----------|-------------|---------|----------|
-| `COGNITO_DOMAIN` | AgentCore Cognito domain URL | `https://test-genesis.auth.us-west-2.amazoncognito.com` | ✅ |
-| `COGNITO_CLIENT_ID` | AgentCore Cognito client ID | `2aushg8dlg6r4hbb7g3huka1j8` | ✅ |
-| `COGNITO_CLIENT_SECRET` | AgentCore Cognito client secret | `1jd8cnm2npnq6fv397v67s6bm5...` | ✅ |
+| `COGNITO_DOMAIN` | AgentCore Cognito domain URL | `https://your-cognito-domain.auth.region.amazoncognito.com` | ✅ |
+| `COGNITO_USER_POOL_ID` | Cognito User Pool ID | `region_your_pool_id` | ✅ |
 
----
+### Gateway-Specific Configurations
 
-## AgentCore YAML Configuration
+Support for multiple gateways using numbered suffixes (`_1`, `_2`, `_3`, etc., up to `_100`). Each configuration set requires all four parameters:
 
-**File:** `credentials-provider/agentcore-auth/config.yaml`
-**Purpose:** AgentCore gateway settings and Cognito configuration.
+| Variable Pattern | Description | Example | Required |
+|------------------|-------------|---------|----------|
+| `AGENTCORE_CLIENT_ID_N` | AgentCore Cognito client ID for gateway N | `your_client_id_here` | ✅ |
+| `AGENTCORE_CLIENT_SECRET_N` | AgentCore Cognito client secret for gateway N | `your_client_secret_here` | ✅ |
+| `AGENTCORE_GATEWAY_ARN_N` | Amazon Bedrock AgentCore Gateway ARN for gateway N | `arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/my-gateway-1` | ✅ |
+| `AGENTCORE_SERVER_NAME_N` | MCP server name for AgentCore gateway N | `my-gateway-1` | ✅ |
 
-| Field | Description | Example | Required |
-|-------|-------------|---------|----------|
-| `gateway_arn` | Amazon Bedrock AgentCore Gateway ARN | `arn:aws:bedrock-agentcore:us-east-1:015469603702:gateway/sre-gateway-i7ge1zayhw` | ✅ |
-| `server_name` | MCP server name for AgentCore | `sre-gateway` | ✅ |
-| `user_pool_id` | Cognito User Pool ID | `us-west-2_moykgwumT` | ✅ |
-| `client_id` | Cognito client ID | `2aushg8dlg6r4hbb7g3huka1j8` | ✅ |
+**Example Configuration:**
+```bash
+# Configuration Set 1
+AGENTCORE_CLIENT_ID_1=your_client_id_here
+AGENTCORE_CLIENT_SECRET_1=your_client_secret_here
+AGENTCORE_GATEWAY_ARN_1=arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/my-gateway-1
+AGENTCORE_SERVER_NAME_1=my-gateway-1
+
+# Configuration Set 2
+AGENTCORE_CLIENT_ID_2=your_client_id_here
+AGENTCORE_CLIENT_SECRET_2=your_client_secret_here
+AGENTCORE_GATEWAY_ARN_2=arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/my-gateway-2
+AGENTCORE_SERVER_NAME_2=my-gateway-2
+```
 
 ---
 

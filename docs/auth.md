@@ -18,7 +18,7 @@ The MCP Gateway Registry provides enterprise-ready authentication and authorizat
 Get your AI agent authenticated and running in 5 minutes.
 
 ### Prerequisites
-- Amazon Cognito credentials (provided by your administrator)
+- Keycloak service account credentials (provided by your administrator)
 - Access to external services you want to integrate (optional)
 
 ### Step 1: Configure Environment
@@ -26,16 +26,25 @@ Get your AI agent authenticated and running in 5 minutes.
 Create `credentials-provider/oauth/.env` with your credentials:
 
 ```bash
-# Ingress Authentication (Required)
-AWS_REGION=us-east-1
-INGRESS_OAUTH_USER_POOL_ID=us-east-1_XXXXXXXXX
-INGRESS_OAUTH_CLIENT_ID=your_cognito_client_id
-INGRESS_OAUTH_CLIENT_SECRET=your_cognito_client_secret
+# Authentication Provider Selection
+AUTH_PROVIDER=keycloak
+
+# Keycloak Ingress Authentication (Required for MCP Gateway access)
+KEYCLOAK_URL=https://mcpgateway.ddns.net
+KEYCLOAK_REALM=mcp-gateway
+KEYCLOAK_M2M_CLIENT_ID=agent-your-agent-name-m2m
+KEYCLOAK_M2M_CLIENT_SECRET=your_keycloak_m2m_client_secret
+
+# Alternative: Cognito (if AUTH_PROVIDER=cognito)
+# AWS_REGION=us-east-1
+# INGRESS_OAUTH_USER_POOL_ID=us-east-1_XXXXXXXXX
+# INGRESS_OAUTH_CLIENT_ID=your_cognito_client_id
+# INGRESS_OAUTH_CLIENT_SECRET=your_cognito_client_secret
 
 # Egress Authentication (Optional - for external services)
 EGRESS_OAUTH_CLIENT_ID_1=your_external_provider_client_id
 EGRESS_OAUTH_CLIENT_SECRET_1=your_external_provider_client_secret
-EGRESS_OAUTH_REDIRECT_URI_1=http://localhost:8080/callback
+EGRESS_OAUTH_REDIRECT_URI_1=http://localhost:9999/callback
 EGRESS_PROVIDER_NAME_1=atlassian
 EGRESS_MCP_SERVER_NAME_1=atlassian
 ```
@@ -64,11 +73,12 @@ cd credentials-provider
 # ./generate_creds.sh --verbose          # Enable debug logging
 
 # This will:
-# 1. Authenticate with Cognito (M2M/2LO)
-# 2. Optionally authenticate with external services (3LO)  
+# 1. Authenticate with Keycloak (M2M) or Cognito (M2M/2LO)
+# 2. Optionally authenticate with external services (3LO)
 # 3. Generate AgentCore tokens if configured
-# 4. Generate MCP client configurations
-# 5. Add no-auth services to configurations
+# 4. Generate Keycloak agent tokens if configured
+# 5. Generate MCP client configurations
+# 6. Add no-auth services to configurations
 ```
 
 ### Step 3: Use Generated Configuration
@@ -80,19 +90,94 @@ The script generates ready-to-use MCP client configurations:
 {
   "mcp": {
     "servers": {
-      "mcp_gateway": {
+      "mcpgw": {
         "url": "https://mcpgateway.ddns.net/mcpgw/mcp",
         "headers": {
-          "X-Authorization": "Bearer {your_jwt_token}",
-          "X-User-Pool-Id": "{user_pool_id}",
-          "X-Client-Id": "{client_id}",
-          "X-Region": "{region}"
+          "X-Authorization": "Bearer {your_keycloak_jwt_token}",
+          "X-Client-Id": "{agent_client_id}",
+          "X-Keycloak-Realm": "mcp-gateway",
+          "X-Keycloak-URL": "http://localhost:8080"
+        }
+      },
+      "atlassian": {
+        "url": "https://mcpgateway.ddns.net/atlassian/mcp",
+        "headers": {
+          "Authorization": "Bearer {atlassian_oauth_token}",
+          "X-Atlassian-Cloud-Id": "{cloud_id}",
+          "X-Authorization": "Bearer {your_keycloak_jwt_token}",
+          "X-Client-Id": "{agent_client_id}",
+          "X-Keycloak-Realm": "mcp-gateway",
+          "X-Keycloak-URL": "http://localhost:8080"
         }
       }
     }
   }
 }
 ```
+
+**For AI Coding Assistants** (Create your token configuration using these actual patterns):
+
+```json
+{
+  "mcpServers": {
+    "mcpgw": {
+      "type": "streamable-http",
+      "url": "https://mcpgateway.ddns.net/mcpgw/mcp",
+      "headers": {
+        "X-Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "X-Client-Id": "agent-ai-coding-assistant-m2m",
+        "X-Keycloak-Realm": "mcp-gateway",
+        "X-Keycloak-URL": "http://localhost:8080"
+      },
+      "disabled": false,
+      "alwaysAllow": []
+    },
+    "atlassian": {
+      "type": "streamable-http",
+      "url": "https://mcpgateway.ddns.net/atlassian/mcp",
+      "headers": {
+        "Authorization": "Bearer eyJraWQiOiJhdXRoLmF0bGFzc2lhbi5jb20tQUNDRVNTLTk0ZTczYTkwLTUxYWQtNGFjMS1hOWFjLWU4NGUwNDVjNDU3ZCIsImFsZyI6IlJTMjU2In0...",
+        "X-Atlassian-Cloud-Id": "923a213e-e930-4359-be44-f4b164d3f269",
+        "X-Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "X-Client-Id": "agent-ai-coding-assistant-m2m",
+        "X-Keycloak-Realm": "mcp-gateway",
+        "X-Keycloak-URL": "http://localhost:8080"
+      },
+      "disabled": false,
+      "alwaysAllow": []
+    }
+  }
+}
+```
+
+**To Generate Your Own Tokens:**
+
+1. **Create Keycloak Service Account** for your AI agent:
+   ```bash
+   # Run from the project root
+   ./keycloak/setup/setup-agent-service-account.sh --agent-id ai-coding-assistant --group mcp-servers-unrestricted
+   ```
+
+2. **Generate Agent Token**:
+   ```bash
+   # Generate M2M token for your agent
+   uv run python credentials-provider/keycloak/generate_tokens.py --agent-id ai-coding-assistant
+
+   # Check generated token file
+   cat .oauth-tokens/agent-ai-coding-assistant-m2m-token.json
+   ```
+
+3. **Create MCP Configuration**:
+   ```bash
+   # Run complete credential generation
+   ./credentials-provider/generate_creds.sh --keycloak-only
+
+   # Your configuration will be in:
+   # - .oauth-tokens/mcp.json (for Claude Code/Roocode)
+   # - .oauth-tokens/vscode_mcp.json (for VS Code)
+   ```
+
+**Important**: Use your actual generated tokens - the examples above are truncated for security.
 
 ### Step 4: Test Your Connection
 
@@ -211,8 +296,8 @@ For a complete working example, see [`agents/agent.py`](../agents/agent.py) whic
 
 The MCP Gateway Registry uses a comprehensive three-layer authentication system:
 
-1. **Ingress Authentication (2LO)**: Gateway access using Amazon Cognito
-2. **Egress Authentication (3LO)**: External service integration via OAuth providers  
+1. **Ingress Authentication (2LO)**: Gateway access using Keycloak or Amazon Cognito
+2. **Egress Authentication (3LO)**: External service integration via OAuth providers
 3. **Fine-Grained Access Control (FGAC)**: Permission management at method and tool level
 
 ### Key Concepts
@@ -220,9 +305,9 @@ The MCP Gateway Registry uses a comprehensive three-layer authentication system:
 - **Dual Token System**: AI agents carry BOTH ingress and egress tokens
 - **Token Storage**: After authentication, tokens are stored locally and used by AI agents
 - **Header Passing**: Both token sets are passed as headers from AI agent to gateway
-- **Validation Points**: 
-  - Ingress tokens validated by gateway with Cognito
-  - FGAC enforced at gateway level
+- **Validation Points**:
+  - Ingress tokens validated by gateway with Keycloak or Cognito
+  - FGAC enforced at gateway level using group-based permissions
   - Egress tokens passed through to MCP servers for their validation
 
 ### High-Level Authentication Flow
@@ -231,7 +316,7 @@ The MCP Gateway Registry uses a comprehensive three-layer authentication system:
 sequenceDiagram
     participant User as User/Developer
     participant Agent as AI Agent
-    participant Cognito as Amazon Cognito<br/>(Ingress IdP)
+    participant Auth as Keycloak/Cognito<br/>(Ingress IdP)
     participant ExtIdP as External IdP<br/>(e.g., Atlassian)
     participant Gateway as MCP Gateway
     participant MCPServer as MCP Server
