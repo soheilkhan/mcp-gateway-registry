@@ -504,15 +504,15 @@ source ../.oauth-tokens/agent-test-agent-m2m.env
 # export KEYCLOAK_REALM="mcp-gateway"
 
 # Test basic connectivity
-python ../mcp_client.py ping
+uv run python ../mcp_client.py ping
 # Expected: "pong"
 
 # List available tools
-python ../mcp_client.py list
+uv run python ../mcp_client.py list
 # Expected: List of available MCP tools
 
 # Test calling a simple tool to get current time
-python ../mcp_client.py call --tool current_time_by_timezone --args '{"tz_name":"America/New_York"}'
+uv run python ../mcp_client.py call --tool current_time_by_timezone --args '{"tz_name":"America/New_York"}'
 # Expected: Current time in JSON format
 ```
 
@@ -520,12 +520,12 @@ python ../mcp_client.py call --tool current_time_by_timezone --args '{"tz_name":
 
 ```bash
 # Use the intelligent tool finder to discover tools with natural language
-python ../mcp_client.py call --tool intelligent_tool_finder --args '{"natural_language_query":"What is the current time?"}'
+uv run python ../mcp_client.py call --tool intelligent_tool_finder --args '{"natural_language_query":"What is the current time?"}'
 # Expected: Tool discovery results with time-related tools
 
 # You can also run a full agent with the comprehensive agent script
 cd ../agents
-python agent.py --prompt "What's the current time in New York?" --interactive
+uv run python agent.py --prompt "What's the current time in New York?" --interactive
 # Expected: Natural language response with current time
 ```
 
@@ -700,7 +700,7 @@ source .venv/bin/activate
 uv pip install -r requirements.txt
 
 # Run the test agent
-python agent.py --config agent_config.json
+uv run python agent.py --config agent_config.json
 ```
 
 ---
