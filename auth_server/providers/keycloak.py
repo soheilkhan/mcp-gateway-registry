@@ -100,19 +100,37 @@ class KeycloakProvider(AuthProvider):
             if not signing_key:
                 raise ValueError(f"No matching key found for kid: {kid}")
             
-            # Validate and decode token
-            claims = jwt.decode(
-                token,
-                signing_key,
-                algorithms=['RS256'],
-                issuer=self.external_realm_url,
-                audience=['account', self.client_id, self.m2m_client_id],
-                options={
-                    "verify_exp": True,
-                    "verify_iat": True,
-                    "verify_aud": True
-                }
-            )
+            # Validate and decode token - accept multiple valid issuers
+            valid_issuers = [
+                self.external_realm_url,  # External URL: https://mcpgateway.ddns.net/realms/mcp-gateway
+                self.realm_url,           # Internal URL: http://keycloak:8080/realms/mcp-gateway
+                f"http://localhost:8080/realms/{self.realm}"  # Localhost URL for development
+            ]
+
+            claims = None
+            last_error = None
+            for issuer in valid_issuers:
+                try:
+                    claims = jwt.decode(
+                        token,
+                        signing_key,
+                        algorithms=['RS256'],
+                        issuer=issuer,
+                        audience=['account', self.client_id, self.m2m_client_id],
+                        options={
+                            "verify_exp": True,
+                            "verify_iat": True,
+                            "verify_aud": True
+                        }
+                    )
+                    logger.debug(f"Token validation successful with issuer: {issuer}")
+                    break
+                except jwt.InvalidIssuerError as e:
+                    last_error = e
+                    continue
+
+            if claims is None:
+                raise last_error or ValueError("Token validation failed with all valid issuers")
             
             logger.debug(f"Token validation successful for user: {claims.get('preferred_username', 'unknown')}")
             

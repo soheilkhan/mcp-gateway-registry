@@ -37,6 +37,30 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _load_env_file() -> None:
+    """Load environment variables from .env file in project root."""
+    # Get the project root directory (parent of credentials-provider)
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent
+    env_file = project_root / ".env"
+
+    if env_file.exists():
+        try:
+            with open(env_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        # Remove quotes if present
+                        value = value.strip('"').strip("'")
+                        os.environ[key] = value
+            logger.debug(f"Loaded environment variables from {env_file}")
+        except Exception as e:
+            logger.warning(f"Failed to load .env file: {e}")
+    else:
+        logger.debug(f"No .env file found at {env_file}")
+
+
 # Configuration constants
 DEFAULT_CHECK_INTERVAL = 300  # 5 minutes in seconds
 DEFAULT_EXPIRY_BUFFER = 3600  # 1 hour buffer before expiry
@@ -167,6 +191,18 @@ def _get_expiring_tokens(buffer_seconds: int = DEFAULT_EXPIRY_BUFFER) -> List[Tu
         
         # Check expiration
         expires_at = token_data.get('expires_at', 0)
+
+        # Convert ISO timestamp to Unix timestamp if needed
+        if isinstance(expires_at, str):
+            try:
+                from datetime import datetime
+                # Parse ISO timestamp and convert to Unix timestamp
+                expires_at_dt = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+                expires_at = expires_at_dt.timestamp()
+            except (ValueError, AttributeError) as e:
+                logger.warning(f"Could not parse expires_at timestamp '{expires_at}' in {filepath.name}: {e}")
+                continue
+
         time_until_expiry = expires_at - current_time
         
         if time_until_expiry <= buffer_seconds:
@@ -285,7 +321,9 @@ def _refresh_oauth_token(token_data: Dict, filename: str) -> bool:
         True if refresh successful, False otherwise
     """
     # Determine which OAuth script to use
-    if 'ingress' in filename.lower():
+    provider = token_data.get('provider', 'atlassian')
+
+    if 'ingress' in filename.lower() or provider == 'keycloak':
         script_name = "ingress_oauth.py"
         # Ingress supports both Cognito and Keycloak M2M, doesn't use --provider argument
         use_provider_arg = False
@@ -300,7 +338,6 @@ def _refresh_oauth_token(token_data: Dict, filename: str) -> bool:
         return False
     
     try:
-        provider = token_data.get('provider', 'atlassian')
         logger.info(f"Refreshing OAuth token for provider: {provider}")
         
         # Build command based on script type
@@ -464,26 +501,59 @@ def _regenerate_mcp_configs() -> bool:
 def _get_ingress_headers(ingress_file: Path) -> Dict[str, str]:
     """
     Extract ingress authentication headers from token file.
-    
+
     Args:
         ingress_file: Path to ingress token file
-        
+
     Returns:
         Dictionary of ingress headers
     """
     headers = {}
+
+    # Check AUTH_PROVIDER from environment
+    auth_provider = os.environ.get('AUTH_PROVIDER', '')
+
+    if auth_provider == 'keycloak':
+        # When using Keycloak, get token from agent token file
+        agent_token_file = OAUTH_TOKENS_DIR / "agent-ai-coding-assistant-m2m-token.json"
+        if agent_token_file.exists():
+            try:
+                with open(agent_token_file, 'r') as f:
+                    agent_data = json.load(f)
+
+                if agent_data and agent_data.get('access_token'):
+                    logger.debug("Using Keycloak agent token for ingress authentication")
+                    headers = {
+                        "X-Authorization": f"Bearer {agent_data.get('access_token', '')}"
+                    }
+
+                    # Add Keycloak-specific headers
+                    headers.update({
+                        "X-Client-Id": agent_data.get('client_id', ''),
+                        "X-Keycloak-Realm": agent_data.get('keycloak_realm', ''),
+                        "X-Keycloak-URL": agent_data.get('keycloak_url', '')
+                    })
+                    logger.debug(f"Using Keycloak agent headers: client_id={agent_data.get('client_id', '')}")
+                    return headers
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning(f"Failed to read Keycloak agent token file: {e}")
+
+        # Fall back to ingress file if agent token not available
+        logger.warning("Keycloak agent token not available, falling back to ingress token")
+
+    # Default behavior: use ingress file
     if ingress_file.exists():
         try:
             with open(ingress_file, 'r') as f:
                 ingress_data = json.load(f)
-                
+
                 # Always include the access token
                 headers["X-Authorization"] = f"Bearer {ingress_data.get('access_token', '')}"
-                
+
                 # Add provider-specific headers
                 provider = ingress_data.get('provider', 'cognito_m2m')
                 logger.debug(f"Detected ingress provider: {provider}")
-                
+
                 if provider == 'keycloak_m2m':
                     # Keycloak-specific headers
                     headers.update({
@@ -500,10 +570,10 @@ def _get_ingress_headers(ingress_file: Path) -> Dict[str, str]:
                         "X-Region": ingress_data.get('region', 'us-east-1')
                     })
                     logger.debug(f"Using Cognito headers: pool_id={ingress_data.get('user_pool_id', '')}")
-                    
+
         except (json.JSONDecodeError, IOError) as e:
             logger.warning(f"Failed to read ingress file: {e}")
-    
+
     return headers
 
 
@@ -1015,7 +1085,10 @@ Examples:
     )
     
     args = parser.parse_args()
-    
+
+    # Load environment variables from .env file
+    _load_env_file()
+
     # Set debug logging if requested
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)

@@ -4,12 +4,11 @@
 
 set -e
 
-# Use admin URL for API calls, fallback to localhost
-KEYCLOAK_ADMIN_URL_OVERRIDE="${KEYCLOAK_ADMIN_URL:-http://localhost:8080}"
-KEYCLOAK_URL="$KEYCLOAK_ADMIN_URL_OVERRIDE"
+# These will be set properly after loading .env in main()
+KEYCLOAK_URL=""  # Will be overridden with KEYCLOAK_ADMIN_URL after .env is loaded
 REALM="mcp-gateway"
-KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN:-admin}"
-KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}"
+KEYCLOAK_ADMIN=""
+KEYCLOAK_ADMIN_PASSWORD=""
 
 # Colors for output
 RED='\033[0;31m'
@@ -580,9 +579,6 @@ main() {
         source "$ENV_FILE"
         set +a  # Turn off automatic export
         echo "Environment variables loaded successfully"
-        echo "DEBUG: KEYCLOAK_ADMIN_PASSWORD = ${KEYCLOAK_ADMIN_PASSWORD:-NOT_SET}"
-        echo "DEBUG: KEYCLOAK_ADMIN = ${KEYCLOAK_ADMIN:-NOT_SET}"
-        echo "DEBUG: KEYCLOAK_URL = ${KEYCLOAK_URL:-NOT_SET}"
     else
         echo "No .env file found at $ENV_FILE"
         echo "Current directory: $(pwd)"
@@ -590,6 +586,11 @@ main() {
         echo "Project root: $PROJECT_ROOT"
     fi
     
+    # Override KEYCLOAK_URL with KEYCLOAK_ADMIN_URL for API calls
+    KEYCLOAK_URL="${KEYCLOAK_ADMIN_URL:-http://localhost:8080}"
+    KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN:-admin}"
+    echo "Using Keycloak API URL: $KEYCLOAK_URL"
+
     # Check if admin password is set
     if [ -z "$KEYCLOAK_ADMIN_PASSWORD" ]; then
         echo -e "${RED}Error: KEYCLOAK_ADMIN_PASSWORD environment variable is not set${NC}"

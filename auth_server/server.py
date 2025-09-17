@@ -1026,13 +1026,14 @@ async def validate_request(request: Request):
             'valid': True,
             'username': validation_result.get('username') or '',
             'client_id': validation_result.get('client_id') or '',
-            'scopes': validation_result.get('scopes', []),
+            'scopes': user_scopes,
             'method': validation_result.get('method') or '',
             'groups': validation_result.get('groups', []),
             'server_name': server_name,
             'tool_name': tool_name
         }
         logger.info(f"Full validation result: {json.dumps(validation_result, indent=2)}")
+        logger.info(f"Response data being sent: {json.dumps(response_data, indent=2)}")
         # Create JSON response with headers that nginx can use
         response = JSONResponse(content=response_data, status_code=200)
         
@@ -1040,7 +1041,7 @@ async def validate_request(request: Request):
         response.headers["X-User"] = validation_result.get('username') or ''
         response.headers["X-Username"] = validation_result.get('username') or ''
         response.headers["X-Client-Id"] = validation_result.get('client_id') or ''
-        response.headers["X-Scopes"] = ' '.join(validation_result.get('scopes', []))
+        response.headers["X-Scopes"] = ' '.join(user_scopes)
         response.headers["X-Auth-Method"] = validation_result.get('method') or ''
         response.headers["X-Server-Name"] = server_name or ''
         response.headers["X-Tool-Name"] = tool_name or ''

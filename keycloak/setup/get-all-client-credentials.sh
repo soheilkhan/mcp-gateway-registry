@@ -22,11 +22,13 @@ OUTPUT_DIR="$(pwd)/.oauth-tokens"
 
 # Load environment variables
 if [ -f .env ]; then
-    export $(cat .env | grep -v '^#' | xargs)
+    set -a
+    source .env
+    set +a
 fi
 
 # Set Keycloak connection details
-KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080}"
+KEYCLOAK_URL="${KEYCLOAK_ADMIN_URL:-http://localhost:8080}"
 KEYCLOAK_REALM="${KEYCLOAK_REALM:-mcp-gateway}"
 KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN:-admin}"
 KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}"
@@ -184,17 +186,6 @@ while IFS= read -r client; do
 }
 EOF
 
-        # Create individual env file for each client
-        CLIENT_ENV_FILE="$OUTPUT_DIR/${CLIENT_ID}.env"
-        cat > "$CLIENT_ENV_FILE" <<EOF
-# Client credentials for ${CLIENT_ID}
-export CLIENT_ID="${CLIENT_ID}"
-export CLIENT_SECRET="${CLIENT_SECRET}"
-export GATEWAY_URL="http://localhost:8000"
-export KEYCLOAK_URL="${KEYCLOAK_URL}"
-export KEYCLOAK_REALM="${KEYCLOAK_REALM}"
-export AUTH_PROVIDER="keycloak"
-EOF
 
         print_success "  Saved credentials for: $CLIENT_ID"
         CREDENTIAL_COUNT=$((CREDENTIAL_COUNT + 1))
@@ -212,17 +203,15 @@ echo "# Generated on: $(date)" >> "$OUTPUT_FILE"
 # Set secure permissions
 chmod 600 "$OUTPUT_FILE"
 chmod 600 "$OUTPUT_DIR"/*.json 2>/dev/null || true
-chmod 600 "$OUTPUT_DIR"/*.env 2>/dev/null || true
 
 print_success "All client credentials retrieved and saved"
 echo ""
 echo "==================== Summary ===================="
 echo "Main credentials file: $OUTPUT_FILE"
 echo "Individual JSON files: $OUTPUT_DIR/<client-id>.json"
-echo "Individual env files:  $OUTPUT_DIR/<client-id>.env"
 echo ""
 echo "Files created in: $OUTPUT_DIR/"
-ls -la "$OUTPUT_DIR/" | grep -E "\.(txt|json|env)$"
+ls -la "$OUTPUT_DIR/" | grep -E "\.(txt|json)$"
 echo "=================================================="
 echo ""
 print_info "Note: These files contain sensitive credentials. Keep them secure!"
