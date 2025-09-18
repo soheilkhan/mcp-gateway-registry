@@ -289,7 +289,7 @@ docker-compose down auth-server && docker-compose rm -f auth-server && docker-co
 ```
 
 **Step 8: Test the setup**
-Complete: **[Testing with mcp_client.py and agent.py](docs/complete-setup-guide.md)** - Validate your setup works correctly
+Complete: **[Testing with mcp_client.py and agent.py](docs/complete-setup-guide.md#test-with-python-mcp-client)** - Validate your setup works correctly
 
 **Benefits:** No build time • No Node.js required • No frontend compilation • Consistent tested images
 
