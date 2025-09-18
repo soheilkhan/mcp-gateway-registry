@@ -525,7 +525,7 @@ uv run python ../mcp_client.py call --tool intelligent_tool_finder --args '{"nat
 
 # You can also run a full agent with the comprehensive agent script
 cd ../agents
-uv run python agent.py --prompt "What's the current time in New York?" --interactive
+uv run python agent.py --agent-name agent-test-agent-m2m --prompt "What's the current time in New York?" --interactive
 # Expected: Natural language response with current time
 ```
 
@@ -979,6 +979,98 @@ curl -f https://mcpgateway.mycorp.com/realms/mcp-gateway
 - **GitHub Issues**: https://github.com/agentic-community/mcp-gateway-registry/issues
 - **Discussions**: https://github.com/agentic-community/mcp-gateway-registry/discussions
 - **Documentation**: Check the `/docs` folder for detailed guides
+
+---
+
+## Container Publishing for Production Deployment
+
+For production environments or to contribute pre-built images, you can publish the containers to Docker Hub and GitHub Container Registry.
+
+### Publishing Script Overview
+
+The `scripts/publish_containers.sh` script automates building and publishing all 6 container components:
+
+- `registry` - Main registry service with nginx and web UI
+- `auth-server` - Authentication service
+- `currenttime-server` - Current time MCP server
+- `realserverfaketools-server` - Example tools MCP server
+- `fininfo-server` - Financial information MCP server
+- `mcpgw-server` - MCP Gateway proxy server
+
+### Publishing Commands
+
+**Test build locally (no push):**
+```bash
+./scripts/publish_containers.sh --local
+```
+
+**Publish to Docker Hub:**
+```bash
+./scripts/publish_containers.sh --dockerhub
+```
+
+**Publish to GitHub Container Registry:**
+```bash
+./scripts/publish_containers.sh --ghcr
+```
+
+**Publish to both registries:**
+```bash
+./scripts/publish_containers.sh --dockerhub --ghcr
+```
+
+**Build specific component:**
+```bash
+./scripts/publish_containers.sh --dockerhub --component registry
+```
+
+### Required Environment Variables
+
+Add these to your `.env` file for publishing:
+
+```bash
+# Container Registry Credentials
+DOCKERHUB_USERNAME=aarora79
+DOCKERHUB_TOKEN=your_docker_hub_token
+GITHUB_TOKEN=your_github_token
+
+# Organization names for publishing
+DOCKERHUB_ORG=mcpgateway
+GITHUB_ORG=agentic-community
+```
+
+### Generated Image Names
+
+**Docker Hub (Organization Account):**
+- `mcpgateway/registry:latest`
+- `mcpgateway/auth-server:latest`
+- `mcpgateway/currenttime-server:latest`
+- `mcpgateway/realserverfaketools-server:latest`
+- `mcpgateway/fininfo-server:latest`
+- `mcpgateway/mcpgw-server:latest`
+
+**GitHub Container Registry:**
+- `ghcr.io/agentic-community/mcp-registry:latest`
+- `ghcr.io/agentic-community/mcp-auth-server:latest`
+- `ghcr.io/agentic-community/mcp-currenttime-server:latest`
+- `ghcr.io/agentic-community/mcp-realserverfaketools-server:latest`
+- `ghcr.io/agentic-community/mcp-fininfo-server:latest`
+- `ghcr.io/agentic-community/mcp-mcpgw-server:latest`
+
+### Using Pre-built Images
+
+Once published, anyone can use the pre-built images with:
+
+```bash
+# Use the pre-built deployment option
+./build_and_run.sh --prebuilt
+```
+
+This deployment method:
+- Skips the build process entirely
+- Pulls pre-built images from container registries
+- Starts services in under 2 minutes
+- Requires no Node.js or build dependencies
 
 ---
 

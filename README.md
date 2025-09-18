@@ -250,69 +250,47 @@ flowchart TB
 
 ## Quick Start
 
+### Option A: Pre-built Images (Instant Setup)
+
+Get running in under 2 minutes with pre-built containers:
+
+**Step 1: Clone and setup**
+```bash
+git clone https://github.com/agentic-community/mcp-gateway-registry.git
+cd mcp-gateway-registry
+cp .env.example .env
+```
+
+**Step 2: Configure environment**
+Complete: **[Initial Environment Configuration](docs/complete-setup-guide.md#initial-environment-configuration)** - Configure domains, passwords, and authentication
+```bash
+export DOCKERHUB_ORG=mcpgateway
+```
+
+**Step 3: Deploy with pre-built images**
+```bash
+./build_and_run.sh --prebuilt
+```
+
+**Step 4: Initialize Keycloak**
+Complete: **[Initialize Keycloak Configuration](docs/complete-setup-guide.md#initialize-keycloak-configuration)** - Set up identity provider and security policies
+
+**Step 5: Access the registry**
+```bash
+open http://localhost:7860
+```
+
+**Step 6: Create your first agent**
+Complete: **[Create Your First AI Agent Account](docs/complete-setup-guide.md#create-your-first-ai-agent-account)** - Create agent credentials for testing
+
+**Step 7: Test the setup**
+Complete: **[Testing with mcp_client.py and agent.py](docs/complete-setup-guide.md)** - Validate your setup works correctly
+
+**Benefits:** No build time • No Node.js required • Consistent tested images
+
+### Option B: Build from Source
+
 **New to MCP Gateway?** Start with our [Complete Setup Guide](docs/complete-setup-guide.md) for detailed step-by-step instructions from scratch on AWS EC2.
-
-Choose your identity provider and get running in 5 minutes:
-
-### Option A: [Keycloak](https://www.keycloak.org/) (Recommended - Self-Hosted)
-
-> No cloud dependencies, full control, individual agent audit trails
-
-```bash
-# 1. Clone and configure
-git clone https://github.com/agentic-community/mcp-gateway-registry.git
-cd mcp-gateway-registry
-cp .env.example .env
-# Edit .env: Set AUTH_PROVIDER=keycloak
-
-# 2. Set passwords BEFORE starting services
-export KEYCLOAK_ADMIN_PASSWORD="your-secure-password"
-export KEYCLOAK_DB_PASSWORD="your-database-password"
-
-# 3. Start services
-docker-compose up -d postgres keycloak
-sleep 120  # Wait for Keycloak to be ready
-
-# 4. Initialize Keycloak
-./keycloak/setup/init-keycloak.sh
-
-# 5. Create an agent
-./keycloak/setup/setup-agent-service-account.sh \
-  --agent-id my-agent --group mcp-servers-unrestricted
-
-# 6. Start remaining services
-docker-compose up -d
-
-# Access the registry
-open http://localhost:7860
-```
-
-**Full Guide:** [Keycloak Setup Instructions](keycloak/README.md)
-
-### Option B: Amazon Cognito (Cloud-Based)
-
-> **Prerequisites:** AWS account and Cognito user pool configured
-
-```bash
-# Clone and configure
-git clone https://github.com/agentic-community/mcp-gateway-registry.git
-cd mcp-gateway-registry
-cp .env.example .env
-# Edit .env with your Cognito credentials
-
-# Generate authentication credentials
-./credentials-provider/generate_creds.sh
-
-# Deploy with Docker Compose
-./build_and_run.sh
-
-# Access the registry
-open http://localhost:7860
-```
-
-**Full Guide:** [Cognito Setup Instructions](docs/cognito.md)
-
-**That's it!** Your enterprise MCP gateway is now running.
 
 ### Testing & Integration Options
 
