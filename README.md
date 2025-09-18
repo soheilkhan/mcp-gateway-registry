@@ -283,10 +283,15 @@ open http://localhost:7860
 **Step 6: Create your first agent**
 Complete: **[Create Your First AI Agent Account](docs/complete-setup-guide.md#create-your-first-ai-agent-account)** - Create agent credentials for testing
 
-**Step 7: Test the setup**
+**Step 7: Restart auth server to apply new credentials**
+```bash
+docker-compose down auth-server && docker-compose rm -f auth-server && docker-compose up -d auth-server
+```
+
+**Step 8: Test the setup**
 Complete: **[Testing with mcp_client.py and agent.py](docs/complete-setup-guide.md)** - Validate your setup works correctly
 
-**Benefits:** No build time • No Node.js required • Consistent tested images
+**Benefits:** No build time • No Node.js required • No frontend compilation • Consistent tested images
 
 ### Option B: Build from Source
 

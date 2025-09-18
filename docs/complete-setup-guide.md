@@ -485,17 +485,17 @@ curl http://localhost:7860/health
    - Username: `admin`
    - Password: The `KEYCLOAK_ADMIN_PASSWORD` you set
 
-### Test MCP Commands
+### Test with Python MCP Client
 
 ```bash
-# Navigate to tests directory
-cd ~/workspace/mcp-gateway-registry/tests
+# Navigate to project root directory
+cd ~/workspace/mcp-gateway-registry
 
 # Activate the virtual environment if not already active
-source ../.venv/bin/activate
+source .venv/bin/activate
 
 # Source the agent credentials from the saved file
-source ../.oauth-tokens/agent-test-agent-m2m.env
+source .oauth-tokens/agent-test-agent-m2m.env
 
 # Option 2: Or manually set the environment variables
 # export CLIENT_ID="agent-test-agent-m2m"
@@ -504,57 +504,42 @@ source ../.oauth-tokens/agent-test-agent-m2m.env
 # export KEYCLOAK_REALM="mcp-gateway"
 
 # Test basic connectivity
-uv run python ../mcp_client.py ping
-# Expected: "pong"
+uv run python mcp_client.py ping
+
+# Expected output:
+# ✓ M2M authentication successful
+# Session established: 277bf44c7d474d9b9674e7cc8a5122c8
+# {
+#   "jsonrpc": "2.0",
+#   "id": 2,
+#   "result": {}
+# }
 
 # List available tools
-uv run python ../mcp_client.py list
+uv run python mcp_client.py list
 # Expected: List of available MCP tools
 
 # Test calling a simple tool to get current time
-uv run python ../mcp_client.py call --tool current_time_by_timezone --args '{"tz_name":"America/New_York"}'
+# Note: current_time_by_timezone is on the 'currenttime' server, not 'mcpgw'
+uv run python mcp_client.py --url http://localhost/currenttime/mcp call --tool current_time_by_timezone --args '{"tz_name":"America/New_York"}'
 # Expected: Current time in JSON format
+
+# Alternative: Use intelligent_tool_finder on mcpgw to find and call tools dynamically
+uv run python mcp_client.py call --tool intelligent_tool_finder --args '{"natural_language_query":"get current time in New York"}'
+# This will automatically find and route to the correct server
 ```
 
 ### Test Intelligent Agent Demo
 
 ```bash
 # Use the intelligent tool finder to discover tools with natural language
-uv run python ../mcp_client.py call --tool intelligent_tool_finder --args '{"natural_language_query":"What is the current time?"}'
+uv run python mcp_client.py call --tool intelligent_tool_finder --args '{"natural_language_query":"What is the current time?"}'
 # Expected: Tool discovery results with time-related tools
 
 # You can also run a full agent with the comprehensive agent script
-cd ../agents
-uv run python agent.py --agent-name agent-test-agent-m2m --prompt "What's the current time in New York?" --interactive
+# Note: Use --mcp-registry-url to point to your local gateway
+uv run python agents/agent.py --agent-name agent-test-agent-m2m --mcp-registry-url http://localhost/mcpgw/mcp --prompt "What's the current time in New York?" 
 # Expected: Natural language response with current time
-```
-
-### Test with Python MCP Client
-
-Test the MCP Gateway directly using the included Python client:
-
-```bash
-# Source M2M credentials
-source .oauth-tokens/agent-test-agent-m2m.env
-
-# Test basic connectivity
-uv run mcp_client.py ping
-# Expected: {"jsonrpc":"2.0","id":2,"result":{}}
-
-# List available tools
-uv run mcp_client.py list
-# Expected: JSON response with available tools from all registered services
-
-# Use intelligent tool finder to discover tools
-uv run mcp_client.py call --tool intelligent_tool_finder --args '{"natural_language_query":"get current time in New York"}'
-# Expected: JSON response with recommended tools
-
-# Call a specific tool directly (using different gateway URL)
-uv run mcp_client.py --url http://localhost/currenttime/mcp call --tool current_time_by_timezone --args '{"tz_name":"America/New_York"}'
-# Expected: Current time in New York timezone
-
-# Get help for more examples
-uv run mcp_client.py --help
 ```
 
 ---
