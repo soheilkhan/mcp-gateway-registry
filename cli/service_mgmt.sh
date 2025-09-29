@@ -434,7 +434,7 @@ add_service() {
     echo ""
     echo "=== Verifying Registration ==="
 
-    if ! verify_server_in_list "$service_name" "true"; then
+    if ! verify_server_in_list "$service_path" "true"; then
         exit 1
     fi
 
@@ -506,7 +506,7 @@ print(config['path'])
     echo ""
     echo "=== Verifying Deletion ==="
 
-    if ! verify_server_in_list "$service_name" "false"; then
+    if ! verify_server_in_list "$service_path" "false"; then
         exit 1
     fi
 
@@ -646,13 +646,15 @@ monitor_services() {
 }
 
 show_usage() {
-    echo "Usage: $0 {add|delete|monitor|test} [config-file]"
+    echo "Usage: $0 {add|delete|monitor|test|add-to-groups|remove-from-groups} [config-file] [groups]"
     echo ""
     echo "Commands:"
-    echo "  add <config-file>      - Add a service using JSON config and verify registration"
-    echo "  delete <config-file>   - Delete a service using JSON config and verify removal"
-    echo "  monitor [config-file]  - Run health check (all services or specific service from config)"
-    echo "  test <config-file>     - Test service searchability using intelligent_tool_finder"
+    echo "  add <config-file>            - Add a service using JSON config and verify registration"
+    echo "  delete <config-file>         - Delete a service using JSON config and verify removal"
+    echo "  monitor [config-file]        - Run health check (all services or specific service from config)"
+    echo "  test <config-file>           - Test service searchability using intelligent_tool_finder"
+    echo "  add-to-groups <server-name> <groups> - Add server to specific scopes groups (comma-separated)"
+    echo "  remove-from-groups <server-name> <groups> - Remove server from specific scopes groups (comma-separated)"
     echo ""
     echo "Config File Requirements:"
     echo "  Required fields: server_name, path, proxy_pass_url"
@@ -671,6 +673,126 @@ show_usage() {
     echo "  $0 monitor                                        # All services"
     echo "  $0 monitor cli/examples/example-server-config.json # Specific service"
     echo "  $0 test cli/examples/example-server-config.json    # Test searchability"
+    echo "  $0 add-to-groups example-server 'mcp-servers-restricted/read,mcp-servers-restricted/execute'"
+    echo "  $0 remove-from-groups example-server 'mcp-servers-restricted/read,mcp-servers-restricted/execute'"
+}
+
+add_to_groups() {
+    local server_name="$1"
+    local groups="$2"
+
+    if [ -z "$server_name" ] || [ -z "$groups" ]; then
+        print_error "Usage: $0 add-to-groups <server-name> <groups>"
+        print_error "Example: $0 add-to-groups example-server 'mcp-servers-restricted/read,mcp-servers-restricted/execute'"
+        exit 1
+    fi
+
+    echo "=== Adding Server to Scopes Groups: $server_name ==="
+
+    # Check prerequisites
+    check_prerequisites
+
+    # Convert comma-separated groups to JSON array format
+    local groups_json
+    groups_json=$(echo "$groups" | sed 's/,/","/g' | sed 's/^/"/' | sed 's/$/"/')
+    groups_json="[$groups_json]"
+
+    print_info "Adding server '$server_name' to groups: $groups"
+
+    # Call the MCP tool
+    local response
+    if response=$(run_mcp_command "add_server_to_scopes_groups" "{\"server_name\": \"$server_name\", \"group_names\": $groups_json}"); then
+        # Check if the response indicates success
+        if echo "$response" | grep -q '"success": true'; then
+            print_success "Server successfully added to groups"
+
+            # Extract and display details
+            local server_path
+            server_path=$(echo "$response" | grep -o '"server_path": "[^"]*"' | cut -d'"' -f4)
+            if [ -n "$server_path" ]; then
+                print_info "Server path: $server_path"
+            fi
+
+            print_info "Groups: $groups"
+            print_success "Scopes groups updated and auth server reloaded"
+        else
+            # Extract error message if available
+            local error_msg
+            error_msg=$(echo "$response" | grep -o '"error": "[^"]*"' | cut -d'"' -f4)
+            if [ -n "$error_msg" ]; then
+                print_error "Failed to add server to groups: $error_msg"
+            else
+                print_error "Failed to add server to groups (unknown error)"
+                echo "Response: $response"
+            fi
+            exit 1
+        fi
+    else
+        print_error "Failed to call add_server_to_scopes_groups tool"
+        exit 1
+    fi
+
+    echo ""
+    print_success "Add to groups operation completed!"
+}
+
+remove_from_groups() {
+    local server_name="$1"
+    local groups="$2"
+
+    if [ -z "$server_name" ] || [ -z "$groups" ]; then
+        print_error "Usage: $0 remove-from-groups <server-name> <groups>"
+        print_error "Example: $0 remove-from-groups example-server 'mcp-servers-restricted/read,mcp-servers-restricted/execute'"
+        exit 1
+    fi
+
+    echo "=== Removing Server from Scopes Groups: $server_name ==="
+
+    # Check prerequisites
+    check_prerequisites
+
+    # Convert comma-separated groups to JSON array format
+    local groups_json
+    groups_json=$(echo "$groups" | sed 's/,/","/g' | sed 's/^/"/' | sed 's/$/"/')
+    groups_json="[$groups_json]"
+
+    print_info "Removing server '$server_name' from groups: $groups"
+
+    # Call the MCP tool
+    local response
+    if response=$(run_mcp_command "remove_server_from_scopes_groups" "{\"server_name\": \"$server_name\", \"group_names\": $groups_json}"); then
+        # Check if the response indicates success
+        if echo "$response" | grep -q '"success": true'; then
+            print_success "Server successfully removed from groups"
+
+            # Extract and display details
+            local server_path
+            server_path=$(echo "$response" | grep -o '"server_path": "[^"]*"' | cut -d'"' -f4)
+            if [ -n "$server_path" ]; then
+                print_info "Server path: $server_path"
+            fi
+
+            print_info "Groups: $groups"
+            print_success "Scopes groups updated and auth server reloaded"
+        else
+            # Extract error message if available
+            local error_msg
+            error_msg=$(echo "$response" | grep -o '"error": "[^"]*"' | cut -d'"' -f4)
+            if [ -n "$error_msg" ]; then
+                print_error "Failed to remove server from groups: $error_msg"
+            else
+                print_error "Failed to remove server from groups (unknown error)"
+                echo "Response: $response"
+            fi
+            exit 1
+        fi
+    else
+        print_error "Failed to call remove_server_from_scopes_groups tool"
+        exit 1
+    fi
+
+    echo ""
+    print_success "Remove from groups operation completed!"
 }
 
 # Main script logic
@@ -686,6 +808,12 @@ case "${1:-}" in
         ;;
     test)
         test_service "$2"
+        ;;
+    add-to-groups)
+        add_to_groups "$2" "$3"
+        ;;
+    remove-from-groups)
+        remove_from_groups "$2" "$3"
         ;;
     *)
         show_usage

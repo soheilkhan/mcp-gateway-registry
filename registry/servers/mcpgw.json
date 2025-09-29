@@ -6,7 +6,7 @@
   "supported_transports": ["streamable-http"],
   "auth_type": "none",
   "tags": ["registry", "management"],
-  "num_tools": 9,
+  "num_tools": 11,
   "num_stars": 0,
   "is_python": true,
   "license": "N/A",
@@ -254,6 +254,58 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      }
+    },
+    {
+      "name": "add_server_to_scopes_groups",
+      "parsed_description": {
+        "main": "Add a server and all its known tools/methods to specific scopes groups.",
+        "args": "server_name: Name of the server (without leading slash), group_names: List of group names to add the server to",
+        "returns": "Dict with success status and details about the operation",
+        "raises": null
+      },
+      "schema": {
+        "properties": {
+          "server_name": {
+            "description": "Name of the server to add to groups (e.g., 'example-server'). Should not include leading slash.",
+            "title": "Server Name",
+            "type": "string"
+          },
+          "group_names": {
+            "description": "List of scopes group names to add the server to (e.g., ['mcp-servers-restricted/read', 'mcp-servers-restricted/execute']).",
+            "items": {"type": "string"},
+            "title": "Group Names",
+            "type": "array"
+          }
+        },
+        "required": ["server_name", "group_names"],
+        "type": "object"
+      }
+    },
+    {
+      "name": "remove_server_from_scopes_groups",
+      "parsed_description": {
+        "main": "Remove a server from specific scopes groups.",
+        "args": "server_name: Name of the server (without leading slash), group_names: List of group names to remove the server from",
+        "returns": "Dict with success status and details about the operation",
+        "raises": null
+      },
+      "schema": {
+        "properties": {
+          "server_name": {
+            "description": "Name of the server to remove from groups (e.g., 'example-server'). Should not include leading slash.",
+            "title": "Server Name",
+            "type": "string"
+          },
+          "group_names": {
+            "description": "List of scopes group names to remove the server from (e.g., ['mcp-servers-restricted/read', 'mcp-servers-restricted/execute']).",
+            "items": {"type": "string"},
+            "title": "Group Names",
+            "type": "array"
+          }
+        },
+        "required": ["server_name", "group_names"],
         "type": "object"
       }
     }

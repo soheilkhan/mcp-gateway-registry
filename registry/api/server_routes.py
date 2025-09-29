@@ -1293,6 +1293,180 @@ async def refresh_service(
         "num_tools": server_info.get("num_tools", 0)
     }
 
+@router.post("/internal/add-to-groups")
+async def internal_add_server_to_groups(
+    request: Request,
+    server_name: Annotated[str, Form()],
+    group_names: Annotated[str, Form()],  # Comma-separated list
+):
+    """Internal endpoint to add a server to specific scopes groups (requires HTTP Basic Authentication with admin credentials)."""
+    import base64
+    import os
+    from ..utils.scopes_manager import add_server_to_groups
+
+    # Extract and validate Basic Auth
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Basic "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid authorization header",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    try:
+        credentials = base64.b64decode(auth_header[6:]).decode("utf-8")
+        username, password = credentials.split(":", 1)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header format",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    admin_user = os.environ.get("ADMIN_USER", "admin")
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+
+    if not admin_password:
+        logger.error("ADMIN_PASSWORD environment variable not set for internal add-to-groups")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server configuration error"
+        )
+
+    if username != admin_user or password != admin_password:
+        logger.warning(f"Failed admin authentication attempt for internal add-to-groups from {username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid admin credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    # Parse group names from comma-separated string
+    groups = [group.strip() for group in group_names.split(",") if group.strip()]
+    if not groups:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No valid group names provided"
+        )
+
+    # Convert server name to path format
+    server_path = f"/{server_name}" if not server_name.startswith("/") else server_name
+
+    logger.info(f"Adding server {server_path} to groups {groups} via internal endpoint by admin '{username}'")
+
+    try:
+        success = await add_server_to_groups(server_path, groups)
+
+        if success:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "message": "Server successfully added to groups",
+                    "server_path": server_path,
+                    "groups": groups
+                }
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to add server to groups"
+            )
+
+    except Exception as e:
+        logger.error(f"Error adding server {server_path} to groups {groups}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal error: {str(e)}"
+        )
+
+
+@router.post("/internal/remove-from-groups")
+async def internal_remove_server_from_groups(
+    request: Request,
+    server_name: Annotated[str, Form()],
+    group_names: Annotated[str, Form()],  # Comma-separated list
+):
+    """Internal endpoint to remove a server from specific scopes groups (requires HTTP Basic Authentication with admin credentials)."""
+    import base64
+    import os
+    from ..utils.scopes_manager import remove_server_from_groups
+
+    # Extract and validate Basic Auth
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Basic "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid authorization header",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    try:
+        credentials = base64.b64decode(auth_header[6:]).decode("utf-8")
+        username, password = credentials.split(":", 1)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header format",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    admin_user = os.environ.get("ADMIN_USER", "admin")
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+
+    if not admin_password:
+        logger.error("ADMIN_PASSWORD environment variable not set for internal remove-from-groups")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server configuration error"
+        )
+
+    if username != admin_user or password != admin_password:
+        logger.warning(f"Failed admin authentication attempt for internal remove-from-groups from {username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid admin credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    # Parse group names from comma-separated string
+    groups = [group.strip() for group in group_names.split(",") if group.strip()]
+    if not groups:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No valid group names provided"
+        )
+
+    # Convert server name to path format
+    server_path = f"/{server_name}" if not server_name.startswith("/") else server_name
+
+    logger.info(f"Removing server {server_path} from groups {groups} via internal endpoint by admin '{username}'")
+
+    try:
+        success = await remove_server_from_groups(server_path, groups)
+
+        if success:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "message": "Server successfully removed from groups",
+                    "server_path": server_path,
+                    "groups": groups
+                }
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to remove server from groups"
+            )
+
+    except Exception as e:
+        logger.error(f"Error removing server {server_path} from groups {groups}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal error: {str(e)}"
+        )
+
+
 @router.get("/internal/list")
 async def internal_list_services(
     request: Request,

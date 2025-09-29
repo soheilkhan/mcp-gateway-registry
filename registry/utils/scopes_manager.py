@@ -45,7 +45,12 @@ def _write_scopes_file(scopes_data: Dict[str, Any]) -> None:
 
         # Write directly to the file
         with open(scopes_file, 'w') as f:
-            yaml.dump(scopes_data, f, default_flow_style=False, sort_keys=False)
+            # Create a custom YAML dumper that doesn't generate anchors/aliases
+            class NoAnchorDumper(yaml.SafeDumper):
+                def ignore_aliases(self, data):
+                    return True
+
+            yaml.dump(scopes_data, f, default_flow_style=False, sort_keys=False, Dumper=NoAnchorDumper)
 
         logger.info(f"Successfully updated scopes file at {scopes_file}")
 
@@ -280,3 +285,126 @@ async def remove_server_scopes(server_path: str) -> bool:
     await trigger_auth_server_reload()
 
     return True
+
+
+async def add_server_to_groups(server_path: str, group_names: List[str]) -> bool:
+    """
+    Add a server and all its known tools/methods to specific groups in scopes.yml.
+
+    Gets the server's tools from the last health check and adds them to the
+    specified groups using the same format as other servers.
+
+    Args:
+        server_path: The server's path (e.g., '/example-server')
+        group_names: List of group names to add the server to (e.g., ['mcp-servers-restricted/read'])
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # First, get the server info to find its tools
+        from ..services.server_service import server_service
+
+        server_info = server_service.get_server_info(server_path)
+        if not server_info:
+            logger.error(f"Server {server_path} not found in registry")
+            return False
+
+        # Get the tools from the last health check
+        tool_list = server_info.get("tool_list", [])
+        tool_names = [tool["name"] for tool in tool_list if isinstance(tool, dict) and "name" in tool]
+
+        logger.info(f"Found {len(tool_names)} tools for server {server_path}: {tool_names}")
+
+        # Read current scopes
+        scopes_data = _read_scopes_file()
+
+        # Create the server entry with discovered tools
+        server_entry = _create_server_entry(server_path, tool_names)
+
+        modified = False
+        for group_name in group_names:
+            if group_name in scopes_data:
+                # Check if server already exists in this group
+                existing = [s for s in scopes_data[group_name]
+                           if s.get('server') == server_entry['server']]
+
+                if existing:
+                    # Update existing entry
+                    idx = scopes_data[group_name].index(existing[0])
+                    scopes_data[group_name][idx] = server_entry.copy()
+                    logger.info(f"Updated existing server {server_path} in group {group_name}")
+                else:
+                    # Add new entry
+                    scopes_data[group_name].append(server_entry.copy())
+                    logger.info(f"Added server {server_path} to group {group_name}")
+
+                modified = True
+            else:
+                logger.warning(f"Group {group_name} not found in scopes.yml")
+
+        if modified:
+            # Write back the updated scopes
+            _write_scopes_file(scopes_data)
+            logger.info(f"Successfully added server {server_path} to groups: {group_names}")
+
+            # Trigger auth server reload
+            await trigger_auth_server_reload()
+
+            return True
+        else:
+            logger.warning(f"No groups were modified for server {server_path}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Failed to add server {server_path} to groups {group_names}: {e}")
+        return False
+
+
+async def remove_server_from_groups(server_path: str, group_names: List[str]) -> bool:
+    """
+    Remove a server from specific groups in scopes.yml.
+
+    Args:
+        server_path: The server's path (e.g., '/example-server')
+        group_names: List of group names to remove the server from
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Read current scopes
+        scopes_data = _read_scopes_file()
+
+        # Remove leading slash from server path
+        server_name = server_path.lstrip('/')
+
+        modified = False
+        for group_name in group_names:
+            if group_name in scopes_data:
+                original_length = len(scopes_data[group_name])
+                scopes_data[group_name] = [s for s in scopes_data[group_name]
+                                          if s.get('server') != server_name]
+
+                if len(scopes_data[group_name]) < original_length:
+                    logger.info(f"Removed server {server_path} from group {group_name}")
+                    modified = True
+            else:
+                logger.warning(f"Group {group_name} not found in scopes.yml")
+
+        if modified:
+            # Write back the updated scopes
+            _write_scopes_file(scopes_data)
+            logger.info(f"Successfully removed server {server_path} from groups: {group_names}")
+
+            # Trigger auth server reload
+            await trigger_auth_server_reload()
+
+            return True
+        else:
+            logger.warning(f"Server {server_path} not found in any of the specified groups")
+            return False
+
+    except Exception as e:
+        logger.error(f"Failed to remove server {server_path} from groups {group_names}: {e}")
+        return False

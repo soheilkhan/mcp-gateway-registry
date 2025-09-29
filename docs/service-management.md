@@ -414,4 +414,82 @@ docker rm example-server-container
 
 This complete example demonstrates the full lifecycle of server management using the `service_mgmt.sh` script.
 
+## Advanced Scopes Management
+
+### Adding Servers to Custom Scopes Groups
+
+You can dynamically add servers to specific scopes groups using the service management script. This is useful for fine-grained access control where you want to assign different servers to different user groups.
+
+```bash
+# Add a server to specific scopes groups using the service management script
+./cli/service_mgmt.sh add-to-groups example-server 'mcp-servers-restricted/read,mcp-servers-restricted/execute'
+```
+
+**Alternative: Direct MCP tool usage**
+```bash
+# Add a server to specific scopes groups using the MCP tool directly
+uv run cli/mcp_client.py --url http://localhost/mcpgw/mcp call \
+  --tool add_server_to_scopes_groups \
+  --args '{
+    "server_name": "example-server",
+    "group_names": ["mcp-servers-restricted/read", "mcp-servers-restricted/execute"]
+  }'
+```
+
+**What this does:**
+- ✓ Retrieves all tools discovered during the last health check for the server
+- ✓ Adds the server and all its tools to the specified scopes groups
+- ✓ Uses the same MCP methods format as other servers (initialize, ping, tools/list, etc.)
+- ✓ Automatically triggers auth server reload to apply changes immediately
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "message": "Server successfully added to groups",
+  "server_name": "example-server",
+  "groups": ["mcp-servers-restricted/read", "mcp-servers-restricted/execute"],
+  "server_path": "/example-server"
+}
+```
+
+**Available Scopes Groups:**
+- `mcp-servers-unrestricted/read` - Full read access to all server methods and tools
+- `mcp-servers-unrestricted/execute` - Full execute access to all server methods and tools
+- `mcp-servers-restricted/read` - Limited read access for standard users
+- `mcp-servers-restricted/execute` - Limited execute access for standard users
+
+### Removing Servers from Scopes Groups
+
+You can also remove servers from specific scopes groups for access revocation or role changes:
+
+```bash
+# Remove a server from specific scopes groups using the service management script
+./cli/service_mgmt.sh remove-from-groups example-server 'mcp-servers-restricted/read,mcp-servers-restricted/execute'
+```
+
+**Alternative: Direct MCP tool usage**
+```bash
+# Remove a server from specific scopes groups using the MCP tool directly
+uv run cli/mcp_client.py --url http://localhost/mcpgw/mcp call \
+  --tool remove_server_from_scopes_groups \
+  --args '{
+    "server_name": "example-server",
+    "group_names": ["mcp-servers-restricted/read", "mcp-servers-restricted/execute"]
+  }'
+```
+
+**What this does:**
+- ✓ Removes the server from the specified scopes groups
+- ✓ Automatically triggers auth server reload to apply changes immediately
+- ✓ Useful for access revocation or moving servers between access levels
+
+**Use Cases:**
+- Assign development servers to restricted groups for testing
+- Grant production servers unrestricted access for administrators
+- Create custom access patterns for different user roles
+- Dynamically adjust permissions without manual scopes.yml editing
+- Revoke access when servers are decommissioned or compromised
+- Move servers between access levels (restricted ↔ unrestricted)
+
 For advanced CLI operations, see the [CLI Guide](cli.md) for direct `mcp_client.py` usage.
