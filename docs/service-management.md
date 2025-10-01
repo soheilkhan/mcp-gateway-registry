@@ -416,6 +416,14 @@ This complete example demonstrates the full lifecycle of server management using
 
 ## Advanced Scopes Management
 
+### Default Server Registration Behavior
+
+When a new server is registered, it is **automatically added to unrestricted scopes groups only**:
+- `mcp-servers-unrestricted/read`
+- `mcp-servers-unrestricted/execute`
+
+This means that by default, newly registered servers are accessible to users with unrestricted permissions. If you need to add a server to restricted groups or change its access level, use the commands below.
+
 ### Adding Servers to Custom Scopes Groups
 
 You can dynamically add servers to specific scopes groups using the service management script. This is useful for fine-grained access control where you want to assign different servers to different user groups.

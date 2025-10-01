@@ -106,12 +106,10 @@ async def add_server_to_scopes(server_path: str, server_name: str, tools: List[s
         # Create the server entry
         server_entry = _create_server_entry(server_path, tools)
 
-        # Add to all standard scope sections
+        # Add to unrestricted scope sections only
         sections = [
             "mcp-servers-unrestricted/read",
-            "mcp-servers-unrestricted/execute",
-            "mcp-servers-restricted/read",
-            "mcp-servers-restricted/execute"
+            "mcp-servers-unrestricted/execute"
         ]
 
         modified = False
