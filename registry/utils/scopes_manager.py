@@ -406,3 +406,178 @@ async def remove_server_from_groups(server_path: str, group_names: List[str]) ->
     except Exception as e:
         logger.error(f"Failed to remove server {server_path} from groups {group_names}: {e}")
         return False
+
+
+async def create_group_in_scopes(
+    group_name: str,
+    description: str = ""
+) -> bool:
+    """
+    Create a new group entry in scopes.yml.
+
+    Args:
+        group_name: Name of the group (e.g., 'mcp-servers-custom/read')
+        description: Optional description
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Read current scopes
+        scopes_data = _read_scopes_file()
+
+        # Check if group already exists
+        if group_name in scopes_data:
+            logger.warning(f"Group {group_name} already exists in scopes.yml")
+            return False
+
+        # Create new empty group entry
+        scopes_data[group_name] = []
+
+        logger.info(f"Created new group entry: {group_name}")
+
+        # Write back the updated scopes
+        _write_scopes_file(scopes_data)
+        logger.info(f"Successfully added group {group_name} to scopes.yml")
+
+        # Trigger auth server reload
+        await trigger_auth_server_reload()
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to create group {group_name} in scopes: {e}")
+        return False
+
+
+async def delete_group_from_scopes(
+    group_name: str,
+    remove_from_mappings: bool = True
+) -> bool:
+    """
+    Delete a group from scopes.yml and optionally from group_mappings.
+
+    Args:
+        group_name: Name of the group to delete
+        remove_from_mappings: Whether to remove from group_mappings section
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Read current scopes
+        scopes_data = _read_scopes_file()
+
+        # Check if group exists
+        if group_name not in scopes_data:
+            logger.warning(f"Group {group_name} not found in scopes.yml")
+            return False
+
+        # Check if group has servers assigned
+        if isinstance(scopes_data[group_name], list) and len(scopes_data[group_name]) > 0:
+            server_count = len(scopes_data[group_name])
+            logger.warning(f"Group {group_name} has {server_count} servers assigned")
+            # Still allow deletion - servers will lose this group access
+
+        # Remove the group
+        del scopes_data[group_name]
+        logger.info(f"Removed group {group_name} from scopes.yml")
+
+        # Optionally remove from group_mappings
+        if remove_from_mappings and "group_mappings" in scopes_data:
+            modified_mappings = False
+            for mapped_group, mapped_scopes in scopes_data["group_mappings"].items():
+                if group_name in mapped_scopes:
+                    scopes_data["group_mappings"][mapped_group].remove(group_name)
+                    logger.info(f"Removed {group_name} from group_mappings[{mapped_group}]")
+                    modified_mappings = True
+
+            if modified_mappings:
+                logger.info("Updated group_mappings after group deletion")
+
+        # Write back the updated scopes
+        _write_scopes_file(scopes_data)
+        logger.info(f"Successfully deleted group {group_name} from scopes.yml")
+
+        # Trigger auth server reload
+        await trigger_auth_server_reload()
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to delete group {group_name} from scopes: {e}")
+        return False
+
+
+async def list_groups_from_scopes() -> Dict[str, Any]:
+    """
+    List all groups defined in scopes.yml.
+
+    Returns:
+        Dict with group information including server counts and mappings
+    """
+    try:
+        # Read current scopes
+        scopes_data = _read_scopes_file()
+
+        groups = {}
+
+        # Find all scope groups (those with server lists)
+        for key, value in scopes_data.items():
+            # Skip UI-Scopes and group_mappings sections
+            if key in ["UI-Scopes", "group_mappings"]:
+                continue
+
+            # Check if this is a scope group (has list of servers)
+            if isinstance(value, list):
+                server_count = len(value)
+                server_names = [s.get("server", "unknown") for s in value if isinstance(s, dict)]
+
+                groups[key] = {
+                    "name": key,
+                    "server_count": server_count,
+                    "servers": server_names,
+                    "in_mappings": []
+                }
+
+        # Check which groups are in group_mappings
+        if "group_mappings" in scopes_data:
+            for mapped_group, mapped_scopes in scopes_data["group_mappings"].items():
+                for scope in mapped_scopes:
+                    if scope in groups:
+                        groups[scope]["in_mappings"].append(mapped_group)
+
+        logger.info(f"Found {len(groups)} groups in scopes.yml")
+
+        return {
+            "total_count": len(groups),
+            "groups": groups
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to list groups from scopes: {e}")
+        return {
+            "total_count": 0,
+            "groups": {},
+            "error": str(e)
+        }
+
+
+async def group_exists_in_scopes(
+    group_name: str
+) -> bool:
+    """
+    Check if a group exists in scopes.yml.
+
+    Args:
+        group_name: Name of the group to check
+
+    Returns:
+        True if group exists, False otherwise
+    """
+    try:
+        scopes_data = _read_scopes_file()
+        return group_name in scopes_data
+    except Exception as e:
+        logger.error(f"Error checking if group exists in scopes: {e}")
+        return False
