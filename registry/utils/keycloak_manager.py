@@ -15,7 +15,7 @@ import base64
 logger = logging.getLogger(__name__)
 
 
-KEYCLOAK_ADMIN_URL: str = os.environ.get("KEYCLOAK_ADMIN_URL", "http://keycloak:8080")
+KEYCLOAK_ADMIN_URL: str = os.environ.get("KEYCLOAK_URL", "http://keycloak:8080")
 KEYCLOAK_REALM: str = os.environ.get("KEYCLOAK_REALM", "mcp-gateway")
 KEYCLOAK_ADMIN: str = os.environ.get("KEYCLOAK_ADMIN", "admin")
 KEYCLOAK_ADMIN_PASSWORD: Optional[str] = os.environ.get("KEYCLOAK_ADMIN_PASSWORD")
