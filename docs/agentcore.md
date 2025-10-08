@@ -516,7 +516,7 @@ cd ${HOME}/workspace/mcp-gateway-registry
 # See the complete end-to-end example in the Service Management Guide
 ```
 
-**Learn More:** Follow the [Service Management Guide - End-to-End Example](service-management.md#end-to-end-example) for detailed instructions on:
+**Learn More:** Follow the [Service Management Guide - Complete Workflow Example](service-management.md#complete-workflow-example) for detailed instructions on:
 - Creating groups and scopes
 - Assigning users to groups
 - Configuring service-level access control
