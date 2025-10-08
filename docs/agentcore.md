@@ -502,6 +502,33 @@ sequenceDiagram
 - **Flexibility**: Each layer can use its own IdP and policies
 
 
+## Next Steps
+
+### 1. Configure Fine-Grained Access Control (FGAC)
+
+Set up access controls so the customer-support-assistant service is only accessible to users in specific groups:
+
+```bash
+# Create a new group/scope for customer support users
+cd ${HOME}/workspace/mcp-gateway-registry
+
+# Add the group and assign users
+# See the complete end-to-end example in the Service Management Guide
+```
+
+**Learn More:** Follow the [Service Management Guide - End-to-End Example](service-management.md#end-to-end-example) for detailed instructions on:
+- Creating groups and scopes
+- Assigning users to groups
+- Configuring service-level access control
+- Testing access permissions
+
+### 2. Additional Integration Options
+
+- **Add more AgentCore gateways** to your registry following this same process
+- **Integrate with Claude Desktop** or other MCP clients for AI-powered interactions
+- **Monitor usage** through the registry UI at http://localhost:7860
+- **Set up observability** to track tool usage and performance metrics
+
 ## Troubleshooting
 
 ### 404 Not Found Error
@@ -523,13 +550,6 @@ If you get a 401 error:
 1. Verify AgentCore gateway is accessible from registry container
 2. Check network connectivity
 3. Review registry logs: `docker logs mcp-gateway-registry-registry-1`
-
-## Next Steps
-
-- Add more AgentCore gateways to your registry
-- Configure user groups and access controls
-- Integrate with Claude Desktop or other MCP clients
-- Monitor usage through the registry UI
 
 ## Additional Resources
 
