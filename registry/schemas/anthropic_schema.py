@@ -71,6 +71,8 @@ class Package(BaseModel):
 class ServerDetail(BaseModel):
     """Detailed MCP server information."""
 
+    model_config = {"populate_by_name": True}
+
     name: str = Field(..., description="Server name in reverse-DNS format")
     description: str = Field(..., description="Server description")
     version: str = Field(..., description="Server version")
@@ -78,17 +80,19 @@ class ServerDetail(BaseModel):
     repository: Optional[Repository] = Field(None, description="Repository information")
     websiteUrl: Optional[str] = Field(None, description="Server website URL")
     packages: Optional[List[Package]] = Field(None, description="Package distributions")
-    _meta: Optional[Dict[str, Any]] = Field(
-        None, alias="_meta", description="Extensible metadata"
+    meta: Optional[Dict[str, Any]] = Field(
+        None, alias="_meta", serialization_alias="_meta", description="Extensible metadata"
     )
 
 
 class ServerResponse(BaseModel):
     """Response for single server query."""
 
+    model_config = {"populate_by_name": True}
+
     server: ServerDetail = Field(..., description="Server details")
-    _meta: Optional[Dict[str, Any]] = Field(
-        None, alias="_meta", description="Registry-managed metadata"
+    meta: Optional[Dict[str, Any]] = Field(
+        None, alias="_meta", serialization_alias="_meta", description="Registry-managed metadata"
     )
 
 

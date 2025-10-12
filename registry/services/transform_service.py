@@ -7,7 +7,7 @@ This bridges our internal data model with the external Anthropic API format.
 import logging
 from typing import Any, Dict, List, Optional
 
-from ..models.anthropic_schema import (
+from ..schemas.anthropic_schema import (
     Package,
     PaginationMetadata,
     Repository,
@@ -155,7 +155,7 @@ def transform_to_server_detail(server_info: Dict[str, Any]) -> ServerDetail:
         title=server_info.get("server_name"),
         repository=repository,
         packages=[package],
-        _meta=meta,
+        meta=meta,
     )
 
 
@@ -184,7 +184,7 @@ def transform_to_server_response(
             }
         }
 
-    return ServerResponse(server=server_detail, _meta=registry_meta)
+    return ServerResponse(server=server_detail, meta=registry_meta)
 
 
 def transform_to_server_list(

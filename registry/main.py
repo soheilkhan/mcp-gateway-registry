@@ -40,7 +40,7 @@ from registry.core.config import settings
 def setup_logging():
     """Configure logging to write to both file and console."""
     # Ensure log directory exists
-    log_dir = settings.container_log_dir
+    log_dir = settings.log_dir
     log_dir.mkdir(parents=True, exist_ok=True)
     
     # Define log file path
@@ -199,8 +199,8 @@ if FRONTEND_BUILD_PATH.exists():
     @app.get("/{full_path:path}")
     async def serve_react_app(full_path: str):
         """Serve React app for all non-API routes"""
-        # Don't serve React for API routes and well-known discovery endpoints
-        if full_path.startswith("api/") or full_path.startswith("health") or full_path.startswith(".well-known/"):
+        # Don't serve React for API routes, v0 registry API, health checks, and well-known discovery endpoints
+        if full_path.startswith("api/") or full_path.startswith("v0/") or full_path.startswith("health") or full_path.startswith(".well-known/"):
             raise HTTPException(status_code=404)
 
         return FileResponse(FRONTEND_BUILD_PATH / "index.html")

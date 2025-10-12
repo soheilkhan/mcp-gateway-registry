@@ -13,9 +13,9 @@ from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from ..auth.dependencies import enhanced_auth
+from ..auth.dependencies import nginx_proxied_auth
 from ..health.service import health_service
-from ..models.anthropic_schema import ErrorResponse, ServerList, ServerResponse
+from ..schemas.anthropic_schema import ErrorResponse, ServerList, ServerResponse
 from ..services.server_service import server_service
 from ..services.transform_service import (
     transform_to_server_list,
@@ -44,7 +44,7 @@ async def list_servers(
     limit: Annotated[
         Optional[int], Query(description="Maximum number of items", ge=1, le=1000)
     ] = None,
-    user_context: Annotated[dict, Depends(enhanced_auth)] = None,
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ) -> ServerList:
     """
     List all MCP servers with pagination.
@@ -75,17 +75,11 @@ async def list_servers(
         )
         logger.debug(f"User accessing {len(all_servers)} accessible servers")
 
-    # Filter by UI permissions (list_service permission)
-    accessible_services = user_context.get("accessible_services", [])
+    # For v0 API, we don't need UI service filtering - accessible_servers already handles MCP server permissions
+    # No additional filtering needed here - the get_all_servers_with_permissions already filtered by accessible_servers
     filtered_servers = []
 
     for path, server_info in all_servers.items():
-        server_name = server_info["server_name"]
-
-        # Check list_service permission
-        if "all" not in accessible_services and server_name not in accessible_services:
-            continue
-
         # Add health status and enabled state for transformation
         health_data = health_service._get_service_health_data(path)
 
@@ -117,7 +111,7 @@ async def list_servers(
 )
 async def list_server_versions(
     serverName: str,
-    user_context: Annotated[dict, Depends(enhanced_auth)] = None,
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ) -> ServerList:
     """
     List all versions of a specific server.
@@ -200,7 +194,7 @@ async def list_server_versions(
 async def get_server_version(
     serverName: str,
     version: str,
-    user_context: Annotated[dict, Depends(enhanced_auth)] = None,
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ) -> ServerResponse:
     """
     Get detailed information about a specific server version.
