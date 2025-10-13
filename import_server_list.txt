@@ -5,3 +5,6 @@
 ai.aliengiraffe/spotdb
 ai.klavis/strata
 ai.mcpcap/mcpcap
+ai.explorium/mcp-explorium
+ai.shawndurrani/mcp-merchant
+ai.smithery/222wcnm-bilistalkermcp
