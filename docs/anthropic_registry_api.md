@@ -1,6 +1,6 @@
 # Anthropic MCP Registry API v0 Documentation
 
-The MCP Gateway Registry implements the [Anthropic MCP Registry REST API v0](https://raw.githubusercontent.com/modelcontextprotocol/registry/refs/heads/main/docs/reference/api/openapi.yaml) specification, providing full compatibility with Anthropic's official registry clients.
+The MCP Gateway Registry implements the server listing and related APIs from the [Anthropic MCP Registry REST API v0](https://raw.githubusercontent.com/modelcontextprotocol/registry/refs/heads/main/docs/reference/api/openapi.yaml) specification. Additional API endpoints will be added in future releases.
 
 ## Overview
 
