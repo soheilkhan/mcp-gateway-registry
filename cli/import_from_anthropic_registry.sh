@@ -48,126 +48,6 @@ validate_package() {
     esac
 }
 
-generate_deployment_instructions() {
-    local server_name="$1"
-    local config_file="$2"
-    local assigned_port="$3"
-
-    local anthropic_json=$(cat "${TEMP_DIR}/${server_name}-anthropic.json")
-    local npm_package=$(echo "$anthropic_json" | jq -r '.server.packages[]? | select(.registryType == "npm") | .identifier' | head -1)
-    local pypi_package=$(echo "$anthropic_json" | jq -r '.server.packages[]? | select(.registryType == "pypi") | .identifier' | head -1)
-    local repo_url=$(echo "$anthropic_json" | jq -r '.server.repository.url // ""')
-
-    cat >> "${TEMP_DIR}/DEPLOYMENT_INSTRUCTIONS.md" <<EOF
-
-## $server_name
-
-**Assigned Port:** $assigned_port
-**Path:** /$server_name
-**Config File:** $config_file
-
-### Installation
-
-EOF
-
-    if [ -n "$npm_package" ] && [ "$npm_package" != "null" ]; then
-        cat >> "${TEMP_DIR}/DEPLOYMENT_INSTRUCTIONS.md" <<EOF
-**NPM Package:**
-\`\`\`bash
-npx $npm_package
-\`\`\`
-
-EOF
-    fi
-
-    if [ -n "$pypi_package" ] && [ "$pypi_package" != "null" ]; then
-        cat >> "${TEMP_DIR}/DEPLOYMENT_INSTRUCTIONS.md" <<EOF
-**Python Package:**
-\`\`\`bash
-pip install $pypi_package
-# Or with uvx:
-uvx $pypi_package
-\`\`\`
-
-EOF
-    fi
-
-    if [ -n "$repo_url" ] && [ "$repo_url" != "null" ]; then
-        cat >> "${TEMP_DIR}/DEPLOYMENT_INSTRUCTIONS.md" <<EOF
-**Repository:** $repo_url
-
-EOF
-    fi
-
-    cat >> "${TEMP_DIR}/DEPLOYMENT_INSTRUCTIONS.md" <<EOF
-### Configuration
-
-The server has been registered but needs to be deployed. Update the \`proxy_pass_url\` in the configuration if needed:
-
-\`\`\`bash
-# Edit config
-vim $config_file
-
-# Update the service
-./cli/service_mgmt.sh update $server_name
-\`\`\`
-
----
-
-EOF
-}
-
-# Generate final deployment instructions
-generate_final_instructions() {
-    cat > "${TEMP_DIR}/DEPLOYMENT_INSTRUCTIONS.md" <<EOF
-# MCP Server Deployment Instructions
-
-Generated: $(date)
-
-This file contains deployment instructions for servers imported from the Anthropic MCP Registry.
-
-**Important:** The servers have been registered in the gateway but need to be deployed before they can be used.
-
-## Quick Start
-
-1. Choose a deployment option for each server below
-2. Deploy the server on the assigned port
-3. Verify the server is accessible
-4. The server will automatically appear as "healthy" in the registry UI
-
-## Servers
-
-EOF
-
-    # Re-process each server to add to the instructions
-    for server_name in "${servers[@]}"; do
-        local safe_name=$(echo "$server_name" | sed 's|/|-|g')
-        local anthropic_file="${TEMP_DIR}/${safe_name}-anthropic.json"
-        if [ -f "$anthropic_file" ]; then
-            local anthropic_json=$(cat "$anthropic_file")
-            local port=$((BASE_PORT + $(printf '%s\n' "${servers[@]}" | grep -n "^$server_name$" | cut -d: -f1) - 1))
-            generate_deployment_instructions "$server_name" "${TEMP_DIR}/${safe_name}-config.json" "$port"
-        fi
-    done
-
-    cat >> "${TEMP_DIR}/DEPLOYMENT_INSTRUCTIONS.md" <<EOF
-
-## Next Steps
-
-1. **Deploy servers** using the options above
-2. **Verify connectivity** by checking the registry UI for "healthy" status
-3. **Test tools** using the MCP client or AI coding assistants
-4. **Update configurations** if needed for your environment
-
-## Troubleshooting
-
-- **Server shows as unhealthy:** Check if the service is running on the assigned port
-- **Port conflicts:** Update the proxy_pass_url in the server config to use a different port
-- **Missing dependencies:** Install required packages or API keys as mentioned in the repository
-
-EOF
-}
-
 # Parse arguments
 DRY_RUN=false
 IMPORT_LIST="import_server_list.txt"
@@ -295,15 +175,9 @@ with open('$config_file', 'w') as f:
         success_count=$((success_count + 1))
     fi
     
-    # Generate deployment instructions
-    generate_deployment_instructions "$server_name" "$config_file" "$current_port"
-    
     current_port=$((current_port + 1))
 done
 
-# Generate final deployment instructions file
-generate_final_instructions
 
 print_info "Import completed: $success_count/${#servers[@]} successful"
 print_info "Configuration files saved to: $TEMP_DIR"
-print_info "Deployment instructions: ${TEMP_DIR}/DEPLOYMENT_INSTRUCTIONS.md"
