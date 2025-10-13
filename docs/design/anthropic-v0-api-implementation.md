@@ -185,7 +185,10 @@ X-Original-URL: http://localhost/v0/servers
 
 **Auth Server Processing**:
 1. Validates JWT signature using Keycloak JWKS
-2. Checks expiration, issuer, audience
+2. Checks expiration, issuer (3-tier validation), audience
+   - Tries external URL: `https://mcpgateway.ddns.net/realms/mcp-gateway`
+   - Tries internal URL: `http://keycloak:8080/realms/mcp-gateway`
+   - Tries localhost URL: `http://localhost:8080/realms/mcp-gateway`
 3. Extracts user info: `preferred_username`, `groups`, `scope`
 4. Maps Keycloak groups to MCP scopes
 
