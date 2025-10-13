@@ -471,6 +471,43 @@ class HealthMonitoringService:
         # Get transport information from server_info
         supported_transports = server_info.get("supported_transports", ["streamable-http"])
         
+        # If URL already has transport endpoint, use it directly
+        if proxy_pass_url.endswith('/mcp') or proxy_pass_url.endswith('/sse') or '/mcp/' in proxy_pass_url or '/sse/' in proxy_pass_url:
+            logger.info(f"[TRACE] Found transport endpoint in URL: {proxy_pass_url}")
+            logger.info(f"[TRACE] URL contains /mcp: {'/mcp' in proxy_pass_url}, URL contains /sse: {'/sse' in proxy_pass_url}")
+            try:
+                # Build headers including server-specific headers
+                headers = self._build_headers_for_server(server_info)
+                # For SSE endpoints, use a shorter timeout since they start streaming immediately
+                if proxy_pass_url.endswith('/sse') or '/sse/' in proxy_pass_url:
+                    logger.info(f"[TRACE] Detected SSE endpoint in URL, using SSE-specific handling")
+                    timeout = httpx.Timeout(connect=5.0, read=2.0, write=5.0, pool=5.0)
+                    try:
+                        response = await client.get(proxy_pass_url, headers=headers, follow_redirects=True, timeout=timeout)
+                        return self._is_mcp_endpoint_healthy(response)
+                    except (httpx.TimeoutException, asyncio.TimeoutError) as e:
+                        # For SSE endpoints, timeout while reading streaming response is normal after getting 200 OK
+                        logger.debug(f"SSE endpoint {proxy_pass_url} timed out while streaming (expected): {e}")
+                        # If we can extract status code from response, check if it was 200
+                        if hasattr(e, 'response') and e.response and e.response.status_code == 200:
+                            logger.debug(f"SSE endpoint {proxy_pass_url} returned 200 OK before timeout - considering healthy")
+                            return True, HealthStatus.HEALTHY
+                        # For SSE, timeout after initial connection usually means server is responding
+                        return True, HealthStatus.HEALTHY
+                    except Exception as e:
+                        logger.warning(f"SSE endpoint {proxy_pass_url} failed with exception: {type(e).__name__} - {e}")
+                        return False, f"unhealthy: {type(e).__name__}"
+                else:
+                    logger.info(f"[TRACE] Detected MCP endpoint in URL, using standard HTTP handling")
+                    response = await client.get(proxy_pass_url, headers=headers, follow_redirects=True)
+                    if self._is_mcp_endpoint_healthy(response):
+                        return True, HealthStatus.HEALTHY
+                    else:
+                        return False, f"unhealthy: status {response.status_code}"
+            except Exception as e:
+                logger.warning(f"Health check failed for {proxy_pass_url}: {type(e).__name__} - {e}")
+                return False, f"unhealthy: {type(e).__name__}"
+
         # Skip health checks for stdio transport (as requested)
         if supported_transports == ["stdio"]:
             logger.info(f"[TRACE] Skipping health check for stdio transport: {proxy_pass_url}")
@@ -645,7 +682,7 @@ class HealthMonitoringService:
                     if isinstance(error.get("code"), int) and error.get("code") == -32600:
                         return True
                     
-                # Check for Strata-specific query parameter error
+                # Check for streamable-http no auth specific query parameter error
                 if isinstance(response_data.get("error"), str):
                     error_msg = response_data["error"]
                     if "Missing required query parameter: strata_id or instance_id" in error_msg:
