@@ -267,6 +267,11 @@ result['path'] = '/$safe_path'
 result['proxy_pass_url'] = '$proxy_url'
 result['supported_transports'] = ['$transport_type']
 
+# Remove unsupported fields for register_service tool
+unsupported_fields = ['repository_url', 'website_url', 'package_npm']
+for field in unsupported_fields:
+    result.pop(field, None)
+
 with open('$config_file', 'w') as f:
     json.dump(result, f, indent=2)
 "
