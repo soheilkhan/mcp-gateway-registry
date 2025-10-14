@@ -252,7 +252,6 @@ flowchart TB
 - Unified governance for both AI agents and human developers
 
 ### **Production Ready**
-- High availability with multi-AZ deployment
 - Container-native (Docker/Kubernetes)
 - Real-time health monitoring and alerting
 - Dual authentication supporting both human and machine authentication
