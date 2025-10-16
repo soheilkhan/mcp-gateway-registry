@@ -1,9 +1,5 @@
 # Anthropic MCP Registry API - Implementation Guide
 
-**Date**: 2025-10-12
-**Issue**: #175
-**Status**: ✅ Fully Implemented with JWT Authentication
-
 > **Note**: The API version (v0.1) is defined as a constant `ANTHROPIC_API_VERSION` in `registry/constants.py`. All code references this constant rather than hardcoding the version string.
 
 ---
