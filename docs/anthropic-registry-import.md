@@ -180,10 +180,10 @@ Visit [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.i
 
 ```bash
 # List all available servers
-curl https://registry.modelcontextprotocol.io/v0/servers | jq '.servers[] | .name'
+curl https://registry.modelcontextprotocol.io/v0.1/servers | jq '.servers[] | .name'
 
 # Get details for a specific server
-curl https://registry.modelcontextprotocol.io/v0/servers/ai.smithery%2Fsmithery-ai-github | jq '.'
+curl https://registry.modelcontextprotocol.io/v0.1/servers/ai.smithery%2Fsmithery-ai-github/versions/latest | jq '.'
 ```
 
 ### Test Server Before Importing

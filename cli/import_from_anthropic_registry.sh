@@ -118,18 +118,18 @@ current_port=$BASE_PORT
 
 for server_name in "${servers[@]}"; do
     print_info "Processing: $server_name"
-    
-    # Fetch from Anthropic API (URL encode server name)
+
+    # Fetch from Anthropic API v0.1 (URL encode server name)
     encoded_name=$(echo "$server_name" | sed 's|/|%2F|g')
-    api_url="${ANTHROPIC_API_BASE}/v0/servers/${encoded_name}"
+    api_url="${ANTHROPIC_API_BASE}/v0.1/servers/${encoded_name}/versions/latest"
     safe_name=$(echo "$server_name" | sed 's|/|-|g')
     anthropic_file="${TEMP_DIR}/${safe_name}-anthropic.json"
-    
+
     if ! curl -s -f "$api_url" > "$anthropic_file"; then
-        print_error "Failed to fetch $server_name"
-        continue
+    print_error "Failed to fetch $server_name"
+    continue
     fi
-    
+
     # Transform to registry format
     config_file="${TEMP_DIR}/${safe_name}-config.json"
     anthropic_json=$(cat "$anthropic_file")
