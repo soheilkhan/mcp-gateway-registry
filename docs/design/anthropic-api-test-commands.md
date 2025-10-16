@@ -1,9 +1,5 @@
 # Anthropic Registry API Test Commands
 
-**Purpose**: Test the Anthropic MCP Registry API v0.1 compatibility implementation
-**Issue**: #175
-**Branch**: feature/anthropic-registry-api-compatibility
-
 > **Note**: The API version is defined in `registry/constants.py` as `ANTHROPIC_API_VERSION` for easy version management.
 
 ## Overview
