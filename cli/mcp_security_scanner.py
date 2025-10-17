@@ -115,6 +115,7 @@ def _run_mcp_scanner(
     env = os.environ.copy()
     if api_key:
         env[OPENAI_API_KEY_ENV] = api_key
+        env["MCP_SCANNER_LLM_API_KEY"] = api_key  # mcp-scanner expects this env var
 
     # Run scanner
     try:
