@@ -282,3 +282,6 @@ coverage/
 # Anthropic registry temporary files
 anthropic_servers_*.json
 curated_import_list.txt
+
+#Security scans
+security_scans/
