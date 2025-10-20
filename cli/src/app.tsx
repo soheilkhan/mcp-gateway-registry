@@ -303,7 +303,7 @@ export default function App({options}: AppProps) {
       )}
       <Box flexDirection="column" marginTop={1}>
         <Box>
-          <Text color="gray">{"─".repeat(process.stdout.columns || 80)}</Text>
+          <Text color="gray">{"═".repeat(Math.min(process.stdout.columns || 80, 80))}</Text>
         </Box>
         <Box>
           {inputPrompt}
@@ -317,7 +317,7 @@ export default function App({options}: AppProps) {
           </Box>
         </Box>
         <Box>
-          <Text color="gray">{"─".repeat(process.stdout.columns || 80)}</Text>
+          <Text color="gray">{"═".repeat(Math.min(process.stdout.columns || 80, 80))}</Text>
         </Box>
       </Box>
     </Box>
