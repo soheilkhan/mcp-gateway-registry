@@ -57,28 +57,51 @@ fi
 echo "✓ Got token: ${TOKEN:0:50}..."
 echo ""
 
-# Step 2: Test ping endpoint
-echo "2. Testing /mcpgw/mcp ping endpoint..."
-PING_RESPONSE=$(curl -s -X POST "${REGISTRY_URL}/mcpgw/mcp" \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"jsonrpc": "2.0", "method": "ping", "id": 1}')
-
-echo "Response:"
-echo "$PING_RESPONSE" | jq . 2>/dev/null || echo "$PING_RESPONSE"
-echo ""
-
-# Step 3: Test initialize
-echo "3. Testing initialize..."
+# Step 2: Test initialize to get session ID
+echo "2. Testing initialize to establish session..."
 INIT_RESPONSE=$(curl -s -X POST "${REGISTRY_URL}/mcpgw/mcp" \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"jsonrpc": "2.0", "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}, "id": 2}')
+  -D /tmp/mcp_headers.txt \
+  -d '{"jsonrpc": "2.0", "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}, "id": 1}')
 
 echo "Response:"
 echo "$INIT_RESPONSE" | jq . 2>/dev/null || echo "$INIT_RESPONSE"
 echo ""
+
+# Extract session ID from response headers
+SESSION_ID=$(grep -i "mcp-session-id" /tmp/mcp_headers.txt | awk '{print $2}' | tr -d '\r')
+
+if [ -z "$SESSION_ID" ]; then
+  echo "WARNING: No session ID found in response headers"
+  echo "Checking response data for session info..."
+  # Sometimes session ID might be in the SSE data
+  SESSION_ID=$(echo "$INIT_RESPONSE" | grep -o '"sessionId":"[^"]*"' | cut -d'"' -f4)
+fi
+
+if [ -n "$SESSION_ID" ]; then
+  echo "✓ Got session ID: ${SESSION_ID:0:20}..."
+  echo ""
+
+  # Step 3: Test ping with session ID
+  echo "3. Testing ping endpoint with session ID..."
+  PING_RESPONSE=$(curl -s -X POST "${REGISTRY_URL}/mcpgw/mcp" \
+    -H 'Content-Type: application/json' \
+    -H 'Accept: application/json, text/event-stream' \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Mcp-Session-Id: $SESSION_ID" \
+    -d '{"jsonrpc": "2.0", "method": "ping", "id": 2}')
+
+  echo "Response:"
+  echo "$PING_RESPONSE" | jq . 2>/dev/null || echo "$PING_RESPONSE"
+  echo ""
+else
+  echo "⚠️  Could not extract session ID, skipping ping test"
+  echo ""
+fi
+
+# Cleanup
+rm -f /tmp/mcp_headers.txt
 
 echo "=== Test Complete ==="
