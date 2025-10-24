@@ -325,8 +325,6 @@ The combination of both analyzers provides defense-in-depth, with YARA catching 
 
 ## Prerequisites
 
-The MCP Scanner is already included in the project dependencies via `pyproject.toml`, so no additional installation is required.
-
 ### Set LLM API Key (Optional)
 
 Only required if using the LLM analyzer:
