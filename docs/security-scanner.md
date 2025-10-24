@@ -170,20 +170,20 @@ Beyond initial registration security checks, the registry supports comprehensive
 
 ```bash
 cd /home/ubuntu/repos/mcp-gateway-registry
-uv run cli/scan_all_servers.py --base-url https://mcpgateway.ddns.net
+uv run cli/scan_all_servers.py --base-url https://mcpgateway.example.com
 ```
 
 **Command Options:**
 
 ```bash
 # Scan with default YARA analyzer
-uv run cli/scan_all_servers.py --base-url https://mcpgateway.ddns.net
+uv run cli/scan_all_servers.py --base-url https://mcpgateway.example.com
 
 # Scan with both YARA and LLM analyzers (requires API key in .env)
-uv run cli/scan_all_servers.py --base-url https://mcpgateway.ddns.net --analyzers yara,llm
+uv run cli/scan_all_servers.py --base-url https://mcpgateway.example.com --analyzers yara,llm
 
 # Specify custom output directory
-uv run cli/scan_all_servers.py --base-url https://mcpgateway.ddns.net --output-dir custom_scans
+uv run cli/scan_all_servers.py --base-url https://mcpgateway.example.com --output-dir custom_scans
 ```
 
 ### Generated Report
@@ -310,7 +310,7 @@ MCP_SCANNER_LLM_API_KEY=sk-your-openai-api-key
 ./cli/service_mgmt.sh add config.json yara,llm
 
 # During periodic scans
-uv run cli/scan_all_servers.py --base-url https://mcpgateway.ddns.net --analyzers yara,llm
+uv run cli/scan_all_servers.py --base-url https://mcpgateway.example.com --analyzers yara,llm
 ```
 
 ### Recommendation
