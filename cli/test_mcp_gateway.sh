@@ -1,9 +1,13 @@
 #!/bin/bash
 set -e
 
+# Determine the script directory and project root
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
+
 # Load environment variables from .env file if it exists
-if [ -f "../.env" ]; then
-    export $(grep -v '^#' ../.env | xargs)
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    export $(grep -v '^#' "$PROJECT_ROOT/.env" | xargs)
 fi
 
 # Use environment variables or defaults for testing
@@ -57,6 +61,7 @@ echo ""
 echo "2. Testing /mcpgw/mcp ping endpoint..."
 PING_RESPONSE=$(curl -s -X POST "${REGISTRY_URL}/mcpgw/mcp" \
   -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"jsonrpc": "2.0", "method": "ping", "id": 1}')
 
@@ -68,6 +73,7 @@ echo ""
 echo "3. Testing initialize..."
 INIT_RESPONSE=$(curl -s -X POST "${REGISTRY_URL}/mcpgw/mcp" \
   -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"jsonrpc": "2.0", "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}, "id": 2}')
 
