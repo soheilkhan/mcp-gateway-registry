@@ -145,11 +145,15 @@ export default function App({options}: AppProps) {
           setSelectedSuggestionIndex((prev) =>
             prev < commandSuggestions.length - 1 ? prev + 1 : 0
           );
-        } else if (key.tab) {
-          // Tab to autocomplete
+        } else if (key.tab || key.return) {
+          // Tab or Enter to autocomplete
           const selected = commandSuggestions[selectedSuggestionIndex];
           if (selected) {
             setInputValue(selected.command + " ");
+          }
+          // Prevent Enter from submitting when autocompleting
+          if (key.return) {
+            return;
           }
         }
       }
@@ -159,6 +163,11 @@ export default function App({options}: AppProps) {
 
   const handleSubmit = useCallback(
     async (value: string) => {
+      // If suggestions are visible, don't submit - let Enter autocomplete instead
+      if (commandSuggestions.length > 0) {
+        return;
+      }
+
       const trimmed = value.trim();
       if (!trimmed) {
         return;
@@ -242,7 +251,7 @@ export default function App({options}: AppProps) {
         setBusy(false);
       }
     },
-    [messages, authState, gatewayUrl, gatewayBaseUrl, agentAvailable, addMessage]
+    [messages, authState, gatewayUrl, gatewayBaseUrl, agentAvailable, addMessage, commandSuggestions]
   );
 
   const renderMessages = () => (
@@ -313,17 +322,35 @@ export default function App({options}: AppProps) {
         <Box>
           {inputPrompt}
           <Box marginLeft={1} flexGrow={1}>
-            <TextInput
-              value={inputValue}
-              onChange={setInputValue}
-              onSubmit={handleSubmit}
-              placeholder="Type a message or use /commands"
-            />
+            <Box>
+              <TextInput
+                value={inputValue}
+                onChange={setInputValue}
+                onSubmit={handleSubmit}
+                placeholder="Type a message or use /commands"
+              />
+              {commandSuggestions.length > 0 && commandSuggestions[selectedSuggestionIndex] && (
+                <Text color="gray" dimColor>
+                  {commandSuggestions[selectedSuggestionIndex].command.substring(inputValue.length)}
+                </Text>
+              )}
+            </Box>
           </Box>
         </Box>
         <Box>
           <Text color="gray">{"═".repeat(Math.min(process.stdout.columns || 80, 80))}</Text>
         </Box>
+        {commandSuggestions.length > 0 && commandSuggestions[selectedSuggestionIndex] && (
+          <Box marginTop={1}>
+            <Text color="cyan" dimColor>
+              💡 {commandSuggestions[selectedSuggestionIndex].command}
+            </Text>
+            <Text color="gray" dimColor>
+              {" — "}
+              {commandSuggestions[selectedSuggestionIndex].description}
+            </Text>
+          </Box>
+        )}
       </Box>
     </Box>
   );
