@@ -195,6 +195,11 @@ export default function App({options}: AppProps) {
         try {
           const result = await executeSlashCommand(trimmed, commandContext);
           addMessage(result.isError ? "assistant" : "tool", result.lines.join("\n"));
+
+          // Handle exit command
+          if (result.shouldExit) {
+            setTimeout(() => process.exit(0), 500);
+          }
         } catch (error) {
           addMessage("assistant", `Command failed: ${(error as Error).message}`);
         } finally {

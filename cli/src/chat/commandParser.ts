@@ -1,6 +1,6 @@
 import type {TaskCategory} from "../tasks/types.js";
 
-export type CommandKind = "help" | "ping" | "list" | "init" | "call" | "task" | "unknown";
+export type CommandKind = "help" | "ping" | "list" | "init" | "call" | "task" | "exit" | "unknown";
 
 export interface BaseParsedCommand {
   kind: CommandKind;
@@ -8,6 +8,10 @@ export interface BaseParsedCommand {
 
 export interface HelpCommand extends BaseParsedCommand {
   kind: "help";
+}
+
+export interface ExitCommand extends BaseParsedCommand {
+  kind: "exit";
 }
 
 export interface PingCommand extends BaseParsedCommand {
@@ -33,7 +37,7 @@ export interface UnknownCommand extends BaseParsedCommand {
   message: string;
 }
 
-export type ParsedCommand = HelpCommand | PingCommand | CallCommand | TaskCommand | UnknownCommand;
+export type ParsedCommand = HelpCommand | ExitCommand | PingCommand | CallCommand | TaskCommand | UnknownCommand;
 
 const TASK_PREFIXES: Record<string, TaskCategory> = {
   service: "service",
@@ -73,6 +77,10 @@ export function parseCommand(input: string): ParsedCommand {
 
   if (keyword === "help" || keyword === "?") {
     return {kind: "help"};
+  }
+
+  if (keyword === "exit" || keyword === "quit" || keyword === "q") {
+    return {kind: "exit"};
   }
 
   if (keyword === "call") {

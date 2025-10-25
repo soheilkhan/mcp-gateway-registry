@@ -15,6 +15,8 @@ export const AVAILABLE_COMMANDS: CommandOption[] = [
   { command: "/list", description: "List available MCP tools", category: "Basic" },
   { command: "/init", description: "Initialize MCP session", category: "Basic" },
   { command: "/call", description: "Call an MCP tool", category: "Basic" },
+  { command: "/exit", description: "Exit the CLI", category: "Basic" },
+  { command: "/quit", description: "Exit the CLI (alias for /exit)", category: "Basic" },
   { command: "/retry", description: "Retry authentication", category: "Basic" },
 
   // Service commands

@@ -9,12 +9,15 @@ export interface CommandExecutionContext extends TaskContext {}
 export async function executeSlashCommand(
   input: string,
   context: CommandExecutionContext
-): Promise<{lines: string[]; isError?: boolean}> {
+): Promise<{lines: string[]; isError?: boolean; shouldExit?: boolean}> {
   const parsed = parseCommand(input);
 
   switch (parsed.kind) {
     case "help":
       return {lines: [overviewMessage()]};
+
+    case "exit":
+      return {lines: ["Goodbye! 👋"], shouldExit: true};
 
     case "ping":
     case "list":
@@ -90,6 +93,7 @@ export function overviewMessage(): string {
     "  /list — list MCP tools",
     "  /call tool=<name> args='<json>' — invoke a tool",
     "  /init — initialise a session",
+    "  /exit — exit the CLI (aliases: /quit, /q)",
     "  /service|/import|/user|/diagnostic ... — run registry scripts",
     "Use natural language when ANTHROPIC_API_KEY is set to let Claude decide which tools to call."
   ].join("\n");
