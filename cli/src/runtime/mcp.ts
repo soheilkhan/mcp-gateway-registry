@@ -1,12 +1,18 @@
-import {McpClient} from "../client.js";
 import type {CommandName} from "../parseArgs.js";
-import type {JsonRpcResponse} from "../client.js";
+import type {JsonRpcResponse} from "../types/mcp.js";
+import {executePythonMcpCommand} from "./pythonClient.js";
 
 export interface McpExecutionResult {
   handshake: JsonRpcResponse;
   response: JsonRpcResponse;
 }
 
+/**
+ * Execute MCP command using the Python client backend.
+ *
+ * This function bridges the TypeScript CLI to the Python mcp_client.py,
+ * eliminating duplicate client implementations while maintaining the Ink UI.
+ */
 export async function executeMcpCommand(
   command: CommandName,
   gatewayUrl: string,
@@ -14,32 +20,14 @@ export async function executeMcpCommand(
   backendToken?: string,
   callOptions?: {tool: string; args: Record<string, unknown>}
 ): Promise<McpExecutionResult> {
-  const client = new McpClient({
-    url: gatewayUrl,
+  // Delegate to Python client
+  return executePythonMcpCommand(
+    command,
+    gatewayUrl,
     gatewayToken,
-    backendToken
-  });
-
-  const handshake = await client.initialize();
-
-  switch (command) {
-    case "ping":
-      return {handshake, response: await client.ping()};
-    case "list":
-      return {handshake, response: await client.listTools()};
-    case "call": {
-      if (!callOptions) {
-        throw new Error("Tool name and args are required for /call.");
-      }
-      return {
-        handshake,
-        response: await client.callTool(callOptions.tool, callOptions.args)
-      };
-    }
-    case "init":
-    default:
-      return {handshake, response: handshake};
-  }
+    backendToken,
+    callOptions
+  );
 }
 
 export function formatMcpResult(
