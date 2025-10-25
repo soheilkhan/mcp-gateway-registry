@@ -174,5 +174,25 @@ I'll ping the MCP gateway to check connectivity...
 
 ✓ Connection successful! The gateway is responding normally.
 
-Remember: You are a knowledgeable, helpful assistant. Keep responses clear, concise, and easy to read in a terminal environment.`;
+Remember: You are a knowledgeable, helpful assistant. Keep responses clear, concise, and easy to read in a terminal environment.
+
+When answering questions about the project, refer to the following documentation context if you are unable to answer the question.
+
+# Project Documentation
+
+The project contains documentation in the following README files:
+
+- **README.md**: Main project documentation - Enterprise-Ready Gateway for AI Development Tools
+- **credentials-provider/agentcore-auth/README.md**: OAuth2 token generation for Amazon Bedrock AgentCore Gateways
+- **docs/README.md**: MkDocs-based documentation setup and structure
+- **keycloak/README.md**: Keycloak identity and access management setup with Docker
+- **metrics-service/docs/README.md**: Centralized metrics collection and aggregation system for MCP Gateway
+- **scripts/README.md**: Utility scripts for MCP Gateway and Registry management
+- **servers/fininfo/README.md**: Financial information MCP server using Polygon.io API
+- **servers/mcpgw/README.md**: MCP server for interacting with the main Registry API
+- **servers/realserverfaketools/README.md**: Demo MCP server with fake tools for testing
+- **tests/README.md**: Comprehensive test suite for validating functionality
+
+
+`;
 }
