@@ -5,6 +5,7 @@ import Spinner from "ink-spinner";
 import {renderMarkdown, hasMarkdown, formatToolOutput} from "./utils/markdown.js";
 import {Banner} from "./components/Banner.js";
 import {CommandSuggestions} from "./components/CommandSuggestions.js";
+import {TokenStatusFooter} from "./components/TokenStatusFooter.js";
 import {getCommandSuggestions} from "./utils/commands.js";
 
 import {resolveAuth} from "./auth.js";
@@ -47,6 +48,14 @@ export default function App({options}: AppProps) {
   const [initialised, setInitialised] = useState(false);
   const [commandSuggestions, setCommandSuggestions] = useState<ReturnType<typeof getCommandSuggestions>>([]);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [pendingCommand, setPendingCommand] = useState<string | null>(null);
+
+  // Token status state
+  const [tokenSecondsRemaining, setTokenSecondsRemaining] = useState<number | undefined>();
+  const [tokenExpired, setTokenExpired] = useState(false);
+  const [isRefreshingToken, setIsRefreshingToken] = useState(false);
+  const [lastTokenRefresh, setLastTokenRefresh] = useState<Date | undefined>();
+  const [tokenSource, setTokenSource] = useState<string | undefined>();
 
   const gatewayUrl = useMemo(() => options.url ?? "http://localhost/mcpgw/mcp", [options.url]);
   const gatewayBaseUrl = useMemo(() => deriveGatewayBase(gatewayUrl), [gatewayUrl]);
@@ -76,10 +85,29 @@ export default function App({options}: AppProps) {
       explicitToken: options.token,
       cwd: process.cwd()
     })
-      .then((context) => {
-        if (!cancelled) {
-          setAuthState({status: "ready", context});
+      .then(async (context) => {
+        if (cancelled) return;
+
+        // Check if we have a gateway token - if not, try to generate one
+        if (!context.gatewayToken || context.gatewaySource === "none") {
+          addMessage("assistant", "⚠️  No gateway token found. Attempting automatic generation...");
+
+          try {
+            const result = await refreshTokens();
+            if (result.success) {
+              addMessage("assistant", "✅ OAuth tokens generated successfully. Authenticating...");
+              // Trigger auth reload
+              setAuthAttempt((attempt) => attempt + 1);
+            } else {
+              setAuthState({status: "error", message: `Token generation failed: ${result.message}`});
+            }
+          } catch (refreshError) {
+            setAuthState({status: "error", message: `Token generation failed: ${(refreshError as Error).message}`});
+          }
+          return;
         }
+
+        setAuthState({status: "ready", context});
       })
       .catch(async (error: unknown) => {
         if (cancelled) return;
@@ -117,26 +145,121 @@ export default function App({options}: AppProps) {
       infoLines.forEach((line) => addMessage("assistant", line));
       setInitialised(true);
 
-      // Check if tokens need refresh
+      // Initialize token status
       const gatewayInspection = authState.context.inspections.find(i => i.label.includes("Gateway"));
-      if (gatewayInspection && shouldRefreshToken(gatewayInspection.secondsRemaining)) {
-        refreshTokens()
-          .then((result) => {
-            if (result.success) {
-              const timeInfo = gatewayInspection.expired ? "expired" : `expiring in ${gatewayInspection.secondsRemaining}s`;
-              addMessage("assistant", `✅ OAuth tokens ${timeInfo} - refreshed successfully. Reloading authentication...`);
-              // Trigger auth reload
-              setAuthAttempt((attempt) => attempt + 1);
-            } else {
-              addMessage("assistant", `❌ ${result.message}. Please run: ./credentials-provider/generate_creds.sh --ingress-only`);
-            }
-          })
-          .catch((error) => {
-            addMessage("assistant", `❌ Token refresh failed: ${error.message}. Please run: ./credentials-provider/generate_creds.sh --ingress-only`);
-          });
+      console.log("DEBUG: Gateway inspection:", gatewayInspection);
+      console.log("DEBUG: All inspections:", authState.context.inspections);
+      if (gatewayInspection) {
+        // Calculate initial values
+        const now = Date.now() / 1000;
+        const expiresAt = gatewayInspection.expiresAt ? gatewayInspection.expiresAt.getTime() / 1000 : 0;
+        const remaining = Math.floor(expiresAt - now);
+
+        console.log("DEBUG: Token remaining seconds:", remaining);
+        setTokenSecondsRemaining(remaining);
+        setTokenExpired(remaining <= 0);
+        setTokenSource(authState.context.gatewaySource);
+
+        // Check if tokens need refresh (silently in background)
+        if (shouldRefreshToken(remaining)) {
+          setIsRefreshingToken(true);
+          refreshTokens()
+            .then((result) => {
+              if (result.success) {
+                setLastTokenRefresh(new Date());
+                // Trigger auth reload
+                setAuthAttempt((attempt) => attempt + 1);
+              }
+            })
+            .catch(() => {
+              // Silent failure, status shown in footer
+            })
+            .finally(() => {
+              setIsRefreshingToken(false);
+            });
+        }
       }
     }
   }, [authState, addMessage, initialised, gatewayUrl, setAuthAttempt]);
+
+  // Timer to update token countdown every second
+  useEffect(() => {
+    if (authState.status !== "ready") return;
+
+    const interval = setInterval(() => {
+      const gatewayInspection = authState.context.inspections.find(i => i.label.includes("Gateway"));
+      if (gatewayInspection) {
+        // Recalculate seconds remaining based on current time
+        const now = Date.now() / 1000;
+        const expiresAt = gatewayInspection.expiresAt ? gatewayInspection.expiresAt.getTime() / 1000 : 0;
+        const remaining = Math.floor(expiresAt - now);
+
+        setTokenSecondsRemaining(remaining);
+        setTokenExpired(remaining <= 0);
+
+        // Auto-refresh if needed (silently) when token has <= 10 seconds remaining
+        if (remaining <= 10 && remaining > 0 && !isRefreshingToken) {
+          setIsRefreshingToken(true);
+          refreshTokens()
+            .then((result) => {
+              if (result.success) {
+                setLastTokenRefresh(new Date());
+                setAuthAttempt((attempt) => attempt + 1);
+              }
+            })
+            .catch(() => {
+              // Silent failure
+            })
+            .finally(() => {
+              setIsRefreshingToken(false);
+            });
+        }
+      } else {
+        // No gateway inspection found - set to unknown
+        setTokenSecondsRemaining(undefined);
+        setTokenExpired(false);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [authState, isRefreshingToken, setAuthAttempt]);
+
+  // Separate effect to handle pending command retries after auth reload
+  useEffect(() => {
+    if (authState.status === "ready" && initialised && pendingCommand) {
+      const cmd = pendingCommand;
+      setPendingCommand(null);
+
+      // Add user message for the retry (silent - status shown in footer)
+      const userMsg: ChatMessage = {id: messageCounter.current++, role: "user", text: cmd};
+      setMessages((prev) => [...prev, userMsg]);
+
+      // Execute the command with refreshed auth
+      const commandContext: CommandExecutionContext = {
+        gatewayUrl,
+        gatewayBaseUrl,
+        gatewayToken: authState.context.gatewayToken,
+        backendToken: authState.context.backendToken
+      };
+
+      if (cmd.startsWith("/")) {
+        setBusy(true);
+        executeSlashCommand(cmd, commandContext)
+          .then((result) => {
+            addMessage(result.isError ? "assistant" : "tool", result.lines.join("\n"));
+            if (result.shouldExit) {
+              setTimeout(() => process.exit(0), 500);
+            }
+          })
+          .catch((error) => {
+            addMessage("assistant", `Command failed: ${(error as Error).message}`);
+          })
+          .finally(() => {
+            setBusy(false);
+          });
+      }
+    }
+  }, [authState.status, initialised, pendingCommand, gatewayUrl, gatewayBaseUrl, addMessage, setMessages]);
 
   useEffect(() => {
     if (!interactive && authState.status === "ready" && options.command) {
@@ -261,6 +384,33 @@ export default function App({options}: AppProps) {
       if (authState.status !== "ready") {
         addMessage("assistant", "Authentication is not ready yet. Try /retry or wait a moment.");
         return;
+      }
+
+      // Check if token needs refresh before executing command (silently handled by footer)
+      const gatewayInspection = authState.context.inspections.find(i => i.label.includes("Gateway"));
+      if (gatewayInspection && shouldRefreshToken(gatewayInspection.secondsRemaining)) {
+        setIsRefreshingToken(true);
+        try {
+          const result = await refreshTokens();
+          if (result.success) {
+            setLastTokenRefresh(new Date());
+            // Store the pending command to execute after auth reloads
+            setPendingCommand(trimmed);
+            // Trigger auth reload and mark as not initialized so it re-checks
+            setAuthAttempt((attempt) => attempt + 1);
+            setInitialised(false);
+            setIsRefreshingToken(false);
+            return;
+          } else {
+            addMessage("assistant", `❌ Token refresh failed: ${result.message}`);
+            setIsRefreshingToken(false);
+            return;
+          }
+        } catch (error) {
+          addMessage("assistant", `❌ Token refresh error: ${(error as Error).message}`);
+          setIsRefreshingToken(false);
+          return;
+        }
       }
 
       const commandContext: CommandExecutionContext = {
@@ -422,6 +572,16 @@ export default function App({options}: AppProps) {
         <Box>
           <Text color="gray">{"═".repeat(Math.min(process.stdout.columns || 80, 80))}</Text>
         </Box>
+        {authState.status === "ready" && (
+          <TokenStatusFooter
+            secondsRemaining={tokenSecondsRemaining}
+            expired={tokenExpired}
+            isRefreshing={isRefreshingToken}
+            lastRefresh={lastTokenRefresh}
+            source={tokenSource}
+            model={getDefaultModel(getDefaultProvider())}
+          />
+        )}
         {commandSuggestions.length > 0 && commandSuggestions[selectedSuggestionIndex] && (
           <Box marginTop={1}>
             <Text color="cyan" dimColor>
@@ -453,45 +613,8 @@ function buildAgentHistory(messages: ChatMessage[]): AgentMessage[] {
 }
 
 function summariseAuth(authState: AuthReadyState, gatewayUrl: string): string[] {
+  // Simplified - only show gateway URL and help. Token/model info shown in footer
   const lines = [`Authenticated against ${gatewayUrl}`];
-  const {context} = authState;
-  if (context.gatewaySource && context.gatewaySource !== "none") {
-    lines.push(`Gateway token source: ${context.gatewaySource}`);
-  }
-  if (context.backendSource && context.backendSource !== "none") {
-    lines.push(`Backend token source: ${context.backendSource}`);
-  }
-  if (context.inspections.length > 0) {
-    context.inspections.forEach((inspection) => {
-      if (inspection.warning) {
-        lines.push(`Token warning: ${inspection.warning}`);
-      } else if (inspection.expiresAt) {
-        lines.push(`${inspection.label} valid until ${inspection.expiresAt.toISOString()}`);
-      }
-    });
-  }
-
-  // Display AI model provider information on a single line
-  const provider = getDefaultProvider();
-  const model = getDefaultModel(provider);
-
-  if (provider === "bedrock") {
-    const awsProfile = process.env.AWS_PROFILE;
-    const awsRegion = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1";
-    const hasExplicitKeys = Boolean(process.env.AWS_ACCESS_KEY_ID);
-
-    let credSource = "Default";
-    if (awsProfile) {
-      credSource = awsProfile;
-    } else if (hasExplicitKeys) {
-      credSource = "EnvVars";
-    }
-
-    lines.push(`AI: AWS Bedrock (${credSource}) | Region: ${awsRegion} | Model: ${model}`);
-  } else {
-    lines.push(`AI: Anthropic API | Model: ${model}`);
-  }
-
   lines.push("");
   lines.push(overviewMessage());
   return lines;

@@ -66,6 +66,6 @@ export async function refreshTokens(projectRoot?: string): Promise<TokenRefreshR
  * @returns true if we should refresh
  */
 export function shouldRefreshToken(secondsRemaining: number | undefined): boolean {
-  // Refresh if token expires in less than 5 minutes (300 seconds) or already expired
-  return secondsRemaining !== undefined && secondsRemaining <= 300;
+  // Refresh if token expires in less than 10 seconds or already expired
+  return secondsRemaining !== undefined && secondsRemaining <= 10;
 }
