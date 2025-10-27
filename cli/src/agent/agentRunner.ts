@@ -1,6 +1,6 @@
-import { getAnthropicClient } from "./anthropicClient.js";
 import { anthropicTools, buildTaskContext, executeMappedTool, mapToolCall } from "./tools.js";
 import type { TaskContext } from "../tasks/types.js";
+import { sendMessage, getDefaultProvider, getDefaultModel, type ModelProvider } from "./modelClient.js";
 
 export interface AgentMessage {
   role: "user" | "assistant" | "system";
@@ -13,6 +13,7 @@ export interface AgentConfig {
   gatewayToken?: string;
   backendToken?: string;
   model?: string;
+  provider?: ModelProvider;
 }
 
 export interface AgentResult {
@@ -20,7 +21,8 @@ export interface AgentResult {
   toolOutputs: Array<{ name: string; output: string; isError?: boolean }>;
 }
 
-const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001";
+const DEFAULT_PROVIDER = getDefaultProvider();
+const DEFAULT_MODEL = getDefaultModel(DEFAULT_PROVIDER);
 
 type ConversationEntry = {
   role: string;
@@ -29,7 +31,8 @@ type ConversationEntry = {
 };
 
 export async function runAgentTurn(history: AgentMessage[], config: AgentConfig): Promise<AgentResult> {
-  const client = getAnthropicClient();
+  const provider = config.provider ?? DEFAULT_PROVIDER;
+  const model = config.model ?? DEFAULT_MODEL;
 
   const systemMessages = history.filter((msg) => msg.role === "system").map((msg) => msg.content);
   const systemPrompt = [buildSystemPrompt(), ...systemMessages].join("\n\n");
@@ -50,8 +53,8 @@ export async function runAgentTurn(history: AgentMessage[], config: AgentConfig)
   }
 
   while (toolIteration < 25) {
-    const response = await (client as any).beta.tools.messages.create({
-      model: config.model ?? DEFAULT_MODEL,
+    const response = await sendMessage(provider, {
+      model,
       system: systemPrompt,
       messages: conversation,
       max_tokens: 16384,
@@ -68,7 +71,7 @@ export async function runAgentTurn(history: AgentMessage[], config: AgentConfig)
       break;
     }
 
-    const assistantMessage: ConversationEntry = { role: "assistant", content: response.content };
+    const assistantMessage: ConversationEntry = { role: "assistant", content: outputBlocks };
     conversation = [...conversation, assistantMessage];
 
     for (const call of toolCalls) {

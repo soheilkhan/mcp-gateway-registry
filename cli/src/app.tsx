@@ -13,6 +13,7 @@ import {executeSlashCommand, overviewMessage} from "./commands/executor.js";
 import {runAgentTurn} from "./agent/agentRunner.js";
 import type {AgentMessage} from "./agent/agentRunner.js";
 import type {CommandExecutionContext} from "./commands/executor.js";
+import {getDefaultProvider, getDefaultModel} from "./agent/modelClient.js";
 import {executeMcpCommand, formatMcpResult} from "./runtime/mcp.js";
 
 type ChatRole = "system" | "user" | "assistant" | "tool";
@@ -48,7 +49,16 @@ export default function App({options}: AppProps) {
 
   const gatewayUrl = useMemo(() => options.url ?? "http://localhost/mcpgw/mcp", [options.url]);
   const gatewayBaseUrl = useMemo(() => deriveGatewayBase(gatewayUrl), [gatewayUrl]);
-  const agentAvailable = useMemo(() => Boolean(process.env.ANTHROPIC_API_KEY), []);
+  const agentAvailable = useMemo(() => {
+    // Check if either Bedrock (AWS) or Anthropic API credentials are available
+    const hasAwsCredentials = Boolean(
+      process.env.AWS_ACCESS_KEY_ID ||
+      process.env.AWS_SECRET_ACCESS_KEY ||
+      process.env.AWS_PROFILE
+    );
+    const hasAnthropicKey = Boolean(process.env.ANTHROPIC_API_KEY);
+    return hasAwsCredentials || hasAnthropicKey;
+  }, []);
 
   const addMessage = useCallback((role: ChatRole, text: string) => {
     const id = messageCounter.current++;
@@ -220,7 +230,7 @@ export default function App({options}: AppProps) {
       if (!agentAvailable) {
         addMessage(
           "assistant",
-          "Agent mode is disabled. Set ANTHROPIC_API_KEY to use natural language, or run slash commands like /ping."
+          "Agent mode is disabled. Configure AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) for Bedrock, or set ANTHROPIC_API_KEY for direct API access. Alternatively, use slash commands like /ping."
         );
         return;
       }
@@ -391,6 +401,33 @@ function summariseAuth(authState: AuthReadyState, gatewayUrl: string): string[] 
       }
     });
   }
+
+  // Display AI model provider information
+  const provider = getDefaultProvider();
+  const model = getDefaultModel(provider);
+  lines.push("");
+
+  if (provider === "bedrock") {
+    const awsProfile = process.env.AWS_PROFILE;
+    const awsRegion = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1";
+    const hasExplicitKeys = Boolean(process.env.AWS_ACCESS_KEY_ID);
+
+    lines.push(`AI Provider: AWS Bedrock`);
+    if (awsProfile) {
+      lines.push(`AWS Profile: ${awsProfile}`);
+    } else if (hasExplicitKeys) {
+      lines.push(`AWS Credentials: Environment variables`);
+    } else {
+      lines.push(`AWS Credentials: Default credential chain`);
+    }
+    lines.push(`AWS Region: ${awsRegion}`);
+    lines.push(`Model: ${model}`);
+  } else {
+    lines.push(`AI Provider: Anthropic API`);
+    lines.push(`Model: ${model}`);
+  }
+
+  lines.push("");
   lines.push(overviewMessage());
   return lines;
 }
