@@ -410,36 +410,26 @@ Check https://docs.anthropic.com/en/docs/about-claude/models for the latest mode
 
 ## How to Tell Which Provider is Active
 
-When you start the CLI, it displays which AI provider is being used:
+When you start the CLI, it displays the AI configuration on a single line:
 
-### Using AWS Bedrock:
+**Using AWS Bedrock with profile:**
 ```
-AI Provider: AWS Bedrock
-AWS Profile: bedrock
-AWS Region: us-west-2
-Model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+AI: AWS Bedrock (bedrock) | Region: us-west-2 | Model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 ```
 
-Or with environment credentials:
+**Using AWS Bedrock with environment variables:**
 ```
-AI Provider: AWS Bedrock
-AWS Credentials: Environment variables
-AWS Region: us-east-1
-Model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+AI: AWS Bedrock (EnvVars) | Region: us-east-1 | Model: us.anthropic.claude-opus-4-1-20250805-v1:0
 ```
 
-Or with Isengard:
+**Using AWS Bedrock with default/Isengard credentials:**
 ```
-AI Provider: AWS Bedrock
-AWS Credentials: Default credential chain
-AWS Region: us-west-2
-Model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+AI: AWS Bedrock (Default) | Region: us-west-2 | Model: us.anthropic.claude-haiku-4-5-20251001-v1:0
 ```
 
-### Using Anthropic API:
+**Using Anthropic API:**
 ```
-AI Provider: Anthropic API
-Model: claude-haiku-4-5-20251001
+AI: Anthropic API | Model: claude-haiku-4-5-20251001
 ```
 
 The startup message shows:

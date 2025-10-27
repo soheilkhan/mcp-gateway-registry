@@ -402,29 +402,25 @@ function summariseAuth(authState: AuthReadyState, gatewayUrl: string): string[] 
     });
   }
 
-  // Display AI model provider information
+  // Display AI model provider information on a single line
   const provider = getDefaultProvider();
   const model = getDefaultModel(provider);
-  lines.push("");
 
   if (provider === "bedrock") {
     const awsProfile = process.env.AWS_PROFILE;
     const awsRegion = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1";
     const hasExplicitKeys = Boolean(process.env.AWS_ACCESS_KEY_ID);
 
-    lines.push(`AI Provider: AWS Bedrock`);
+    let credSource = "Default";
     if (awsProfile) {
-      lines.push(`AWS Profile: ${awsProfile}`);
+      credSource = awsProfile;
     } else if (hasExplicitKeys) {
-      lines.push(`AWS Credentials: Environment variables`);
-    } else {
-      lines.push(`AWS Credentials: Default credential chain`);
+      credSource = "EnvVars";
     }
-    lines.push(`AWS Region: ${awsRegion}`);
-    lines.push(`Model: ${model}`);
+
+    lines.push(`AI: AWS Bedrock (${credSource}) | Region: ${awsRegion} | Model: ${model}`);
   } else {
-    lines.push(`AI Provider: Anthropic API`);
-    lines.push(`Model: ${model}`);
+    lines.push(`AI: Anthropic API | Model: ${model}`);
   }
 
   lines.push("");
