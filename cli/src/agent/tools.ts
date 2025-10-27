@@ -4,7 +4,7 @@ import {taskCatalog} from "../tasks/index.js";
 import {executeSlashCommand} from "../commands/executor.js";
 
 export interface AgentToolInvocation {
-  type: "mcp" | "task" | "unknown";
+  type: "mcp" | "task" | "docs" | "unknown";
   name: string;
   input: Record<string, unknown>;
 }
@@ -46,6 +46,23 @@ export const anthropicTools: any[] = [
       },
       required: ["command"]
     }
+  },
+  {
+    name: "read_docs",
+    description: "Search and read documentation files from the docs folder. Use this when users ask questions about the project, features, setup, configuration, or troubleshooting.",
+    input_schema: {
+      type: "object",
+      properties: {
+        search_query: {
+          type: "string",
+          description: "Keywords to search for in doc files (e.g., 'authentication', 'keycloak', 'setup'). Leave empty to list all docs."
+        },
+        file_path: {
+          type: "string",
+          description: "Specific doc file to read (e.g., 'auth.md', 'quick-start.md'). If provided, reads this file directly."
+        }
+      }
+    }
   }
 ];
 
@@ -57,6 +74,10 @@ export function mapToolCall(tool: any): AgentToolInvocation {
   if (tool.name === "registry_task") {
     const input = tool.input as Record<string, unknown>;
     return {type: "task", name: tool.name, input};
+  }
+  if (tool.name === "read_docs") {
+    const input = tool.input as Record<string, unknown>;
+    return {type: "docs", name: tool.name, input};
   }
   return {type: "unknown", name: tool.name, input: tool.input as Record<string, unknown>};
 }
@@ -88,6 +109,40 @@ export async function executeMappedTool(
     }
     const result = await executeSlashCommand(commandText, context);
     return {output: result.lines.join("\n"), isError: result.isError};
+  }
+
+  if (invocation.type === "docs") {
+    const { searchDocs, readDocFile, getAllDocFiles } = await import("../utils/docsReader.js");
+
+    const filePath = invocation.input.file_path ? String(invocation.input.file_path) : undefined;
+    const searchQuery = invocation.input.search_query ? String(invocation.input.search_query) : undefined;
+
+    try {
+      if (filePath) {
+        // Read specific file
+        const doc = readDocFile(filePath);
+        if (!doc) {
+          return { output: `File not found: ${filePath}`, isError: true };
+        }
+        return { output: `# ${doc.name}\n\n${doc.content}` };
+      } else if (searchQuery) {
+        // Search docs
+        const results = searchDocs(searchQuery);
+        if (results.length === 0) {
+          return { output: `No documentation found for: ${searchQuery}` };
+        }
+        const output = results.map(doc =>
+          `## ${doc.path}\n\n${doc.content.substring(0, 1500)}...\n\n---\n`
+        ).join('\n');
+        return { output };
+      } else {
+        // List all docs
+        const files = getAllDocFiles();
+        return { output: `Available documentation files:\n${files.map(f => `- ${f}`).join('\n')}` };
+      }
+    } catch (error) {
+      return { output: (error as Error).message, isError: true };
+    }
   }
 
   return {output: `Unknown tool invocation: ${invocation.name}`, isError: true};
