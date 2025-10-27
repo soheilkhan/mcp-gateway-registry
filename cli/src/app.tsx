@@ -235,9 +235,12 @@ export default function App({options}: AppProps) {
           model: process.env.ANTHROPIC_MODEL
         });
 
+        // Only show tool outputs if there's an error (for debugging)
         result.toolOutputs.forEach((tool) => {
-          const formatted = formatToolOutput(tool.name, tool.output, tool.isError);
-          addMessage("tool", formatted);
+          if (tool.isError) {
+            const formatted = formatToolOutput(tool.name, tool.output, tool.isError);
+            addMessage("tool", formatted);
+          }
         });
 
         if (result.messages.length === 0) {
@@ -405,6 +408,22 @@ function MessageBubble({role, text}: MessageBubbleProps) {
   const shouldRenderMarkdown = (role === "assistant" || role === "tool") && hasMarkdown(text);
   const displayText = shouldRenderMarkdown ? renderMarkdown(text) : text;
 
+  // Helper to render text with inline code highlighting
+  const renderTextWithHighlights = (content: string) => {
+    const parts = content.split(/(`[^`]+`)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('`') && part.endsWith('`')) {
+        // Remove backticks and render in cyan
+        return (
+          <Text key={i} color="cyan" bold>
+            {part.slice(1, -1)}
+          </Text>
+        );
+      }
+      return <Text key={i}>{part}</Text>;
+    });
+  };
+
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Box marginBottom={0}>
@@ -414,7 +433,7 @@ function MessageBubble({role, text}: MessageBubbleProps) {
       </Box>
       <Box paddingLeft={2}>
         <Text color={color === "magenta" ? "gray" : undefined}>
-          {displayText}
+          {renderTextWithHighlights(displayText)}
         </Text>
       </Box>
     </Box>
@@ -428,7 +447,7 @@ function roleLabel(role: ChatRole): string {
     case "assistant":
       return "Assistant";
     case "tool":
-      return "🔧 Tool";
+      return "Tool";
     case "system":
     default:
       return "System";
