@@ -47,6 +47,7 @@ export default function App({options}: AppProps) {
   const [authAttempt, setAuthAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [initialised, setInitialised] = useState(false);
+  const [hasShownWelcome, setHasShownWelcome] = useState(false);
   const [commandSuggestions, setCommandSuggestions] = useState<ReturnType<typeof getCommandSuggestions>>([]);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
 
@@ -145,8 +146,12 @@ export default function App({options}: AppProps) {
 
   useEffect(() => {
     if (authState.status === "ready" && !initialised) {
-      const infoLines = summariseAuth(authState, gatewayUrl);
-      infoLines.forEach((line) => addMessage("assistant", line));
+      // Only show welcome messages the first time
+      if (!hasShownWelcome) {
+        const infoLines = summariseAuth(authState, gatewayUrl);
+        infoLines.forEach((line) => addMessage("assistant", line));
+        setHasShownWelcome(true);
+      }
       setInitialised(true);
 
       // Initialize token status
@@ -155,8 +160,7 @@ export default function App({options}: AppProps) {
         refreshTokens()
           .then((result) => {
             if (result.success) {
-              const timeInfo = gatewayInspection.expired ? "expired" : `expiring in ${gatewayInspection.secondsRemaining}s`;
-              addMessage("assistant", `✅ OAuth tokens ${timeInfo} - refreshed successfully. Reloading authentication...`);
+              // Silently refresh tokens without showing messages
               // Trigger auth reload
               setAuthAttempt((attempt) => attempt + 1);
             } else {
@@ -168,7 +172,7 @@ export default function App({options}: AppProps) {
           });
       }
     }
-  }, [authState, addMessage, initialised, gatewayUrl, setAuthAttempt]);
+  }, [authState, addMessage, initialised, gatewayUrl, setAuthAttempt, hasShownWelcome]);
 
   useEffect(() => {
     if (!interactive && authState.status === "ready" && options.command) {
