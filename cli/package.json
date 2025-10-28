@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Interactive MCP Gateway client powered by Ink.",
+  "bin": {
+    "registry": "./bin/registry.js"
+  },
   "scripts": {
     "start": "tsx src/index.tsx",
     "dev": "tsx watch src/index.tsx",
