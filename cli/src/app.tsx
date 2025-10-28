@@ -17,6 +17,7 @@ import type {CommandExecutionContext} from "./commands/executor.js";
 import {getDefaultProvider, getDefaultModel} from "./agent/modelClient.js";
 import {executeMcpCommand, formatMcpResult} from "./runtime/mcp.js";
 import {refreshTokens, shouldRefreshToken} from "./utils/tokenRefresh.js";
+import {calculateCost} from "./utils/costCalculator.js";
 
 type ChatRole = "system" | "user" | "assistant" | "tool";
 
@@ -55,6 +56,10 @@ export default function App({options}: AppProps) {
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
   const [lastTokenRefresh, setLastTokenRefresh] = useState<Date | undefined>();
   const [tokenSource, setTokenSource] = useState<string | undefined>();
+
+  // Session token usage and cost tracking
+  const [sessionTotalTokens, setSessionTotalTokens] = useState<number>(0);
+  const [sessionTotalCost, setSessionTotalCost] = useState<number>(0);
 
   const gatewayUrl = useMemo(() => options.url ?? "http://localhost/mcpgw/mcp", [options.url]);
   const gatewayBaseUrl = useMemo(() => deriveGatewayBase(gatewayUrl), [gatewayUrl]);
@@ -399,10 +404,21 @@ export default function App({options}: AppProps) {
         } else {
           result.messages.forEach((msg) => addMessage(msg.role, msg.content));
 
-          // Display token usage if available
+          // Track token usage and cost
           if (result.tokenUsage) {
-            const tokenInfo = `Tokens: ${result.tokenUsage.input_tokens.toLocaleString()} in / ${result.tokenUsage.output_tokens.toLocaleString()} out / ${result.tokenUsage.total_tokens.toLocaleString()} total`;
-            addMessage("system", tokenInfo);
+            const {input_tokens, output_tokens, total_tokens} = result.tokenUsage;
+
+            // Get the current model being used
+            const currentModel = process.env.ANTHROPIC_MODEL || getDefaultModel(getDefaultProvider());
+
+            // Calculate cost for this turn
+            const turnCost = calculateCost(currentModel, input_tokens, output_tokens);
+
+            // Update session totals
+            setSessionTotalTokens((prev) => prev + total_tokens);
+            if (turnCost !== undefined) {
+              setSessionTotalCost((prev) => prev + turnCost);
+            }
           }
         }
       } catch (error) {
@@ -520,6 +536,8 @@ export default function App({options}: AppProps) {
               lastRefresh={lastTokenRefresh}
               source={tokenSource}
               model={getDefaultModel(getDefaultProvider())}
+              totalTokens={sessionTotalTokens}
+              cost={sessionTotalCost}
             />
           </Box>
         )}

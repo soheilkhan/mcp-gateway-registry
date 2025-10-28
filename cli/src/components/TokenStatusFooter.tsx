@@ -7,6 +7,8 @@ interface TokenStatusFooterProps {
   lastRefresh?: Date;
   source?: string;
   model?: string;
+  totalTokens?: number;
+  cost?: number;
 }
 
 export function TokenStatusFooter({
@@ -15,7 +17,9 @@ export function TokenStatusFooter({
   isRefreshing,
   lastRefresh,
   source,
-  model
+  model,
+  totalTokens,
+  cost
 }: TokenStatusFooterProps) {
   const formatTime = (seconds: number): string => {
     if (seconds < 0) return "expired";
@@ -52,22 +56,49 @@ export function TokenStatusFooter({
 
   const icon = getStatusIcon();
 
+  const formatCost = (costValue: number): string => {
+    if (costValue >= 0.01) {
+      return `$${costValue.toFixed(2)}`;
+    } else if (costValue >= 0.001) {
+      return `$${costValue.toFixed(4)}`;
+    } else if (costValue > 0) {
+      return `$${costValue.toFixed(6)}`;
+    } else {
+      return "$0.00";
+    }
+  };
+
   return (
     <Box flexDirection="row" gap={1}>
       <Text color={getStatusColor()}>
         {icon && `${icon} `}Token: {getStatusText()}
       </Text>
       {source && (
-        <Text color="gray" dimColor>
-          | Source: {source}
+        <Text>
+          <Text color="gray"> | Source: </Text>
+          <Text color="cyan">{source}</Text>
         </Text>
       )}
-      <Text color="gray" dimColor>
-        | Last refresh: {lastRefreshText}
+      <Text>
+        <Text color="gray"> | Last refresh: </Text>
+        <Text color="cyan">{lastRefreshText}</Text>
       </Text>
       {model && (
-        <Text color="gray" dimColor>
-          | Model: {model}
+        <Text>
+          <Text color="gray"> | Model: </Text>
+          <Text color="cyan">{model}</Text>
+        </Text>
+      )}
+      {totalTokens !== undefined && totalTokens > 0 && (
+        <Text>
+          <Text color="gray"> | Tokens: </Text>
+          <Text color="cyan">{totalTokens.toLocaleString()}</Text>
+        </Text>
+      )}
+      {cost !== undefined && cost > 0 && (
+        <Text>
+          <Text color="gray"> | Cost: </Text>
+          <Text color="cyan">{formatCost(cost)}</Text>
         </Text>
       )}
     </Box>
