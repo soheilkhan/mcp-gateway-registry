@@ -1,12 +1,12 @@
 # MCP Gateway Ink CLI - Comprehensive Guide
 
-Complete guide to using the MCP Gateway Ink CLI, including setup, usage, and AI model configuration through AWS Bedrock or Anthropic API.
+Complete guide to using the MCP Gateway Ink CLI, including setup, usage, and AI model configuration through Amazon Bedrock or Anthropic API.
 
 ## Table of Contents
 - [About the Ink CLI](#about-the-ink-cli)
 - [Quick Start](#quick-start)
 - [Provider Selection](#provider-selection)
-- [AWS Bedrock Setup](#aws-bedrock-setup)
+- [Amazon Bedrock Setup](#aws-bedrock-setup)
 - [Anthropic API Setup](#anthropic-api-setup)
 - [Available Models](#available-models)
 - [How to Tell Which Provider is Active](#how-to-tell-which-provider-is-active)
@@ -33,7 +33,7 @@ Before using the Ink CLI, you need to:
 
 1. **Generate OAuth Tokens** (for MCP Gateway authentication)
 2. **Build the CLI**
-3. **Configure AI Provider** (AWS Bedrock or Anthropic API)
+3. **Configure AI Provider** (Amazon Bedrock or Anthropic API)
 
 ### Step 1: OAuth Tokens (Automatic)
 
@@ -72,7 +72,7 @@ npm run build
 ### Step 3: Configure AI Provider
 
 Choose one:
-- **AWS Bedrock** (see [AWS Bedrock Setup](#aws-bedrock-setup) below)
+- **Amazon Bedrock** (see [Amazon Bedrock Setup](#aws-bedrock-setup) below)
 - **Anthropic API** (see [Anthropic API Setup](#anthropic-api-setup) below)
 
 ### Running the CLI
@@ -222,7 +222,7 @@ npm start  # Uses Claude Haiku 4.5 by default (fastest)
 
 The CLI automatically selects the AI provider based on available credentials:
 
-1. **AWS Bedrock (Default)** - If AWS credentials are found
+1. **Amazon Bedrock (Default)** - If AWS credentials are found
    - `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`
    - `AWS_PROFILE`
    - AWS credentials from profile
@@ -247,7 +247,7 @@ npm start
 
 ---
 
-## AWS Bedrock Setup
+## Amazon Bedrock Setup
 
 ### Option 2: Environment Variables
 
@@ -339,7 +339,7 @@ npm start
 
 ## Available Models
 
-### AWS Bedrock Models
+### Amazon Bedrock Models
 
 **Claude 4+ Models (Require Inference Profile IDs):**
 
@@ -365,7 +365,7 @@ npm start
 **Important Notes:**
 - Claude 4+ models **must** use inference profile IDs (prefix: `us.anthropic.*` or `global.anthropic.*`)
 - Claude 3.x models can use direct model IDs or inference profiles
-- Check available models: `aws bedrock list-inference-profiles --region <region>`
+- Check available models: `Amazon Bedrock list-inference-profiles --region <region>`
 - Global profiles route across multiple regions for better availability
 
 ### Anthropic API Models
@@ -385,19 +385,19 @@ Check https://docs.anthropic.com/en/docs/about-claude/models for the latest mode
 
 When you start the CLI, it displays the AI configuration on a single line:
 
-**Using AWS Bedrock with profile:**
+**Using Amazon Bedrock with profile:**
 ```
-AI: AWS Bedrock (bedrock) | Region: us-west-2 | Model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-```
-
-**Using AWS Bedrock with environment variables:**
-```
-AI: AWS Bedrock (EnvVars) | Region: us-east-1 | Model: us.anthropic.claude-opus-4-1-20250805-v1:0
+AI: Amazon Bedrock (bedrock) | Region: us-west-2 | Model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 ```
 
-**Using AWS Bedrock with default/AWS credentials:**
+**Using Amazon Bedrock with environment variables:**
 ```
-AI: AWS Bedrock (Default) | Region: us-west-2 | Model: us.anthropic.claude-haiku-4-5-20251001-v1:0
+AI: Amazon Bedrock (EnvVars) | Region: us-east-1 | Model: us.anthropic.claude-opus-4-1-20250805-v1:0
+```
+
+**Using Amazon Bedrock with default/AWS credentials:**
+```
+AI: Amazon Bedrock (Default) | Region: us-west-2 | Model: us.anthropic.claude-haiku-4-5-20251001-v1:0
 ```
 
 **Using Anthropic API:**
@@ -532,10 +532,10 @@ export ANTHROPIC_API_KEY=sk-ant-your-key
 aws sts get-caller-identity
 
 # List available models in your region
-aws bedrock list-inference-profiles --region us-west-2
+Amazon Bedrock list-inference-profiles --region us-west-2
 
 # Verify model access
-aws bedrock list-foundation-models --region us-west-2 | grep claude
+Amazon Bedrock list-foundation-models --region us-west-2 | grep claude
 ```
 
 ****
@@ -560,7 +560,7 @@ export BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
 List available profiles:
 ```bash
-aws bedrock list-inference-profiles --region us-west-2
+Amazon Bedrock list-inference-profiles --region us-west-2
 ```
 
 ### Anthropic API Rate Limiting
@@ -610,7 +610,7 @@ npm start
 
 ## Benefits Comparison
 
-### AWS Bedrock
+### Amazon Bedrock
 ✅ Cost efficiency for high-volume usage
 ✅ Regional deployment options
 ✅ AWS IAM integration
@@ -630,7 +630,7 @@ npm start
 
 ## Environment Variables Reference
 
-### AWS Bedrock
+### Amazon Bedrock
 ```bash
 # Authentication
 AWS_ACCESS_KEY_ID          # AWS access key
@@ -666,7 +666,7 @@ export ANTHROPIC_MODEL=claude-opus-4-20250514
 
 ## Additional Resources
 
-- **AWS Bedrock Documentation:** https://docs.aws.amazon.com/bedrock/
+- **Amazon Bedrock Documentation:** https://docs.aws.amazon.com/bedrock/
 - **Anthropic API Documentation:** https://docs.anthropic.com/
 - **Anthropic Console:** https://console.anthropic.com/
 - **AWS Documentation:** Internal Amazon wiki

@@ -74,8 +74,8 @@ async function sendBedrockMessage(request: MessageRequest): Promise<MessageRespo
     // Provide helpful error messages for common Bedrock issues
     if (error.name === "AccessDeniedException") {
       throw new Error(
-        "AWS Bedrock access denied. Ensure your IAM user/role has 'bedrock:InvokeModel' permission and access to Claude models. " +
-        "You may also need to enable model access in the AWS Bedrock console."
+        "Amazon Bedrock access denied. Ensure your IAM user/role has 'bedrock:InvokeModel' permission and access to Claude models. " +
+        "You may also need to enable model access in the Amazon Bedrock console."
       );
     } else if (error.name === "ResourceNotFoundException") {
       throw new Error(
@@ -83,7 +83,7 @@ async function sendBedrockMessage(request: MessageRequest): Promise<MessageRespo
       );
     } else if (error.name === "ValidationException") {
       throw new Error(
-        "Invalid request to AWS Bedrock. This might be due to an unsupported parameter or malformed request. " +
+        "Invalid request to Amazon Bedrock. This might be due to an unsupported parameter or malformed request. " +
         "Error: " + error.message
       );
     }
