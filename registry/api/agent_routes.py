@@ -19,7 +19,7 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 
-from ..auth.dependencies import enhanced_auth
+from ..auth.dependencies import nginx_proxied_auth
 from ..services.agent_service import agent_service
 from ..schemas.agent_models import (
     AgentCard,
@@ -139,7 +139,7 @@ def _filter_agents_by_access(
 @router.post("/agents/register")
 async def register_agent(
     request: AgentRegistrationRequest,
-    user_context: Annotated[dict, Depends(enhanced_auth)],
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)],
 ):
     """
     Register a new A2A agent in the registry.
@@ -157,9 +157,9 @@ async def register_agent(
         HTTPException: 409 if path exists, 422 if validation fails, 403 if unauthorized
     """
     ui_permissions = user_context.get("ui_permissions", {})
-    register_permissions = ui_permissions.get("register_service", [])
+    publish_permissions = ui_permissions.get("publish_agent", [])
 
-    if not register_permissions:
+    if not publish_permissions:
         logger.warning(
             f"User {user_context['username']} attempted to register agent without permission"
         )
@@ -279,7 +279,7 @@ async def list_agents(
     query: Optional[str] = Query(None, description="Search query string"),
     enabled_only: bool = Query(False, description="Show only enabled agents"),
     visibility: Optional[str] = Query(None, description="Filter by visibility"),
-    user_context: Annotated[dict, Depends(enhanced_auth)] = None,
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ):
     """
     List all agents filtered by user permissions.
@@ -343,7 +343,7 @@ async def list_agents(
 @router.get("/agents/{path:path}")
 async def get_agent(
     path: str,
-    user_context: Annotated[dict, Depends(enhanced_auth)],
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)],
 ):
     """
     Get a single agent by path.
@@ -389,7 +389,7 @@ async def get_agent(
 async def update_agent(
     path: str,
     request: AgentRegistrationRequest,
-    user_context: Annotated[dict, Depends(enhanced_auth)],
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)],
 ):
     """
     Update an existing agent card.
@@ -505,7 +505,7 @@ async def update_agent(
 @router.delete("/agents/{path:path}")
 async def delete_agent(
     path: str,
-    user_context: Annotated[dict, Depends(enhanced_auth)],
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)],
 ):
     """
     Delete an agent from the registry.
@@ -569,7 +569,7 @@ async def delete_agent(
 async def toggle_agent(
     path: str,
     enabled: bool,
-    user_context: Annotated[dict, Depends(enhanced_auth)],
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)],
 ):
     """
     Enable or disable an agent.
@@ -632,7 +632,7 @@ async def discover_agents_by_skills(
     skills: List[str],
     tags: Optional[List[str]] = None,
     max_results: int = Query(10, ge=1, le=100),
-    user_context: Annotated[dict, Depends(enhanced_auth)] = None,
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ):
     """
     Discover agents by required skills.
@@ -740,7 +740,7 @@ async def discover_agents_by_skills(
 async def discover_agents_semantic(
     query: str,
     max_results: int = Query(10, ge=1, le=100),
-    user_context: Annotated[dict, Depends(enhanced_auth)] = None,
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ):
     """
     Discover agents using natural language semantic search.

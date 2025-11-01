@@ -30,6 +30,30 @@ UI-Scopes:
     - all
     toggle_service:
     - all
+
+  # A2A Agent Scopes
+  a2a-agent-admin:
+    publish_agent:
+    - all
+    modify_agent:
+    - all
+    delete_agent:
+    - all
+    list_agents:
+    - all
+
+  a2a-agent-publisher:
+    publish_agent:
+    - all
+    modify_agent:
+    - all
+    list_agents:
+    - all
+
+  a2a-agent-user:
+    list_agents:
+    - all
+
 group_mappings:
   mcp-registry-admin:
   - mcp-registry-admin
@@ -52,6 +76,12 @@ group_mappings:
   mcp-servers-restricted:
   - mcp-servers-restricted/read
   - mcp-servers-restricted/execute
+  a2a-agent-admin:
+  - a2a-agent-admin
+  a2a-agent-publisher:
+  - a2a-agent-publisher
+  a2a-agent-user:
+  - a2a-agent-user
 mcp-servers-unrestricted/read:
 - server: auth_server
   methods:

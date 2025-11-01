@@ -184,27 +184,27 @@ def map_cognito_groups_to_scopes(groups: List[str]) -> List[str]:
 def get_ui_permissions_for_user(user_scopes: List[str]) -> Dict[str, List[str]]:
     """
     Get UI permissions for a user based on their scopes.
-    
+
     Args:
         user_scopes: List of user's scopes (includes UI scope names like 'mcp-registry-admin')
-        
+
     Returns:
         Dict mapping UI actions to lists of services they can perform the action on
         Example: {'list_service': ['mcpgw', 'auth_server'], 'toggle_service': ['mcpgw']}
     """
     ui_permissions = {}
     ui_scopes = SCOPES_CONFIG.get('UI-Scopes', {})
-    
+
     for scope in user_scopes:
         if scope in ui_scopes:
             scope_config = ui_scopes[scope]
             logger.debug(f"Processing UI scope '{scope}' with config: {scope_config}")
-            
+
             # Process each permission in the scope
             for permission, services in scope_config.items():
                 if permission not in ui_permissions:
                     ui_permissions[permission] = set()
-                
+
                 # Handle "all" case
                 if services == ['all'] or (isinstance(services, list) and 'all' in services):
                     ui_permissions[permission].add('all')
@@ -214,7 +214,27 @@ def get_ui_permissions_for_user(user_scopes: List[str]) -> Dict[str, List[str]]:
                     if isinstance(services, list):
                         ui_permissions[permission].update(services)
                         logger.debug(f"UI permission '{permission}' granted for services: {services}")
-    
+
+    # Handle A2A agent scopes (new agent permission mappings)
+    if 'a2a-agent-admin' in user_scopes:
+        # A2A admin can publish, modify, delete, and list agents
+        ui_permissions['publish_agent'] = ['all']
+        ui_permissions['modify_agent'] = ['all']
+        ui_permissions['delete_agent'] = ['all']
+        ui_permissions['list_agents'] = ['all']
+        logger.debug("A2A agent admin scope detected - granted all agent permissions")
+    elif 'a2a-agent-publisher' in user_scopes:
+        # A2A publisher can publish, modify, and list agents (no delete)
+        ui_permissions['publish_agent'] = ['all']
+        ui_permissions['modify_agent'] = ['all']
+        ui_permissions['list_agents'] = ['all']
+        logger.debug("A2A agent publisher scope detected - granted publish, modify, and list agent permissions")
+
+    # A2A list agents is available to all users with any A2A agent scope
+    if any('a2a-agent' in scope for scope in user_scopes):
+        ui_permissions['list_agents'] = ['all']
+        logger.debug("A2A agent user scope detected - granted list agents permission")
+
     # Convert sets back to lists
     result = {k: list(v) for k, v in ui_permissions.items()}
     logger.info(f"Final UI permissions for user: {result}")
