@@ -9,7 +9,6 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   QuestionMarkCircleIcon,
-  CogIcon,
   ClipboardDocumentIcon,
   ShieldCheckIcon,
   GlobeAltIcon,
@@ -369,15 +368,6 @@ const AgentCard: React.FC<AgentCardProps> = ({
               </button>
             )}
 
-            {/* Configuration Generator Button */}
-            <button
-              onClick={() => setShowConfig(true)}
-              className="p-2 text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-700/50 rounded-lg transition-all duration-200 flex-shrink-0"
-              title="View agent configuration"
-            >
-              <CogIcon className="h-4 w-4" />
-            </button>
-
             {/* Full Details Button */}
             <button
               onClick={async () => {
@@ -594,7 +584,7 @@ const AgentCard: React.FC<AgentCardProps> = ({
                     Loading full agent details...
                   </div>
                 ) : (
-                  <pre className="p-4 bg-gray-50 dark:bg-gray-900 border dark:border-gray-700 rounded-lg overflow-x-auto text-xs text-gray-900 dark:text-gray-100 max-h-[50vh] overflow-y-auto">
+                  <pre className="p-4 bg-gray-50 dark:bg-gray-900 border dark:border-gray-700 rounded-lg overflow-x-auto text-xs text-gray-900 dark:text-gray-100 max-h-[30vh] overflow-y-auto">
                     {JSON.stringify(fullAgentDetails || agent, null, 2)}
                   </pre>
                 )}
