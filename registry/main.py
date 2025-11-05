@@ -23,7 +23,6 @@ from registry.api.server_routes import router as servers_router
 from registry.api.wellknown_routes import router as wellknown_router
 from registry.api.registry_routes import router as registry_router
 from registry.api.agent_routes import router as agent_router
-from registry.api.agent_registry_routes import router as agent_registry_router
 from registry.health.routes import router as health_router
 
 # Import auth dependencies
@@ -180,9 +179,8 @@ app.include_router(servers_router, prefix="/api", tags=["Server Management"])
 app.include_router(agent_router, prefix="/api", tags=["Agent Management"])
 app.include_router(health_router, prefix="/api/health", tags=["Health Monitoring"])
 
-# Register Anthropic MCP Registry API (public API)
+# Register Anthropic MCP Registry API (public API for MCP servers only)
 app.include_router(registry_router, tags=["Anthropic Registry API"])
-app.include_router(agent_registry_router, tags=["Anthropic Registry API - A2A Agents"])
 
 # Register well-known discovery router
 app.include_router(wellknown_router, prefix="/.well-known", tags=["Discovery"])

@@ -24,14 +24,13 @@ This document provides a comprehensive overview of all 49 API endpoints availabl
 |----------|-------|-------------|---------|
 | A2A Agent Management | 8 | JWT Bearer Token | Agent registration, discovery, and management |
 | Anthropic Registry API v0 (Servers) | 3 | JWT Bearer Token | Standard MCP server discovery via Anthropic API spec |
-| Anthropic Registry API v0 (Agents) | 3 | JWT Bearer Token | A2A agent discovery via Anthropic API spec |
 | Internal Server Management (UI) | 10 | Session Cookie | Dashboard and service management |
 | Internal Server Management (Admin) | 12 | HTTP Basic Auth | Administrative operations and group management |
 | Authentication & Login | 7 | OAuth2 + Session | User authentication and provider management |
 | Health Monitoring | 3 | Session Cookie / None | Real-time health updates and statistics |
 | Discovery | 1 | None (Public) | Public MCP server discovery |
 | Utility | 2 | Session Cookie / Public | Current user info and service health |
-| **TOTAL** | **49** | **Multiple** | **Full registry functionality** |
+| **TOTAL** | **46** | **Multiple** | **Full registry functionality** |
 
 ---
 
@@ -453,59 +452,6 @@ This section implements the official [Anthropic MCP Registry API specification](
 
 **Error Codes:**
 - `404 Not Found` - Server/version not found or user lacks access
-
----
-
-### A2A Agents (v0)
-
-**File:** `registry/api/agent_registry_routes.py`
-**Route Prefix:** `/v0`
-**Authentication:** JWT Bearer Token
-
-#### 1. List A2A Agents
-
-**Endpoint:** `GET /v0/agents`
-
-**Purpose:** List all A2A agents using Anthropic API format
-
-**Query Parameters:**
-- `cursor` (optional, string) - Pagination cursor
-- `limit` (optional, integer, default: 100, max: 1000)
-
-**Response:** `200 OK` (agents represented as "servers" in Anthropic format)
-
----
-
-#### 2. List Agent Versions
-
-**Endpoint:** `GET /v0/agents/{agentName:path}/versions`
-
-**Purpose:** List versions for a specific agent
-
-**Path Parameter:**
-- `agentName` - URL-encoded agent name (e.g., `io.mcpgateway%2Fcode-reviewer`)
-
-**Response:** `200 OK` with single-item versions array
-
-**Error Codes:**
-- `404 Not Found` - Agent not found or disabled
-
----
-
-#### 3. Get Agent Version Details
-
-**Endpoint:** `GET /v0/agents/{agentName:path}/versions/{version}`
-
-**Purpose:** Get detailed agent information for specific version
-
-**Path Parameters:**
-- `agentName` - URL-encoded agent name
-- `version` - Version string or `latest`
-
-**Response:** `200 OK` with full agent details
-
-**Error Codes:**
-- `404 Not Found` - Agent not found, disabled, or version not found
 
 ---
 
