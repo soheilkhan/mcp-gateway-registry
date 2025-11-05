@@ -563,3 +563,51 @@ mcp-servers-restricted/execute:
   - temporal_anomaly_detector
   - user_profile_analyzer
   - synthetic_data_generator
+# A2A Agent Scopes - allow access to agent management and discovery endpoints
+a2a-agent-admin:
+- server: a2a-gateway
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - list_agents
+  - get_agent
+  - publish_agent
+  - modify_agent
+  - delete_agent
+  - toggle_agent
+  tools:
+  - list_agents
+  - get_agent
+  - publish_agent
+  - modify_agent
+  - delete_agent
+  - toggle_agent
+
+a2a-agent-publisher:
+- server: a2a-gateway
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - list_agents
+  - get_agent
+  - publish_agent
+  - modify_agent
+  tools:
+  - list_agents
+  - get_agent
+  - publish_agent
+  - modify_agent
+
+a2a-agent-user:
+- server: a2a-gateway
+  methods:
+  - initialize
+  - notifications/initialized
+  - ping
+  - list_agents
+  - get_agent
+  tools:
+  - list_agents
+  - get_agent
