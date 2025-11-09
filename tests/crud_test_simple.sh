@@ -8,10 +8,16 @@
 #
 # Usage:
 #   bash tests/crud_test_simple.sh
+#   bash tests/crud_test_simple.sh /path/to/token.json
+#   TOKEN_FILE=/path/to/token.json bash tests/crud_test_simple.sh
+#
+# Token Resolution (in order of precedence):
+#   1. Command-line argument (first parameter)
+#   2. TOKEN_FILE environment variable
+#   3. Default: .oauth-tokens/admin-bot-token.json
 #
 # Note: Requires Docker containers running (docker-compose up -d)
 #       API accessible via Nginx reverse proxy on port 80
-#       Or modify HOST/PORT below
 ################################################################################
 
 # Configuration
@@ -27,41 +33,55 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 ################################################################################
-# Token Validation
+# Token Resolution and Validation
 ################################################################################
 
-# Try to get a valid token from known token sources
 TOKEN=""
 TOKEN_FILE=""
 
-# Check for admin-bot token first
-if [ -f ".oauth-tokens/admin-bot-token.json" ]; then
-    TOKEN=$(jq -r '.access_token' .oauth-tokens/admin-bot-token.json 2>/dev/null)
+# Check command-line argument first
+if [ -n "$1" ]; then
+    TOKEN_FILE="$1"
+# Check environment variable second
+elif [ -n "$TOKEN_FILE" ]; then
+    TOKEN_FILE="$TOKEN_FILE"
+# Use default
+else
     TOKEN_FILE=".oauth-tokens/admin-bot-token.json"
-# Check for lob1-bot token
-elif [ -f ".oauth-tokens/lob1-bot-token.json" ]; then
-    TOKEN=$(jq -r '.access_token' .oauth-tokens/lob1-bot-token.json 2>/dev/null)
-    TOKEN_FILE=".oauth-tokens/lob1-bot-token.json"
-# Check for lob2-bot token
-elif [ -f ".oauth-tokens/lob2-bot-token.json" ]; then
-    TOKEN=$(jq -r '.access_token' .oauth-tokens/lob2-bot-token.json 2>/dev/null)
-    TOKEN_FILE=".oauth-tokens/lob2-bot-token.json"
 fi
+
+# Verify token file exists
+if [ ! -f "$TOKEN_FILE" ]; then
+    echo ""
+    echo -e "${RED}✗ ERROR: Token file not found!${NC}"
+    echo ""
+    echo "Looked for: $TOKEN_FILE"
+    echo ""
+    echo -e "${YELLOW}To generate a token, run:${NC}"
+    echo "  ./keycloak/setup/generate-agent-token.sh admin-bot"
+    echo ""
+    echo "Then either:"
+    echo "  bash tests/crud_test_simple.sh                              # Uses default .oauth-tokens/admin-bot-token.json"
+    echo "  bash tests/crud_test_simple.sh /path/to/token.json         # With custom path"
+    echo "  TOKEN_FILE=/path/to/token.json bash tests/crud_test_simple.sh  # With env variable"
+    echo ""
+    echo "Note: Tokens expire after 5 minutes and must be regenerated before testing"
+    echo ""
+    exit 1
+fi
+
+# Extract token from file
+TOKEN=$(jq -r '.access_token' "$TOKEN_FILE" 2>/dev/null)
 
 # Validate token exists and is not empty
 if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
     echo ""
-    echo -e "${RED}✗ ERROR: No valid authentication token found!${NC}"
+    echo -e "${RED}✗ ERROR: Failed to extract token from: $TOKEN_FILE${NC}"
     echo ""
-    echo "Token files checked:"
-    echo "  - .oauth-tokens/admin-bot-token.json"
-    echo "  - .oauth-tokens/lob1-bot-token.json"
-    echo "  - .oauth-tokens/lob2-bot-token.json"
+    echo "The file exists but does not contain a valid 'access_token' field"
     echo ""
-    echo -e "${YELLOW}To generate fresh tokens, run:${NC}"
+    echo -e "${YELLOW}To generate a fresh token, run:${NC}"
     echo "  ./keycloak/setup/generate-agent-token.sh admin-bot"
-    echo "  ./keycloak/setup/generate-agent-token.sh lob1-bot"
-    echo "  ./keycloak/setup/generate-agent-token.sh lob2-bot"
     echo ""
     echo "Note: Tokens expire after 5 minutes and must be regenerated before testing"
     echo ""
