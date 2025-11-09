@@ -8,6 +8,11 @@
 # Each group has two types of permissions:
 # - Agent permissions: Actions on agent resources (list_agents, get_agent, publish_agent, modify_agent, delete_agent)
 # - MCP server permissions: Methods and tools accessible on specific MCP servers (currenttime, mcpgw, fininfo, etc.)
+#
+# To add a new group, follow these three steps:
+# 1. Add to UI-Scopes: Define agent and service permissions (what agents/services the group can access)
+# 2. Add to group_mappings: Map the Keycloak group name to the internal scope name
+# 3. Add individual group scope entry: Define detailed MCP server methods/tools and agent actions for the group
 
 # ==================== UI-SCOPES ====================
 # Define agent registry permissions and service listing rights for each group
