@@ -19,7 +19,9 @@
 
 ## What is MCP Gateway & Registry?
 
-The **MCP Gateway & Registry** is an enterprise-ready platform that centralizes access to MCP Servers and AI Agents using the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction). Instead of managing hundreds of individual MCP server configurations and agent connections across your development teams, provide secure, governed access to curated MCP servers and registered agents through a single platform.
+The **MCP Gateway & Registry** is an enterprise-ready platform that centralizes access to MCP Servers and AI Agents using the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction). It serves as both a unified MCP Server Gateway and an Agent Registry where autonomous AI agents can register, discover, and communicate with other agents through the [A2A (Agent-to-Agent) Protocol](docs/a2a.md). The platform integrates with external registries such as Anthropic's MCP Registry (and more to come), providing a single control plane for both tool access and agent orchestration.
+
+Instead of managing hundreds of individual MCP server configurations and agent connections across your development teams, provide secure, governed access to curated MCP servers and registered agents through a single platform.
 
 **Transform this chaos:**
 ```
@@ -27,11 +29,14 @@ The **MCP Gateway & Registry** is an enterprise-ready platform that centralizes 
 ❌ Each developer configures VS Code, Cursor, Claude Code individually
 ❌ Developers must install and manage MCP servers locally
 ❌ No standard authentication flow for enterprise tools
-❌ Scattered API keys and credentials across tools  
+❌ Scattered API keys and credentials across tools
 ❌ No visibility into what tools teams are using
 ❌ Security risks from unmanaged tool sprawl
 ❌ No dynamic tool discovery for autonomous agents
 ❌ No curated tool catalog for multi-tenant environments
+❌ A2A provides agent cards but no way for agents to discover other agents
+❌ Maintaining separate MCP server and agent registries is a non-starter for governance
+❌ Impossible to maintain unified policies across server and agent access
 ```
 
 **Into this organized approach:**
@@ -45,6 +50,9 @@ The **MCP Gateway & Registry** is an enterprise-ready platform that centralizes 
 ✅ Enterprise-grade security with governed tool access
 ✅ Dynamic tool discovery and invocation for autonomous workflows
 ✅ Registry provides discoverable, curated MCP servers for multi-tenant use
+✅ Agents can discover and communicate with other agents through unified Agent Registry
+✅ Single control plane for both MCP servers and agent governance
+✅ Unified policies and audit trails for both server and agent access
 ```
 
 ```
