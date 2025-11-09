@@ -7,17 +7,18 @@
 # Easy to run and see output for learning purposes
 #
 # Usage:
-#   bash .scratchpad/crud_test_simple.sh
+#   bash tests/crud_test_simple.sh
 #
-# Note: Requires the application to be running on localhost:8000
+# Note: Requires Docker containers running (docker-compose up -d)
+#       API accessible via Nginx reverse proxy on port 80
 #       Or modify HOST/PORT below
 ################################################################################
 
 # Configuration
-HOST="http://localhost:8000"
+HOST="http://localhost"
 TOKEN="test-token"  # Replace with actual token if using real auth
 AGENT_PATH="code-reviewer"
-FULL_PATH="/agents/$AGENT_PATH"
+FULL_PATH="/code-reviewer"
 
 # Colors for output
 GREEN='\033[0;32m'
