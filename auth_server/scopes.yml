@@ -1,4 +1,18 @@
+# Scopes Configuration for MCP Gateway Registry
+#
+# This file defines three main top-level groups:
+# 1. UI-Scopes: Agent registry permissions (list, get, publish, modify, delete agents) and MCP service access
+# 2. group_mappings: Maps Keycloak groups to scope names
+# 3. Individual group scopes: Detailed MCP server method/tool access for each group
+#
+# Each group has two types of permissions:
+# - Agent permissions: Actions on agent resources (list_agents, get_agent, publish_agent, modify_agent, delete_agent)
+# - MCP server permissions: Methods and tools accessible on specific MCP servers (currenttime, mcpgw, fininfo, etc.)
+
+# ==================== UI-SCOPES ====================
+# Define agent registry permissions and service listing rights for each group
 UI-Scopes:
+  # Admin user for MCP registry (highest privileges)
   mcp-registry-admin:
     list_agents:
     - all
@@ -21,6 +35,7 @@ UI-Scopes:
     modify_service:
     - all
 
+  # Registry admin group (wildcard access to all agents and services)
   registry-admins:
     list_agents:
     - all
@@ -43,6 +58,7 @@ UI-Scopes:
     modify_service:
     - all
 
+  # LOB1 (Line of Business 1): Restricted to code-reviewer and test-automation agents
   registry-users-lob1:
     list_agents:
     - /code-reviewer
@@ -65,6 +81,8 @@ UI-Scopes:
     health_check_service:
     - currenttime
     - mcpgw
+
+  # LOB2 (Line of Business 2): Restricted to data-analysis and security-analyzer agents
   registry-users-lob2:
     list_agents:
     - /data-analysis
@@ -89,6 +107,9 @@ UI-Scopes:
     - realserverfaketools
     - mcpgw
     - fininfo
+
+# ==================== GROUP MAPPINGS ====================
+# Maps Keycloak groups to internal scope group names
 group_mappings:
   mcp-registry-admin:
   - mcp-registry-admin
@@ -100,6 +121,9 @@ group_mappings:
   - registry-users-lob1
   registry-users-lob2:
   - registry-users-lob2
+
+# ==================== MCP SERVER SCOPES ====================
+# Unrestricted read access: Basic methods for all users (initialize, tools/list, GET)
 mcp-servers-unrestricted/read:
 - server: api
   methods:
@@ -217,6 +241,8 @@ mcp-servers-unrestricted/read:
   - create_group
   - delete_group
   - list_groups
+
+# Unrestricted execute access: Full CRUD operations on all servers (POST, PUT, DELETE in addition to read)
 mcp-servers-unrestricted/execute:
 - server: api
   methods:
@@ -338,6 +364,7 @@ mcp-servers-unrestricted/execute:
   - delete_group
   - list_groups
 
+# LOB1 Group Scope: Read-only access to API; currenttime and mcpgw servers; code-reviewer and test-automation agents
 registry-users-lob1:
 - server: api
   methods:
@@ -388,6 +415,7 @@ registry-users-lob1:
       - /code-reviewer
       - /test-automation
 
+# LOB2 Group Scope: Read-only access to API; realserverfaketools, mcpgw, fininfo servers; data-analysis and security-analyzer agents
 registry-users-lob2:
 - server: api
   methods:
@@ -452,6 +480,7 @@ registry-users-lob2:
       - /data-analysis
       - /security-analyzer
 
+# Admin Group Scope: Unrestricted access to all servers with wildcard; unrestricted access to all agents
 registry-admins:
 - server: '*'
   methods:
