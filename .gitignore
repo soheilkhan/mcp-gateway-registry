@@ -296,3 +296,16 @@ security_scans/
 #AgentCore CLI generated files
 .bedrock_agentcore
 .bedrock_agentcore.yaml
+
+# Terraform user-specific configuration (NEVER COMMIT!)
+# Users should copy terraform.tfvars.example to terraform.tfvars and edit it
+terraform.tfvars
+terraform.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log

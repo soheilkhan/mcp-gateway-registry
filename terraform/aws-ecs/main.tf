@@ -34,7 +34,6 @@ module "mcp_gateway" {
   task_execution_role_arn = module.ecs_cluster.task_exec_iam_role_arn
 
   # Keycloak configuration
-  keycloak_ingress_cidr = var.vpc_cidr
   postgres_version      = "15.7"
 
   # HTTPS configuration
@@ -54,4 +53,9 @@ module "mcp_gateway" {
   # Keycloak OAuth2 secrets
   keycloak_client_secret     = var.keycloak_client_secret
   keycloak_m2m_client_secret = var.keycloak_m2m_client_secret
+
+  # Keycloak ALB configuration
+  keycloak_alb_scheme        = var.keycloak_alb_scheme
+  keycloak_ingress_cidr      = var.keycloak_ingress_cidr
+  keycloak_ingress_cidr_ec2  = var.keycloak_ingress_cidr_ec2
 }

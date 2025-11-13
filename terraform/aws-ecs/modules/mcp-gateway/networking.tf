@@ -160,26 +160,32 @@ module "alb" {
   tags = local.common_tags
 }
 
-# Standalone Internal ALB for Keycloak
+# Keycloak ALB (can be internal or internet-facing)
 module "keycloak_alb" {
   source  = "terraform-aws-modules/alb/aws"
   version = "~> 9.0"
 
   name               = "${local.name_prefix}-kc-alb"
   load_balancer_type = "application"
-  internal           = true  # Always internal for Keycloak
+  internal           = var.keycloak_alb_scheme == "internal"
   enable_deletion_protection = false
 
   vpc_id  = var.vpc_id
-  subnets = var.private_subnet_ids
+  subnets = var.keycloak_alb_scheme == "internal" ? var.private_subnet_ids : var.public_subnet_ids
 
-  # Security Groups - Allow access from VPC CIDR
+  # Security Groups - Allow access from specified CIDRs
   security_group_ingress_rules = {
-    keycloak_port = {
+    keycloak_port_primary = {
       from_port   = 8080
       to_port     = 8080
       ip_protocol = "tcp"
       cidr_ipv4   = var.keycloak_ingress_cidr
+    }
+    keycloak_port_ec2 = {
+      from_port   = 8080
+      to_port     = 8080
+      ip_protocol = "tcp"
+      cidr_ipv4   = var.keycloak_ingress_cidr_ec2
     }
   }
   security_group_egress_rules = {

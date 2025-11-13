@@ -151,7 +151,7 @@ variable "keycloak_admin_username" {
 variable "alb_scheme" {
   description = "Scheme for the ALB (internal or internet-facing)"
   type        = string
-  default     = "internal"
+  default     = "internet-facing"
   validation {
     condition     = contains(["internal", "internet-facing"], var.alb_scheme)
     error_message = "ALB scheme must be either 'internal' or 'internet-facing'."
@@ -159,9 +159,9 @@ variable "alb_scheme" {
 }
 
 variable "ingress_cidr_blocks" {
-  description = "List of CIDR blocks allowed to access the ALB"
+  description = "List of CIDR blocks allowed to access the ALB (main ALB + auth server + registry)"
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = ["71.114.44.148/32", "44.192.72.20/32"]
 }
 
 # Keycloak Configuration
@@ -171,10 +171,26 @@ variable "keycloak_url" {
   default     = ""
 }
 
-variable "keycloak_ingress_cidr" {
-  description = "CIDR block allowed to access Keycloak ALB (typically VPC CIDR)"
+variable "keycloak_alb_scheme" {
+  description = "Scheme for the Keycloak ALB (internal or internet-facing)"
   type        = string
-  default     = "10.0.0.0/16"
+  default     = "internet-facing"
+  validation {
+    condition     = contains(["internal", "internet-facing"], var.keycloak_alb_scheme)
+    error_message = "Keycloak ALB scheme must be either 'internal' or 'internet-facing'."
+  }
+}
+
+variable "keycloak_ingress_cidr" {
+  description = "CIDR block allowed to access Keycloak ALB (primary - usually laptop IP)"
+  type        = string
+  default     = "71.114.44.148/32"
+}
+
+variable "keycloak_ingress_cidr_ec2" {
+  description = "Additional CIDR block for EC2 instance to access Keycloak ALB"
+  type        = string
+  default     = "44.192.72.20/32"
 }
 
 variable "certificate_arn" {

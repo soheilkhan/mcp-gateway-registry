@@ -37,13 +37,9 @@ module "efs" {
     }
   }
 
-  security_group_egress_rules = {
-    all = {
-      description = "Allow all outbound"
-      ip_protocol = "-1"
-      cidr_ipv4   = "0.0.0.0/0"
-    }
-  }
+  # Do NOT configure egress rules in module to avoid defaults
+  # We'll add the egress rule manually below
+  security_group_egress_rules = {}
 
   # Access points
   access_points = {
@@ -106,4 +102,23 @@ module "efs" {
   }
 
   tags = local.common_tags
+}
+
+
+# Manually add egress rule for all protocols without port specification
+# This avoids the module's default from_port/to_port of 2049 which causes
+# AWS InvalidParameterValue error when combined with ip_protocol = "-1"
+resource "aws_vpc_security_group_egress_rule" "efs_all_outbound" {
+  security_group_id = module.efs.security_group_id
+
+  description = "Allow all outbound"
+  ip_protocol = "-1"
+  cidr_ipv4   = "0.0.0.0/0"
+
+  tags = merge(
+    local.common_tags,
+    {
+      "Name" = "${local.name_prefix}-efs-all-outbound"
+    }
+  )
 }

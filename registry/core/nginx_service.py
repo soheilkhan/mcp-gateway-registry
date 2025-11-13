@@ -214,7 +214,14 @@ class NginxConfigService:
                 parsed_keycloak = urlparse(keycloak_url)
                 keycloak_host = parsed_keycloak.hostname or 'keycloak'
                 keycloak_port = str(parsed_keycloak.port or 8080)
-                logger.info(f"Using Keycloak configuration from KEYCLOAK_URL: {keycloak_host}:{keycloak_port}")
+
+                # Validate that we can actually resolve the hostname
+                if not keycloak_host or keycloak_host == 'keycloak':
+                    # If we end up with just 'keycloak', use the full URL's netloc instead
+                    keycloak_host = parsed_keycloak.netloc.split(':')[0] if parsed_keycloak.netloc else 'keycloak'
+                    logger.warning(f"Keycloak hostname is 'keycloak', using netloc instead: {keycloak_host}")
+
+                logger.info(f"Using Keycloak configuration from KEYCLOAK_URL '{keycloak_url}': {keycloak_host}:{keycloak_port}")
             except Exception as e:
                 logger.warning(f"Failed to parse KEYCLOAK_URL '{keycloak_url}': {e}. Using defaults.")
                 keycloak_host = 'keycloak'
