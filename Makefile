@@ -1,4 +1,4 @@
-.PHONY: help test test-unit test-integration test-e2e test-fast test-coverage test-auth test-servers test-search test-health test-core install-dev lint format check-deps clean build-keycloak push-keycloak build-and-push-keycloak deploy-keycloak update-keycloak save-outputs save-outputs-json
+.PHONY: help test test-unit test-integration test-e2e test-fast test-coverage test-auth test-servers test-search test-health test-core install-dev lint format check-deps clean build-keycloak push-keycloak build-and-push-keycloak deploy-keycloak update-keycloak save-outputs view-logs view-logs-keycloak view-logs-registry view-logs-auth view-logs-follow
 
 # Default target
 help:
@@ -35,8 +35,14 @@ help:
 	@echo "  update-keycloak             Build, push, and deploy in one command"
 	@echo ""
 	@echo "Infrastructure Documentation:"
-	@echo "  save-outputs                Save Terraform outputs to text file"
-	@echo "  save-outputs-json           Save Terraform outputs as JSON file"
+	@echo "  save-outputs                Save Terraform outputs as JSON"
+	@echo ""
+	@echo "CloudWatch Logs Viewing:"
+	@echo "  view-logs                   View logs from all components (last 30 min)"
+	@echo "  view-logs-keycloak          View Keycloak logs (last 30 min)"
+	@echo "  view-logs-registry          View Registry logs (last 30 min)"
+	@echo "  view-logs-auth              View Auth Server logs (last 30 min)"
+	@echo "  view-logs-follow            Follow logs in real-time for all components"
 
 # Installation
 install-dev:
@@ -129,7 +135,7 @@ build-keycloak:
 
 build-and-push-keycloak:
 	@echo "📦 Building and pushing Keycloak to ECR..."
-	./scripts/build-and-push-keycloak.sh \
+	./terraform/aws-ecs/scripts/build-and-push-keycloak.sh \
 		--aws-region $(AWS_REGION) \
 		--aws-profile $(AWS_PROFILE) \
 		--image-tag $(IMAGE_TAG)
@@ -158,13 +164,27 @@ update-keycloak: build-and-push-keycloak deploy-keycloak
 	@echo "  aws ecs describe-services --cluster keycloak --services keycloak --region $(AWS_REGION) --query 'services[0].[serviceName,status,runningCount,desiredCount]' --output table"
 
 save-outputs:
-	@echo "💾 Saving Terraform outputs to file..."
-	./scripts/save-terraform-outputs.sh
-	@echo ""
-	@echo "✅ Outputs saved to terraform-outputs.txt"
-
-save-outputs-json:
 	@echo "💾 Saving Terraform outputs as JSON..."
-	./scripts/save-terraform-outputs.sh --json
+	./terraform/aws-ecs/scripts/save-terraform-outputs.sh
 	@echo ""
-	@echo "✅ Outputs saved to terraform-outputs.txt" 
+	@echo "✅ Outputs saved to terraform/aws-ecs/terraform-outputs.json"
+
+view-logs:
+	@echo "📋 Viewing CloudWatch logs from last 30 minutes for all components..."
+	./terraform/aws-ecs/scripts/view-cloudwatch-logs.sh
+
+view-logs-keycloak:
+	@echo "📋 Viewing Keycloak CloudWatch logs from last 30 minutes..."
+	./terraform/aws-ecs/scripts/view-cloudwatch-logs.sh --component keycloak --minutes 30
+
+view-logs-registry:
+	@echo "📋 Viewing Registry CloudWatch logs from last 30 minutes..."
+	./terraform/aws-ecs/scripts/view-cloudwatch-logs.sh --component registry --minutes 30
+
+view-logs-auth:
+	@echo "📋 Viewing Auth Server CloudWatch logs from last 30 minutes..."
+	./terraform/aws-ecs/scripts/view-cloudwatch-logs.sh --component auth-server --minutes 30
+
+view-logs-follow:
+	@echo "📋 Following CloudWatch logs in real-time for all components..."
+	./terraform/aws-ecs/scripts/view-cloudwatch-logs.sh --follow

@@ -1,0 +1,309 @@
+#!/bin/bash
+
+################################################################################
+# View CloudWatch Logs for ECS Tasks
+#
+# This script:
+# 1. Reads Terraform outputs to find ECS log groups
+# 2. Displays logs from the last N minutes
+# 3. Supports live tailing with --follow flag
+# 4. Supports filtering by component (keycloak, registry, auth-server, alb)
+#
+# Usage:
+#   ./scripts/view-cloudwatch-logs.sh [OPTIONS]
+#
+# Options:
+#   --minutes N                Number of minutes to look back (default: 30)
+#   --follow                   Follow logs in real-time (like tail -f)
+#   --component COMP           View logs for specific component:
+#                              keycloak, registry, auth-server, all (default: all)
+#   --start-time TIME          Start time (format: 2024-01-15T10:00:00Z)
+#   --end-time TIME            End time (format: 2024-01-15T10:30:00Z)
+#   --filter PATTERN           Filter logs by pattern (regex)
+#   --help                     Show this help message
+#
+# Examples:
+#   # View logs from last 30 minutes for all components
+#   ./scripts/view-cloudwatch-logs.sh
+#
+#   # Follow Keycloak logs in real-time
+#   ./scripts/view-cloudwatch-logs.sh --component keycloak --follow
+#
+#   # View registry logs from last 5 minutes
+#   ./scripts/view-cloudwatch-logs.sh --component registry --minutes 5
+#
+#   # View logs with pattern filter
+#   ./scripts/view-cloudwatch-logs.sh --filter "ERROR"
+#
+################################################################################
+
+set -euo pipefail
+
+# Colors
+BLUE='\033[0;34m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Configuration
+MINUTES=30
+FOLLOW=false
+COMPONENT="all"
+FILTER_PATTERN=""
+START_TIME=""
+END_TIME=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+TERRAFORM_DIR="$REPO_ROOT/terraform/aws-ecs"
+OUTPUTS_FILE="$TERRAFORM_DIR/terraform-outputs.json"
+
+# Log groups mapping
+declare -A LOG_GROUPS=(
+    [keycloak]="/ecs/keycloak"
+    [registry]="/ecs/mcp-gateway-registry"
+    [auth-server]="/ecs/mcp-gateway-auth-server"
+    [alb]="/aws/alb"
+)
+
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $*"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $*"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $*"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $*"
+}
+
+log_component() {
+    echo -e "${CYAN}[$1]${NC} $2"
+}
+
+show_help() {
+    grep '^#' "$0" | tail -n +2 | sed 's/^# //' | sed 's/^#//'\
+    exit 0
+}
+
+_validate_outputs_file() {
+    if [[ ! -f "$OUTPUTS_FILE" ]]; then
+        log_error "Terraform outputs file not found: $OUTPUTS_FILE"
+        log_info "Run './terraform/aws-ecs/scripts/save-terraform-outputs.sh' first"
+        exit 1
+    fi
+}
+
+_get_log_groups() {
+    local comp="$1"
+
+    if [[ "$comp" == "all" ]]; then
+        echo "${!LOG_GROUPS[@]}"
+    else
+        if [[ -z "${LOG_GROUPS[$comp]:-}" ]]; then
+            log_error "Unknown component: $comp"
+            log_info "Available components: ${!LOG_GROUPS[@]}"
+            exit 1
+        fi
+        echo "$comp"
+    fi
+}
+
+_calculate_start_time() {
+    if [[ -n "$START_TIME" ]]; then
+        echo "$START_TIME"
+    else
+        # Calculate timestamp from N minutes ago
+        if command -v date &> /dev/null; then
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                # macOS
+                date -u -v-${MINUTES}M +%s000
+            else
+                # Linux
+                date -u -d "$MINUTES minutes ago" +%s000
+            fi
+        fi
+    fi
+}
+
+_calculate_end_time() {
+    if [[ -n "$END_TIME" ]]; then
+        echo "$END_TIME"
+    else
+        # Current timestamp in milliseconds
+        if command -v date &> /dev/null; then
+            date -u +%s000
+        fi
+    fi
+}
+
+_check_log_group_exists() {
+    local log_group="$1"
+
+    if aws logs describe-log-groups \
+        --log-group-name-prefix "$log_group" \
+        --region "${AWS_REGION:-us-west-2}" \
+        &>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+_tail_logs() {
+    local log_group="$1"
+    local follow="${2:-false}"
+
+    log_component "$log_group" "Fetching logs..."
+
+    # Check if log group exists
+    if ! _check_log_group_exists "$log_group"; then
+        log_warning "Log group not found: $log_group"
+        return 1
+    fi
+
+    if [[ "$follow" == "true" ]]; then
+        # Real-time tailing
+        aws logs tail "$log_group" \
+            --follow \
+            --since "${MINUTES}m" \
+            --region "${AWS_REGION:-us-west-2}" \
+            $(if [[ -n "$FILTER_PATTERN" ]]; then echo "--filter-pattern $FILTER_PATTERN"; fi) \
+            2>/dev/null || true
+    else
+        # Display logs from the past N minutes
+        local start_time=$(_calculate_start_time)
+        local end_time=$(_calculate_end_time)
+
+        aws logs filter-log-events \
+            --log-group-name "$log_group" \
+            --start-time "$start_time" \
+            --end-time "$end_time" \
+            --region "${AWS_REGION:-us-west-2}" \
+            $(if [[ -n "$FILTER_PATTERN" ]]; then echo "--filter-pattern $FILTER_PATTERN"; fi) \
+            --query 'events[*].[timestamp, message]' \
+            --output text \
+            2>/dev/null | while read -r timestamp message; do
+            if [[ -n "$timestamp" && -n "$message" ]]; then
+                # Convert timestamp from milliseconds to readable format
+                if command -v date &> /dev/null; then
+                    if [[ "$OSTYPE" == "darwin"* ]]; then
+                        formatted_time=$(date -u -r $((timestamp / 1000)) +"%Y-%m-%d %H:%M:%S")
+                    else
+                        formatted_time=$(date -u -d @$((timestamp / 1000)) +"%Y-%m-%d %H:%M:%S")
+                    fi
+                else
+                    formatted_time=$(echo "scale=0; $timestamp / 1000" | bc)
+                fi
+                echo "[${formatted_time}] $message"
+            fi
+        done || true
+    fi
+}
+
+_view_all_logs() {
+    local follow="${1:-false}"
+    local components=$(_get_log_groups "$COMPONENT")
+
+    echo ""
+    log_info "=========================================="
+    log_info "CloudWatch Logs Viewer"
+    log_info "=========================================="
+    log_info "Components: $COMPONENT"
+    log_info "Minutes back: $MINUTES"
+    log_info "Follow mode: $follow"
+    if [[ -n "$FILTER_PATTERN" ]]; then
+        log_info "Filter pattern: $FILTER_PATTERN"
+    fi
+    log_info "=========================================="
+    echo ""
+
+    # If following, tail all logs concurrently
+    if [[ "$follow" == "true" ]]; then
+        # For follow mode, we'll tail each log group
+        for comp in $components; do
+            log_group="${LOG_GROUPS[$comp]}"
+            echo ""
+            echo "---[ $comp logs (live) ]---"
+            _tail_logs "$log_group" "true" &
+        done
+        wait
+    else
+        # For non-follow mode, display logs sequentially
+        for comp in $components; do
+            log_group="${LOG_GROUPS[$comp]}"
+            echo ""
+            echo "---[ $comp logs ]---"
+            _tail_logs "$log_group" "false"
+        done
+    fi
+
+    echo ""
+    log_success "=========================================="
+    log_success "Log viewing complete"
+    log_success "=========================================="
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --minutes)
+            MINUTES="$2"
+            shift 2
+            ;;
+        --follow)
+            FOLLOW=true
+            shift
+            ;;
+        --component)
+            COMPONENT="$2"
+            shift 2
+            ;;
+        --start-time)
+            START_TIME="$2"
+            shift 2
+            ;;
+        --end-time)
+            END_TIME="$2"
+            shift 2
+            ;;
+        --filter)
+            FILTER_PATTERN="$2"
+            shift 2
+            ;;
+        --help)
+            show_help
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            show_help
+            ;;
+    esac
+done
+
+# Validate inputs
+if ! [[ "$MINUTES" =~ ^[0-9]+$ ]]; then
+    log_error "Minutes must be a number"
+    exit 1
+fi
+
+# Verify AWS CLI is available
+if ! command -v aws &> /dev/null; then
+    log_error "AWS CLI is not installed or not in PATH"
+    exit 1
+fi
+
+# Set AWS region
+export AWS_REGION="${AWS_REGION:-us-west-2}"
+
+# Main execution
+_validate_outputs_file
+_view_all_logs "$FOLLOW"
+
+exit 0
