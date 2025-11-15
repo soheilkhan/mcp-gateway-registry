@@ -187,6 +187,20 @@ module "keycloak_alb" {
       ip_protocol = "tcp"
       cidr_ipv4   = var.keycloak_ingress_cidr_ec2
     }
+    keycloak_https = {
+      from_port   = 443
+      to_port     = 443
+      ip_protocol = "tcp"
+      cidr_ipv4   = "0.0.0.0/0"
+      description = "Allow HTTPS access to Keycloak ALB"
+    }
+    keycloak_http = {
+      from_port   = 80
+      to_port     = 80
+      ip_protocol = "tcp"
+      cidr_ipv4   = "0.0.0.0/0"
+      description = "Allow HTTP access to Keycloak ALB (redirect to HTTPS)"
+    }
   }
   security_group_egress_rules = {
     all = {
@@ -196,7 +210,7 @@ module "keycloak_alb" {
   }
 
   listeners = {
-    keycloak = {
+    keycloak_http_8080 = {
       port     = 8080
       protocol = "HTTP"
       forward = {
@@ -204,6 +218,10 @@ module "keycloak_alb" {
       }
     }
   }
+
+  # HTTPS listeners are only created if keycloak_certificate_arn is provided
+  # The aws_lb_listener resource will handle the conditional creation
+
 
   target_groups = {
     keycloak = {
@@ -232,4 +250,39 @@ module "keycloak_alb" {
   tags = merge(local.common_tags, {
     Purpose = "Keycloak Authentication"
   })
+}
+
+# HTTPS listener for Keycloak ALB (created only if certificate is provided)
+resource "aws_lb_listener" "keycloak_https" {
+  count = var.keycloak_certificate_arn != "" ? 1 : 0
+
+  load_balancer_arn = module.keycloak_alb.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
+  certificate_arn   = var.keycloak_certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = module.keycloak_alb.target_groups["keycloak"].arn
+  }
+}
+
+# HTTP to HTTPS redirect listener for Keycloak ALB (created only if certificate is provided)
+resource "aws_lb_listener" "keycloak_http_redirect" {
+  count = var.keycloak_certificate_arn != "" ? 1 : 0
+
+  load_balancer_arn = module.keycloak_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
 }

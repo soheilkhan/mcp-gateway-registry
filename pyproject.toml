@@ -39,6 +39,8 @@ dependencies = [
     "rich>=13.0.0",
     "requests>=2.31.0",
     "cisco-ai-mcp-scanner>=3.0.1",
+    "aws>=0.2.5",
+    "awscli>=1.42.73",
 ]
 
 [project.optional-dependencies]

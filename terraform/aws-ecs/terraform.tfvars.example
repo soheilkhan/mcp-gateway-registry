@@ -18,18 +18,26 @@
 #   - http://mcp-gateway-alb-*.us-east-1.elb.amazonaws.com (ports 80, 443)
 #   - http://mcp-gateway-alb-*.us-east-1.elb.amazonaws.com:7860 (Registry)
 #   - http://mcp-gateway-alb-*.us-east-1.elb.amazonaws.com:8888 (Auth Server)
+#
+# To get your IPs:
+#   - Laptop IP: curl https://ipchicken.com
+#   - EC2 instance IP: curl https://checkip.amazonaws.com
 ingress_cidr_blocks = [
-  "71.114.44.148/32",      # Example: Your laptop IP
-  "44.192.72.20/32"        # Example: Your EC2 instance IP
+  "YOUR_LAPTOP_IP/32",      # Replace with your laptop public IP
+  "YOUR_EC2_IP/32"          # Replace with your EC2 instance public IP
 ]
 
 # Keycloak ALB - Primary IP (usually your laptop/dev machine)
 # This IP can access: http://mcp-gateway-kc-alb-*.us-east-1.elb.amazonaws.com:8080
-keycloak_ingress_cidr = "71.114.44.148/32"
+#
+# To get your laptop IP: curl https://ipchicken.com
+keycloak_ingress_cidr = "YOUR_LAPTOP_IP/32"
 
 # Keycloak ALB - Secondary IP (usually your EC2 instance)
 # This IP can also access: http://mcp-gateway-kc-alb-*.us-east-1.elb.amazonaws.com:8080
-keycloak_ingress_cidr_ec2 = "44.192.72.20/32"
+#
+# To get your EC2 instance IP: curl https://checkip.amazonaws.com
+keycloak_ingress_cidr_ec2 = "YOUR_EC2_IP/32"
 
 # ============================================================================
 # KEYCLOAK ALB CONFIGURATION
@@ -69,9 +77,14 @@ keycloak_m2m_client_secret = "change-me-to-keycloak-m2m-client-secret"
 # Default: "10.0.0.0/16"
 # vpc_cidr = "10.0.0.0/16"
 
-# SSL Certificate ARN (optional)
+# SSL Certificate ARN for main ALB (Registry, Auth Server) (optional)
 # Leave empty for HTTP-only, provide ACM certificate ARN for HTTPS
 # certificate_arn = ""
+
+# SSL Certificate ARN for Keycloak ALB (optional)
+# Leave empty for HTTP-only, provide ACM certificate ARN for HTTPS
+# Can be the same as certificate_arn if using a wildcard certificate
+# keycloak_certificate_arn = ""
 
 # Enable CloudWatch monitoring
 # Default: true

@@ -199,6 +199,12 @@ variable "certificate_arn" {
   default     = ""
 }
 
+variable "keycloak_certificate_arn" {
+  description = "ARN of ACM certificate for Keycloak ALB HTTPS (optional, creates HTTP-only if not provided)"
+  type        = string
+  default     = ""
+}
+
 variable "enable_autoscaling" {
   description = "Whether to enable auto-scaling for ECS services"
   type        = bool

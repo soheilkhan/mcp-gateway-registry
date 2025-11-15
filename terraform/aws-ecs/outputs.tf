@@ -35,17 +35,22 @@ output "ecs_cluster_arn" {
 # MCP Gateway Outputs
 output "mcp_gateway_url" {
   description = "MCP Gateway main URL"
-  value       = module.mcp_gateway.service_urls.registry
+  value       = var.certificate_arn != "" ? "https://${module.mcp_gateway.alb_dns_name}" : module.mcp_gateway.service_urls.registry
 }
 
 output "mcp_gateway_auth_url" {
   description = "MCP Gateway auth server URL"
-  value       = module.mcp_gateway.service_urls.auth
+  value       = var.certificate_arn != "" ? "https://${module.mcp_gateway.alb_dns_name}:8888" : module.mcp_gateway.service_urls.auth
 }
 
 output "mcp_gateway_keycloak_url" {
   description = "MCP Gateway Keycloak URL"
-  value       = module.mcp_gateway.service_urls.keycloak
+  value       = var.keycloak_certificate_arn != "" ? "https://${module.mcp_gateway.keycloak_alb_dns_name}/" : module.mcp_gateway.service_urls.keycloak
+}
+
+output "keycloak_alb_dns" {
+  description = "Keycloak ALB DNS name"
+  value       = module.mcp_gateway.keycloak_alb_dns_name
 }
 
 output "mcp_gateway_alb_dns" {
@@ -74,14 +79,31 @@ output "monitoring_sns_topic" {
   value       = var.enable_monitoring ? module.mcp_gateway.sns_topic_arn : null
 }
 
+# HTTPS URLs (when certificates are configured)
+output "mcp_gateway_https_url" {
+  description = "MCP Gateway main HTTPS URL (when certificate is configured)"
+  value       = var.certificate_arn != "" ? "https://${module.mcp_gateway.alb_dns_name}" : null
+}
+
+output "mcp_gateway_auth_https_url" {
+  description = "MCP Gateway auth server HTTPS URL (when certificate is configured)"
+  value       = var.certificate_arn != "" ? "https://${module.mcp_gateway.alb_dns_name}:8888" : null
+}
+
+output "mcp_gateway_keycloak_https_url" {
+  description = "MCP Gateway Keycloak HTTPS URL (when certificate is configured)"
+  value       = var.keycloak_certificate_arn != "" ? "https://${module.mcp_gateway.keycloak_alb_dns_name}/" : null
+}
+
 # Summary Output
 output "deployment_summary" {
   description = "Summary of deployed components"
   value = {
-    mcp_gateway_deployed = true
-    https_enabled        = var.certificate_arn != ""
-    monitoring_enabled   = var.enable_monitoring
-    multi_az_nat         = true
-    autoscaling_enabled  = true
+    mcp_gateway_deployed    = true
+    https_enabled           = var.certificate_arn != ""
+    keycloak_https_enabled  = var.keycloak_certificate_arn != ""
+    monitoring_enabled      = var.enable_monitoring
+    multi_az_nat            = true
+    autoscaling_enabled     = true
   }
 }

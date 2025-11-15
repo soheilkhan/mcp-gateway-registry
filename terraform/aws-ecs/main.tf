@@ -37,7 +37,8 @@ module "mcp_gateway" {
   postgres_version      = "15.7"
 
   # HTTPS configuration
-  certificate_arn = var.certificate_arn
+  certificate_arn            = var.certificate_arn
+  keycloak_certificate_arn   = var.keycloak_certificate_arn
 
   # Auto-scaling configuration
   enable_autoscaling        = true

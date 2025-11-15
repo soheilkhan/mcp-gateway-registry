@@ -574,12 +574,55 @@ module "ecs_service_keycloak" {
           value = "edge"
         },
         {
+          name  = "KC_PROXY_ADDRESS_FORWARDING"
+          value = "true"
+        },
+        {
           name  = "KC_FEATURES"
-          value = "token-exchange,admin-api"
+          value = "token-exchange,admin-api,hostname:v1"
         },
         {
           name  = "KC_HEALTH_ENABLED"
           value = "true"
+        },
+        {
+          name  = "KC_HOSTNAME"
+          value = "kc.mycorp.click"
+        },
+        # DO NOT set KC_HOSTNAME_PORT for HTTPS on port 443
+        # Setting it causes Keycloak to include :443 in all URLs
+        # which creates CORS issues (https://host vs https://host:443)
+        {
+          name  = "KC_HOSTNAME_ADMIN"
+          value = "kc.mycorp.click"
+        },
+        {
+          name  = "KC_HOSTNAME_STRICT"
+          value = "false"
+        },
+        {
+          name  = "KC_HOSTNAME_STRICT_HTTPS"
+          value = "false"
+        },
+        {
+          name  = "KC_HTTP_RELATIVE_PATH"
+          value = "/"
+        },
+        {
+          name  = "KC_SPI_REALM_REQ_LAST_MOD_INTERVAL_SECS"
+          value = "5"
+        },
+        {
+          name  = "KC_SPI_CONNECTIONS_HTTP_CLIENT_DISABLE_TRUST_MANAGER"
+          value = "false"
+        },
+        {
+          name  = "KC_SPI_CLIENTS_REDIRECT_URIS_HTTPS_ONLY"
+          value = "false"
+        },
+        {
+          name  = "KC_SPI_PROTOCOL_OIDC_ENFORCE_PKCE_FOR_CONFIDENTIAL_CLIENTS"
+          value = "false"
         }
       ]
 

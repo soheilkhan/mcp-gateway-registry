@@ -34,17 +34,132 @@ This Terraform configuration creates a complete production infrastructure:
 - Terraform >= 1.0
 - AWS CLI configured with credentials
 
+### **Installing Terraform**
+
+#### **macOS (using Homebrew)**
+```bash
+brew tap hashicorp/tap
+brew install hashicorp/tap/terraform
+terraform version
+```
+
+#### **Linux (Ubuntu/Debian)**
+```bash
+# Add HashiCorp repository
+wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+
+# Install Terraform
+sudo apt-get update && sudo apt-get install -y terraform
+terraform version
+```
+
+#### **Linux (Manual Installation)**
+```bash
+# Download latest Terraform
+cd /tmp
+wget https://releases.hashicorp.com/terraform/1.6.0/terraform_1.6.0_linux_amd64.zip
+
+# Unzip and move to PATH
+unzip terraform_1.6.0_linux_amd64.zip
+sudo mv terraform /usr/local/bin/
+terraform version
+```
+
+#### **Windows (using Chocolatey)**
+```powershell
+choco install terraform
+terraform version
+```
+
+### **Installing AWS CLI (if not already installed)**
+
+#### **macOS**
+```bash
+brew install awscli
+aws --version
+```
+
+#### **Linux**
+```bash
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+aws --version
+```
+
+### **Configuring AWS Credentials**
+```bash
+# Configure your AWS credentials
+aws configure
+
+# Verify configuration
+aws sts get-caller-identity
+```
+
+When prompted, provide:
+- AWS Access Key ID
+- AWS Secret Access Key
+- Default region (e.g., us-east-1)
+- Default output format (json)
+
 ### **Optional**
 - ACM certificate for HTTPS (recommended for production)
 - Email address for CloudWatch alarm notifications
 
 ## 🚀 Quick Start
 
-### **Step 1: Configure**
+### **Step 1: Configure terraform.tfvars**
 ```bash
 cd terraform/aws-ecs/
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your settings
+nano terraform.tfvars
+```
+
+### **Step 1a: Configure Keycloak Ingress CIDR (Important)**
+
+The `keycloak_ingress_cidr` variable controls which IP addresses can access Keycloak. Update this to allow your EC2 instance and/or your laptop to access the Keycloak admin panel.
+
+#### **Get Your IP Address**
+
+**For your EC2 instance's public IP:**
+```bash
+curl https://checkip.amazonaws.com
+```
+
+**For your laptop's public IP:**
+```bash
+# Option 1: Using ipchicken.com
+curl https://ipchicken.com
+
+# Option 2: Using other IP checker services
+curl https://ifconfig.me
+curl https://icanhazip.com
+```
+
+#### **Update terraform.tfvars**
+
+Open `terraform.tfvars` and set `keycloak_ingress_cidr` to allow access:
+
+```hcl
+# Allow specific IP (your EC2 instance)
+keycloak_ingress_cidr = "203.0.113.42/32"
+
+# OR allow a range (if you have dynamic IP)
+keycloak_ingress_cidr = "203.0.113.0/24"
+
+# OR allow your laptop and EC2 instance (use a subnet that covers both)
+keycloak_ingress_cidr = "0.0.0.0/0"  # NOT recommended for production!
+```
+
+**IMPORTANT:** Use `/32` for a single IP address (e.g., `203.0.113.42/32`) to restrict access to just your machine.
+
+**Example configuration:**
+```hcl
+# Get your public IP
+PUBLIC_IP=$(curl -s https://checkip.amazonaws.com)
+echo "keycloak_ingress_cidr = \"$PUBLIC_IP/32\"" >> terraform.tfvars
 ```
 
 ### **Step 2: Initialize**

@@ -17,7 +17,13 @@ variable "vpc_cidr" {
 }
 
 variable "certificate_arn" {
-  description = "ARN of ACM certificate for HTTPS (optional, creates HTTP-only if not provided)"
+  description = "ARN of ACM certificate for main ALB (Registry, Auth Server) HTTPS (optional, creates HTTP-only if not provided)"
+  type        = string
+  default     = ""
+}
+
+variable "keycloak_certificate_arn" {
+  description = "ARN of ACM certificate for Keycloak ALB HTTPS (optional, creates HTTP-only if not provided). Can be same as certificate_arn if using wildcard certificate"
   type        = string
   default     = ""
 }
