@@ -679,10 +679,24 @@ main() {
     KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN:-admin}"
     echo "Using Keycloak API URL: $KEYCLOAK_URL"
 
-    # Check if admin password is set
+    # Try to load admin credentials from SSM Parameter Store if not set
     if [ -z "$KEYCLOAK_ADMIN_PASSWORD" ]; then
-        echo -e "${RED}Error: KEYCLOAK_ADMIN_PASSWORD environment variable is not set${NC}"
-        echo "Please set it in .env file or export it before running this script"
+        echo "Attempting to load KEYCLOAK_ADMIN_PASSWORD from SSM Parameter Store..."
+        if command -v aws &> /dev/null; then
+            SSM_PASSWORD=$(aws ssm get-parameter --name "/keycloak/admin_password" --with-decryption --query 'Parameter.Value' --output text --region us-west-2 2>/dev/null)
+            if [ -n "$SSM_PASSWORD" ] && [ "$SSM_PASSWORD" != "null" ]; then
+                KEYCLOAK_ADMIN_PASSWORD="$SSM_PASSWORD"
+                echo -e "${GREEN}Loaded KEYCLOAK_ADMIN_PASSWORD from SSM Parameter Store${NC}"
+            fi
+        fi
+    fi
+
+    # Check if admin password is set (from env var or SSM)
+    if [ -z "$KEYCLOAK_ADMIN_PASSWORD" ]; then
+        echo -e "${RED}Error: KEYCLOAK_ADMIN_PASSWORD not found${NC}"
+        echo "Please either:"
+        echo "  1. Export KEYCLOAK_ADMIN_PASSWORD environment variable"
+        echo "  2. Ensure AWS credentials are configured and SSM parameter '/keycloak/admin_password' exists"
         exit 1
     fi
     
