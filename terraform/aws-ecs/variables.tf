@@ -34,7 +34,61 @@ variable "alarm_email" {
   default     = ""
 }
 
+#
+# Keycloak Configuration Variables
+#
 
+variable "keycloak_domain" {
+  description = "Full domain for Keycloak (e.g., kc.example.com)"
+  type        = string
+}
 
+variable "root_domain" {
+  description = "Root domain with Route53 hosted zone"
+  type        = string
+}
 
+variable "keycloak_admin" {
+  description = "Keycloak admin username"
+  type        = string
+  sensitive   = true
+  default     = "admin"
+}
+
+variable "keycloak_admin_password" {
+  description = "Keycloak admin password"
+  type        = string
+  sensitive   = true
+}
+
+variable "keycloak_database_username" {
+  description = "Keycloak database username"
+  type        = string
+  sensitive   = true
+  default     = "keycloak"
+}
+
+variable "keycloak_database_password" {
+  description = "Keycloak database password"
+  type        = string
+  sensitive   = true
+}
+
+variable "keycloak_database_min_acu" {
+  description = "Minimum Aurora Capacity Units"
+  type        = number
+  default     = 0.5
+}
+
+variable "keycloak_database_max_acu" {
+  description = "Maximum Aurora Capacity Units"
+  type        = number
+  default     = 2
+}
+
+variable "keycloak_log_level" {
+  description = "Keycloak log level"
+  type        = string
+  default     = "INFO"
+}
 

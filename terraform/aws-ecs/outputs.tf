@@ -81,3 +81,27 @@ output "deployment_summary" {
     autoscaling_enabled  = true
   }
 }
+
+#
+# Keycloak Outputs
+#
+
+output "keycloak_url" {
+  description = "Keycloak URL"
+  value       = "https://${var.keycloak_domain}"
+}
+
+output "keycloak_admin_console" {
+  description = "Keycloak admin console URL"
+  value       = "https://${var.keycloak_domain}/admin"
+}
+
+output "keycloak_alb_dns" {
+  description = "Keycloak ALB DNS name"
+  value       = aws_lb.keycloak.dns_name
+}
+
+output "keycloak_ecr_repository" {
+  description = "Keycloak ECR repository URL"
+  value       = aws_ecr_repository.keycloak.repository_url
+}
