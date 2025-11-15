@@ -1,4 +1,4 @@
-.PHONY: help test test-unit test-integration test-e2e test-fast test-coverage test-auth test-servers test-search test-health test-core install-dev lint format check-deps clean build-keycloak push-keycloak build-and-push-keycloak deploy-keycloak update-keycloak
+.PHONY: help test test-unit test-integration test-e2e test-fast test-coverage test-auth test-servers test-search test-health test-core install-dev lint format check-deps clean build-keycloak push-keycloak build-and-push-keycloak deploy-keycloak update-keycloak save-outputs save-outputs-json
 
 # Default target
 help:
@@ -33,6 +33,10 @@ help:
 	@echo "  build-and-push-keycloak     Build and push to ECR"
 	@echo "  deploy-keycloak             Update ECS service (after push)"
 	@echo "  update-keycloak             Build, push, and deploy in one command"
+	@echo ""
+	@echo "Infrastructure Documentation:"
+	@echo "  save-outputs                Save Terraform outputs to text file"
+	@echo "  save-outputs-json           Save Terraform outputs as JSON file"
 
 # Installation
 install-dev:
@@ -151,4 +155,16 @@ update-keycloak: build-and-push-keycloak deploy-keycloak
 	@echo "  Service URL:   https://kc.mycorp.click"
 	@echo ""
 	@echo "Monitor deployment:"
-	@echo "  aws ecs describe-services --cluster keycloak --services keycloak --region $(AWS_REGION) --query 'services[0].[serviceName,status,runningCount,desiredCount]' --output table" 
+	@echo "  aws ecs describe-services --cluster keycloak --services keycloak --region $(AWS_REGION) --query 'services[0].[serviceName,status,runningCount,desiredCount]' --output table"
+
+save-outputs:
+	@echo "💾 Saving Terraform outputs to file..."
+	./scripts/save-terraform-outputs.sh
+	@echo ""
+	@echo "✅ Outputs saved to terraform-outputs.txt"
+
+save-outputs-json:
+	@echo "💾 Saving Terraform outputs as JSON..."
+	./scripts/save-terraform-outputs.sh --json
+	@echo ""
+	@echo "✅ Outputs saved to terraform-outputs.txt" 
