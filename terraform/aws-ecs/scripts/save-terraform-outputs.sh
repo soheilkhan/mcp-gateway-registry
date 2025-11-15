@@ -5,24 +5,24 @@
 #
 # This script:
 # 1. Runs terraform output to get all deployed resource information
-# 2. Saves output as JSON to terraform-outputs.json
+# 2. Saves output as JSON to terraform-outputs.json in the scripts directory
 # 3. Creates a backup of previous outputs
 #
 # Usage:
-#   ./scripts/save-terraform-outputs.sh [OPTIONS]
+#   ./save-terraform-outputs.sh [OPTIONS]
 #
 # Options:
-#   --output-file FILE         Output file path (default: terraform-outputs.json)
+#   --output-file FILE         Output file name (default: terraform-outputs.json)
 #   --terraform-dir DIR        Terraform directory (default: aws-ecs)
 #   --no-backup                Don't create backup of previous output
 #   --help                     Show this help message
 #
 # Examples:
-#   # Save outputs with default filename
-#   ./scripts/save-terraform-outputs.sh
+#   # Save outputs with default filename (to scripts directory)
+#   ./save-terraform-outputs.sh
 #
-#   # Save to custom file
-#   ./scripts/save-terraform-outputs.sh --output-file my-outputs.json
+#   # Save to custom filename (to scripts directory)
+#   ./save-terraform-outputs.sh --output-file my-outputs.json
 #
 ################################################################################
 
@@ -37,11 +37,12 @@ NC='\033[0m'
 
 # Configuration
 OUTPUT_FILE="terraform-outputs.json"
-TERRAFORM_DIR="aws-ecs"
+TERRAFORM_DIR="terraform/aws-ecs"
 CREATE_BACKUP=true
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+OUTPUT_DIR="$SCRIPT_DIR"  # Save to scripts directory
 
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $*"
@@ -98,7 +99,7 @@ fi
 
 # Get absolute output path
 if [[ "$OUTPUT_FILE" != /* ]]; then
-    OUTPUT_FILE="$TERRAFORM_PATH/$OUTPUT_FILE"
+    OUTPUT_FILE="$OUTPUT_DIR/$OUTPUT_FILE"
 fi
 
 log_info "=========================================="
