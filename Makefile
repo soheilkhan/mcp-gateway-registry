@@ -1,4 +1,4 @@
-.PHONY: help test test-unit test-integration test-e2e test-fast test-coverage test-auth test-servers test-search test-health test-core install-dev lint format check-deps clean
+.PHONY: help test test-unit test-integration test-e2e test-fast test-coverage test-auth test-servers test-search test-health test-core install-dev lint format check-deps clean build-keycloak push-keycloak build-and-push-keycloak deploy-keycloak update-keycloak
 
 # Default target
 help:
@@ -27,6 +27,12 @@ help:
 	@echo "  lint            Run linting checks"
 	@echo "  format          Format code"
 	@echo "  clean           Clean up test artifacts"
+	@echo ""
+	@echo "Keycloak Build & Deploy:"
+	@echo "  build-keycloak              Build Keycloak Docker image locally"
+	@echo "  build-and-push-keycloak     Build and push to ECR"
+	@echo "  deploy-keycloak             Update ECS service (after push)"
+	@echo "  update-keycloak             Build, push, and deploy in one command"
 
 # Installation
 install-dev:
@@ -99,6 +105,50 @@ clean:
 dev-test: clean install-dev test-fast
 	@echo "🚀 Development test cycle complete!"
 
-# CI/CD workflow  
+# CI/CD workflow
 ci-test: clean check-deps test test-coverage
-	@echo "🏗️ CI/CD test cycle complete!" 
+	@echo "🏗️ CI/CD test cycle complete!"
+
+# Keycloak Build & Deployment
+# Variables
+AWS_REGION ?= us-west-2
+AWS_PROFILE ?= default
+IMAGE_TAG ?= latest
+
+build-keycloak:
+	@echo "🐋 Building Keycloak Docker image..."
+	docker build \
+		-t keycloak:$(IMAGE_TAG) \
+		-f docker/keycloak/Dockerfile \
+		docker/keycloak
+	@echo "✅ Image built: keycloak:$(IMAGE_TAG)"
+
+build-and-push-keycloak:
+	@echo "📦 Building and pushing Keycloak to ECR..."
+	./scripts/build-and-push-keycloak.sh \
+		--aws-region $(AWS_REGION) \
+		--aws-profile $(AWS_PROFILE) \
+		--image-tag $(IMAGE_TAG)
+	@echo "✅ Keycloak image built and pushed successfully"
+
+deploy-keycloak:
+	@echo "🚀 Deploying Keycloak ECS service..."
+	aws ecs update-service \
+		--cluster keycloak \
+		--service keycloak \
+		--force-new-deployment \
+		--region $(AWS_REGION) \
+		--profile $(AWS_PROFILE) \
+		--output table
+	@echo "✅ ECS service update initiated"
+
+update-keycloak: build-and-push-keycloak deploy-keycloak
+	@echo ""
+	@echo "✅ Keycloak update complete!"
+	@echo ""
+	@echo "Service URLs:"
+	@echo "  Admin Console: https://kc.mycorp.click/admin"
+	@echo "  Service URL:   https://kc.mycorp.click"
+	@echo ""
+	@echo "Monitor deployment:"
+	@echo "  aws ecs describe-services --cluster keycloak --services keycloak --region $(AWS_REGION) --query 'services[0].[serviceName,status,runningCount,desiredCount]' --output table" 
