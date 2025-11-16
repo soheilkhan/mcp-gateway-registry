@@ -3,9 +3,9 @@
 MCP Gateway Registry Management CLI.
 
 High-level wrapper for the RegistryClient providing command-line interface
-for server registration, management, and group operations.
+for server registration, management, group operations, and A2A agent management.
 
-Usage:
+Server Management:
     # Register a server from JSON config
     uv run python registry_management.py register --config /path/to/config.json
 
@@ -21,9 +21,34 @@ Usage:
     # Health check
     uv run python registry_management.py healthcheck
 
-    # Group operations
+Group Management:
+    # Add server to groups
     uv run python registry_management.py add-to-groups --server my-server --groups group1,group2
+
+    # List all groups
     uv run python registry_management.py list-groups
+
+Agent Management (A2A):
+    # Register an agent
+    uv run python registry_management.py agent-register --config /path/to/agent.json
+
+    # List all agents
+    uv run python registry_management.py agent-list
+
+    # Get agent details
+    uv run python registry_management.py agent-get --path /code-reviewer
+
+    # Toggle agent status
+    uv run python registry_management.py agent-toggle --path /code-reviewer --enabled true
+
+    # Delete agent
+    uv run python registry_management.py agent-delete --path /code-reviewer
+
+    # Discover agents by skills
+    uv run python registry_management.py agent-discover --skills code_analysis,bug_detection
+
+    # Semantic agent search
+    uv run python registry_management.py agent-search --query "agents that analyze code"
 
 Environment Variables:
     REGISTRY_URL: Registry base URL (default: https://registry.mycorp.click)
@@ -45,7 +70,16 @@ from registry_client import (
     InternalServiceRegistration,
     ServerListResponse,
     ToggleResponse,
-    GroupListResponse
+    GroupListResponse,
+    AgentRegistration,
+    AgentProvider,
+    AgentVisibility,
+    Skill,
+    AgentListResponse,
+    AgentDetail,
+    AgentToggleResponse,
+    AgentDiscoveryResponse,
+    AgentSemanticDiscoveryResponse
 )
 
 # Configure logging
@@ -512,6 +546,304 @@ def cmd_list_groups(args: argparse.Namespace) -> int:
         return 1
 
 
+# Agent Management Command Handlers
+
+
+def cmd_agent_register(args: argparse.Namespace) -> int:
+    """
+    Register a new A2A agent from JSON configuration.
+
+    Args:
+        args: Command arguments
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        config_path = Path(args.config)
+        if not config_path.exists():
+            logger.error(f"Config file not found: {config_path}")
+            return 1
+
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+
+        # Convert skills list of dicts to Skill objects
+        skills = [Skill(**skill) for skill in config.get('skills', [])]
+        config['skills'] = skills
+
+        # Convert provider string to enum
+        if 'provider' in config:
+            config['provider'] = AgentProvider(config['provider'])
+
+        # Convert visibility string to enum if present
+        if 'visibility' in config:
+            config['visibility'] = AgentVisibility(config['visibility'])
+
+        agent = AgentRegistration(**config)
+        client = _create_client()
+        response = client.register_agent(agent)
+
+        logger.info(f"Agent registered successfully: {response.agent.name} at {response.agent.path}")
+        print(json.dumps({
+            "message": response.message,
+            "agent": {
+                "name": response.agent.name,
+                "path": response.agent.path,
+                "url": response.agent.url,
+                "num_skills": response.agent.num_skills,
+                "is_enabled": response.agent.is_enabled
+            }
+        }, indent=2))
+        return 0
+
+    except Exception as e:
+        logger.error(f"Agent registration failed: {e}")
+        return 1
+
+
+def cmd_agent_list(args: argparse.Namespace) -> int:
+    """
+    List all A2A agents.
+
+    Args:
+        args: Command arguments
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        client = _create_client()
+        response = client.list_agents(
+            query=args.query if hasattr(args, 'query') else None,
+            enabled_only=args.enabled_only if hasattr(args, 'enabled_only') else False,
+            visibility=args.visibility if hasattr(args, 'visibility') else None
+        )
+
+        if not response.agents:
+            logger.info("No agents found")
+            return 0
+
+        logger.info(f"Found {len(response.agents)} agents:\n")
+        for agent in response.agents:
+            status = "✓" if agent.is_enabled else "✗"
+            print(f"{status} {agent.name} ({agent.path})")
+            print(f"  {agent.description}")
+            print()
+
+        return 0
+
+    except Exception as e:
+        logger.error(f"List agents failed: {e}")
+        return 1
+
+
+def cmd_agent_get(args: argparse.Namespace) -> int:
+    """
+    Get detailed information about a specific agent.
+
+    Args:
+        args: Command arguments
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        client = _create_client()
+        agent = client.get_agent(args.path)
+
+        logger.info(f"Retrieved agent: {agent.name}")
+        print(json.dumps({
+            "name": agent.name,
+            "path": agent.path,
+            "description": agent.description,
+            "url": agent.url,
+            "version": agent.version,
+            "provider": agent.provider,
+            "is_enabled": agent.is_enabled,
+            "visibility": agent.visibility,
+            "skills": [
+                {
+                    "name": skill.name,
+                    "description": skill.description
+                }
+                for skill in agent.skills
+            ]
+        }, indent=2))
+        return 0
+
+    except Exception as e:
+        logger.error(f"Get agent failed: {e}")
+        return 1
+
+
+def cmd_agent_update(args: argparse.Namespace) -> int:
+    """
+    Update an existing agent.
+
+    Args:
+        args: Command arguments
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        config_path = Path(args.config)
+        if not config_path.exists():
+            logger.error(f"Config file not found: {config_path}")
+            return 1
+
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+
+        # Convert skills list of dicts to Skill objects
+        skills = [Skill(**skill) for skill in config.get('skills', [])]
+        config['skills'] = skills
+
+        # Convert provider string to enum
+        if 'provider' in config:
+            config['provider'] = AgentProvider(config['provider'])
+
+        # Convert visibility string to enum if present
+        if 'visibility' in config:
+            config['visibility'] = AgentVisibility(config['visibility'])
+
+        agent = AgentRegistration(**config)
+        client = _create_client()
+        response = client.update_agent(args.path, agent)
+
+        logger.info(f"Agent updated successfully: {response.name}")
+        return 0
+
+    except Exception as e:
+        logger.error(f"Agent update failed: {e}")
+        return 1
+
+
+def cmd_agent_delete(args: argparse.Namespace) -> int:
+    """
+    Delete an agent from the registry.
+
+    Args:
+        args: Command arguments
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        if not args.force:
+            confirmation = input(f"Delete agent {args.path}? (yes/no): ")
+            if confirmation.lower() != "yes":
+                logger.info("Operation cancelled")
+                return 0
+
+        client = _create_client()
+        client.delete_agent(args.path)
+
+        logger.info(f"Agent deleted successfully: {args.path}")
+        return 0
+
+    except Exception as e:
+        logger.error(f"Agent deletion failed: {e}")
+        return 1
+
+
+def cmd_agent_toggle(args: argparse.Namespace) -> int:
+    """
+    Toggle agent enabled/disabled status.
+
+    Args:
+        args: Command arguments
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        client = _create_client()
+        response = client.toggle_agent(args.path, args.enabled)
+
+        logger.info(f"Agent {response.path} is now {'enabled' if response.is_enabled else 'disabled'}")
+        return 0
+
+    except Exception as e:
+        logger.error(f"Agent toggle failed: {e}")
+        return 1
+
+
+def cmd_agent_discover(args: argparse.Namespace) -> int:
+    """
+    Discover agents by required skills.
+
+    Args:
+        args: Command arguments
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        skills = [s.strip() for s in args.skills.split(',')]
+        tags = [t.strip() for t in args.tags.split(',')] if args.tags else None
+
+        client = _create_client()
+        response = client.discover_agents_by_skills(
+            skills=skills,
+            tags=tags,
+            max_results=args.max_results
+        )
+
+        if not response.agents:
+            logger.info("No agents found matching the required skills")
+            return 0
+
+        logger.info(f"Found {len(response.agents)} matching agents:\n")
+        for agent in response.agents:
+            print(f"{agent.name} ({agent.path})")
+            print(f"  Relevance: {agent.relevance_score:.2%}")
+            print(f"  Matching skills: {', '.join(agent.matching_skills)}")
+            print()
+
+        return 0
+
+    except Exception as e:
+        logger.error(f"Agent discovery failed: {e}")
+        return 1
+
+
+def cmd_agent_search(args: argparse.Namespace) -> int:
+    """
+    Perform semantic search for agents.
+
+    Args:
+        args: Command arguments
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        client = _create_client()
+        response = client.discover_agents_semantic(
+            query=args.query,
+            max_results=args.max_results
+        )
+
+        if not response.agents:
+            logger.info("No agents found matching the query")
+            return 0
+
+        logger.info(f"Found {len(response.agents)} matching agents:\n")
+        for agent in response.agents:
+            print(f"{agent.name} ({agent.path})")
+            print(f"  Relevance: {agent.relevance_score:.2%}")
+            print(f"  {agent.description[:100]}...")
+            print()
+
+        return 0
+
+    except Exception as e:
+        logger.error(f"Semantic search failed: {e}")
+        return 1
+
+
 def main() -> int:
     """
     Main entry point for the CLI.
@@ -665,6 +997,113 @@ Examples:
         help="Exclude scope information"
     )
 
+    # Agent Management Commands
+
+    # Agent register command
+    agent_register_parser = subparsers.add_parser("agent-register", help="Register a new A2A agent")
+    agent_register_parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to agent configuration JSON file"
+    )
+
+    # Agent list command
+    agent_list_parser = subparsers.add_parser("agent-list", help="List all A2A agents")
+    agent_list_parser.add_argument(
+        "--query",
+        help="Search query string"
+    )
+    agent_list_parser.add_argument(
+        "--enabled-only",
+        action="store_true",
+        help="Show only enabled agents"
+    )
+    agent_list_parser.add_argument(
+        "--visibility",
+        choices=["public", "private", "internal"],
+        help="Filter by visibility level"
+    )
+
+    # Agent get command
+    agent_get_parser = subparsers.add_parser("agent-get", help="Get agent details")
+    agent_get_parser.add_argument(
+        "--path",
+        required=True,
+        help="Agent path (e.g., /code-reviewer)"
+    )
+
+    # Agent update command
+    agent_update_parser = subparsers.add_parser("agent-update", help="Update an existing agent")
+    agent_update_parser.add_argument(
+        "--path",
+        required=True,
+        help="Agent path"
+    )
+    agent_update_parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to updated agent configuration JSON file"
+    )
+
+    # Agent delete command
+    agent_delete_parser = subparsers.add_parser("agent-delete", help="Delete an agent")
+    agent_delete_parser.add_argument(
+        "--path",
+        required=True,
+        help="Agent path"
+    )
+    agent_delete_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip confirmation prompt"
+    )
+
+    # Agent toggle command
+    agent_toggle_parser = subparsers.add_parser("agent-toggle", help="Toggle agent enabled/disabled status")
+    agent_toggle_parser.add_argument(
+        "--path",
+        required=True,
+        help="Agent path"
+    )
+    agent_toggle_parser.add_argument(
+        "--enabled",
+        required=True,
+        type=lambda x: x.lower() == 'true',
+        help="True to enable, false to disable"
+    )
+
+    # Agent discover command
+    agent_discover_parser = subparsers.add_parser("agent-discover", help="Discover agents by skills")
+    agent_discover_parser.add_argument(
+        "--skills",
+        required=True,
+        help="Comma-separated list of required skills"
+    )
+    agent_discover_parser.add_argument(
+        "--tags",
+        help="Comma-separated list of tag filters"
+    )
+    agent_discover_parser.add_argument(
+        "--max-results",
+        type=int,
+        default=10,
+        help="Maximum number of results (default: 10)"
+    )
+
+    # Agent search command
+    agent_search_parser = subparsers.add_parser("agent-search", help="Semantic search for agents")
+    agent_search_parser.add_argument(
+        "--query",
+        required=True,
+        help="Natural language search query"
+    )
+    agent_search_parser.add_argument(
+        "--max-results",
+        type=int,
+        default=10,
+        help="Maximum number of results (default: 10)"
+    )
+
     args = parser.parse_args()
 
     # Enable debug logging if requested
@@ -686,7 +1125,15 @@ Examples:
         "remove-from-groups": cmd_remove_from_groups,
         "create-group": cmd_create_group,
         "delete-group": cmd_delete_group,
-        "list-groups": cmd_list_groups
+        "list-groups": cmd_list_groups,
+        "agent-register": cmd_agent_register,
+        "agent-list": cmd_agent_list,
+        "agent-get": cmd_agent_get,
+        "agent-update": cmd_agent_update,
+        "agent-delete": cmd_agent_delete,
+        "agent-toggle": cmd_agent_toggle,
+        "agent-discover": cmd_agent_discover,
+        "agent-search": cmd_agent_search
     }
 
     handler = command_handlers.get(args.command)
