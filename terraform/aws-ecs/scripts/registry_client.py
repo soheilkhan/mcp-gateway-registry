@@ -138,7 +138,7 @@ class AgentVisibility(str, Enum):
     """Agent visibility enumeration."""
     PUBLIC = "public"
     PRIVATE = "private"
-    INTERNAL = "internal"
+    GROUP_RESTRICTED = "group-restricted"
 
 
 class SecuritySchemeType(str, Enum):
@@ -150,7 +150,10 @@ class SecuritySchemeType(str, Enum):
 
 
 class SecurityScheme(BaseModel):
-    """Security scheme model."""
+    """
+    Security scheme model.
+    Note: Uses snake_case internally but serializes to camelCase for A2A compliance.
+    """
 
     type: SecuritySchemeType = Field(..., description="Security scheme type")
     scheme: Optional[str] = Field(
@@ -168,6 +171,7 @@ class SecurityScheme(BaseModel):
     )
     bearer_format: Optional[str] = Field(
         None,
+        alias="bearerFormat",
         description="Bearer token format hint (e.g., JWT)",
     )
     flows: Optional[Dict[str, Any]] = Field(
@@ -176,41 +180,79 @@ class SecurityScheme(BaseModel):
     )
     openid_connect_url: Optional[str] = Field(
         None,
+        alias="openIdConnectUrl",
         description="OpenID Connect discovery URL",
     )
     description: Optional[str] = Field(None, description="Security scheme description")
 
+    class Config:
+        populate_by_name = True  # Allow both snake_case and camelCase on input
+
 
 class Skill(BaseModel):
-    """Skill model for agent capabilities."""
+    """
+    Agent skill definition per A2A protocol specification.
+    Note: Uses snake_case internally but serializes to camelCase for A2A compliance.
+    """
 
     id: str = Field(..., description="Unique skill identifier")
-    name: str = Field(..., description="Skill name")
-    description: str = Field(..., description="Skill description")
-    parameters: Optional[Dict[str, Any]] = Field(None, description="JSON schema for skill parameters")
+    name: str = Field(..., description="Human-readable skill name")
+    description: str = Field(..., description="Detailed skill description")
     tags: List[str] = Field(default_factory=list, description="Skill categorization tags")
+    examples: Optional[List[str]] = Field(None, description="Usage scenarios and examples")
+    input_modes: Optional[List[str]] = Field(None, alias="inputModes", description="Skill-specific input MIME types")
+    output_modes: Optional[List[str]] = Field(None, alias="outputModes", description="Skill-specific output MIME types")
+    security: Optional[List[Dict[str, List[str]]]] = Field(None, description="Skill-level security requirements")
+
+    class Config:
+        populate_by_name = True  # Allow both snake_case and camelCase on input
 
 
 class AgentRegistration(BaseModel):
-    """Agent registration request model."""
+    """
+    Agent registration request model matching server AgentCard schema.
+    This model represents a complete agent card following the A2A protocol
+    specification (v0.3.0), with extensions for MCP Gateway Registry integration.
+    Note: Uses snake_case internally but serializes to camelCase for A2A compliance.
+    """
 
-    name: str = Field(..., description="Display name of the agent")
-    description: str = Field(..., description="Detailed description of the agent")
-    path: str = Field(..., description="Unique path for the agent (e.g., /code-reviewer)")
-    url: str = Field(..., description="URL where the agent is hosted")
-    version: str = Field(..., description="Version string (e.g., 1.0.0)")
-    provider: AgentProvider = Field(..., description="Agent provider")
-    security_schemes: Optional[Dict[str, SecurityScheme]] = Field(
-        None,
-        description="Security schemes supported by the agent"
-    )
-    skills: List[Skill] = Field(..., description="Array of skills provided by the agent")
-    tags: Optional[str] = Field(None, description="Comma-separated tags")
-    visibility: Optional[AgentVisibility] = Field(
-        AgentVisibility.PUBLIC,
-        description="Visibility level"
-    )
-    license: Optional[str] = Field(None, description="License type (e.g., MIT, Apache-2.0)")
+    # Required A2A fields
+    protocol_version: str = Field("1.0", alias="protocolVersion", description="A2A protocol version (e.g., '1.0')")
+    name: str = Field(..., description="Agent name")
+    description: str = Field(..., description="Agent description")
+    url: str = Field(..., description="Agent endpoint URL (HTTP or HTTPS)")
+    version: str = Field(..., description="Agent version")
+    capabilities: Dict[str, Any] = Field(default_factory=dict, description="Feature declarations (e.g., {'streaming': true})")
+    default_input_modes: List[str] = Field(default_factory=lambda: ["text/plain"], alias="defaultInputModes", description="Supported input MIME types")
+    default_output_modes: List[str] = Field(default_factory=lambda: ["text/plain"], alias="defaultOutputModes", description="Supported output MIME types")
+    skills: List[Skill] = Field(default_factory=list, description="Agent capabilities (skills)")
+
+    # Optional A2A fields
+    preferred_transport: Optional[str] = Field("JSONRPC", alias="preferredTransport", description="Preferred transport protocol: JSONRPC, GRPC, HTTP+JSON")
+    provider: Optional[Dict[str, str]] = Field(None, description="Agent provider information {organization, url}")
+    icon_url: Optional[str] = Field(None, alias="iconUrl", description="Agent icon URL")
+    documentation_url: Optional[str] = Field(None, alias="documentationUrl", description="Documentation URL")
+    security_schemes: Dict[str, SecurityScheme] = Field(default_factory=dict, alias="securitySchemes", description="Supported authentication methods")
+    security: Optional[List[Dict[str, List[str]]]] = Field(None, description="Security requirements array")
+    supports_authenticated_extended_card: Optional[bool] = Field(None, alias="supportsAuthenticatedExtendedCard", description="Supports extended card with auth")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+    # MCP Gateway Registry extensions (optional - not part of A2A spec)
+    path: Optional[str] = Field(None, description="Registry path (e.g., /agents/my-agent). Optional - auto-generated if not provided.")
+    tags: List[str] = Field(default_factory=list, description="Categorization tags")
+    is_enabled: bool = Field(False, alias="isEnabled", description="Whether agent is enabled in registry")
+    num_stars: int = Field(0, ge=0, alias="numStars", description="Community rating")
+    license: str = Field("N/A", description="License information")
+    registered_at: Optional[datetime] = Field(None, alias="registeredAt", description="Registration timestamp")
+    updated_at: Optional[datetime] = Field(None, alias="updatedAt", description="Last update timestamp")
+    registered_by: Optional[str] = Field(None, alias="registeredBy", description="Username who registered agent")
+    visibility: str = Field("public", description="public, private, or group-restricted")
+    allowed_groups: List[str] = Field(default_factory=list, alias="allowedGroups", description="Groups with access")
+    signature: Optional[str] = Field(None, description="JWS signature for card integrity")
+    trust_level: str = Field("unverified", alias="trustLevel", description="unverified, community, verified, trusted")
+
+    class Config:
+        populate_by_name = True  # Allow both snake_case and camelCase on input
 
 
 class AgentCard(BaseModel):
@@ -232,30 +274,76 @@ class AgentRegistrationResponse(BaseModel):
 
 
 class SkillDetail(BaseModel):
-    """Detailed skill model."""
+    """
+    Detailed skill model - same as Skill.
+    Note: Uses snake_case internally but serializes to camelCase for A2A compliance.
+    """
 
-    name: str = Field(..., description="Skill name")
-    description: str = Field(..., description="Skill description")
-    input_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema for skill input")
+    id: str = Field(..., description="Unique skill identifier")
+    name: str = Field(..., description="Human-readable skill name")
+    description: str = Field(..., description="Detailed skill description")
+    tags: List[str] = Field(default_factory=list, description="Skill categorization tags")
+    examples: Optional[List[str]] = Field(None, description="Usage scenarios and examples")
+    input_modes: Optional[List[str]] = Field(None, alias="inputModes", description="Skill-specific input MIME types")
+    output_modes: Optional[List[str]] = Field(None, alias="outputModes", description="Skill-specific output MIME types")
+    security: Optional[List[Dict[str, List[str]]]] = Field(None, description="Skill-level security requirements")
+
+    class Config:
+        populate_by_name = True  # Allow both snake_case and camelCase on input
 
 
 class AgentDetail(BaseModel):
-    """Detailed agent model."""
+    """
+    Detailed agent model matching server AgentCard schema.
+    This model represents a complete agent card following the A2A protocol
+    specification (v0.3.0), with extensions for MCP Gateway Registry integration.
+    Note: Uses snake_case internally but serializes to camelCase for A2A compliance.
+    """
 
+    # Required A2A fields
+    protocol_version: str = Field(..., alias="protocolVersion", description="A2A protocol version")
     name: str = Field(..., description="Agent name")
-    path: str = Field(..., description="Agent path")
     description: str = Field(..., description="Agent description")
-    url: str = Field(..., description="Agent URL")
+    url: str = Field(..., description="Agent endpoint URL")
     version: str = Field(..., description="Agent version")
-    provider: str = Field(..., description="Agent provider")
-    skills: List[SkillDetail] = Field(..., description="Agent skills")
-    is_enabled: bool = Field(..., description="Whether agent is enabled")
-    visibility: str = Field(..., description="Visibility level")
-    security_schemes: Optional[Dict[str, Any]] = Field(None, description="Security schemes")
+    capabilities: Dict[str, Any] = Field(default_factory=dict, description="Feature declarations (e.g., {'streaming': true})")
+    default_input_modes: List[str] = Field(default_factory=lambda: ["text/plain"], alias="defaultInputModes", description="Supported input MIME types")
+    default_output_modes: List[str] = Field(default_factory=lambda: ["text/plain"], alias="defaultOutputModes", description="Supported output MIME types")
+    skills: List[SkillDetail] = Field(default_factory=list, description="Agent capabilities (skills)")
+
+    # Optional A2A fields
+    preferred_transport: Optional[str] = Field("JSONRPC", alias="preferredTransport", description="Preferred transport protocol: JSONRPC, GRPC, HTTP+JSON")
+    provider: Optional[str] = Field(None, description="Agent provider/author")
+    icon_url: Optional[str] = Field(None, alias="iconUrl", description="Agent icon URL")
+    documentation_url: Optional[str] = Field(None, alias="documentationUrl", description="Documentation URL")
+    security_schemes: Dict[str, SecurityScheme] = Field(default_factory=dict, alias="securitySchemes", description="Supported authentication methods")
+    security: Optional[List[Dict[str, List[str]]]] = Field(None, description="Security requirements array")
+    supports_authenticated_extended_card: Optional[bool] = Field(None, alias="supportsAuthenticatedExtendedCard", description="Supports extended card with auth")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+    # MCP Gateway Registry extensions (optional - not part of A2A spec)
+    path: Optional[str] = Field(None, description="Registry path")
+    tags: List[str] = Field(default_factory=list, description="Categorization tags")
+    is_enabled: bool = Field(False, alias="isEnabled", description="Whether agent is enabled")
+    num_stars: int = Field(0, ge=0, alias="numStars", description="Community rating")
+    license: str = Field("N/A", description="License information")
+    registered_at: Optional[datetime] = Field(None, alias="registeredAt", description="Registration timestamp")
+    updated_at: Optional[datetime] = Field(None, alias="updatedAt", description="Last update timestamp")
+    registered_by: Optional[str] = Field(None, alias="registeredBy", description="Username who registered agent")
+    visibility: str = Field("public", description="Visibility level")
+    allowed_groups: List[str] = Field(default_factory=list, alias="allowedGroups", description="Groups with access")
+    trust_level: str = Field("unverified", alias="trustLevel", description="Trust level")
+    signature: Optional[str] = Field(None, description="JWS signature for card integrity")
+
+    class Config:
+        populate_by_name = True  # Allow both snake_case and camelCase on input
 
 
 class AgentListItem(BaseModel):
-    """Agent list item model (AgentInfo from server)."""
+    """
+    Agent list item model (AgentInfo from server).
+    Note: Uses snake_case internally but serializes to camelCase for A2A compliance.
+    """
 
     name: str = Field(..., description="Agent name")
     description: str = Field(default="", description="Agent description")
@@ -263,12 +351,15 @@ class AgentListItem(BaseModel):
     url: str = Field(..., description="Agent URL")
     tags: List[str] = Field(default_factory=list, description="Categorization tags")
     skills: List[str] = Field(default_factory=list, description="Skill names")
-    num_skills: int = Field(default=0, description="Number of skills")
-    num_stars: int = Field(default=0, description="Community rating")
-    is_enabled: bool = Field(default=False, description="Whether agent is enabled")
+    num_skills: int = Field(default=0, alias="numSkills", description="Number of skills")
+    num_stars: int = Field(default=0, alias="numStars", description="Community rating")
+    is_enabled: bool = Field(default=False, alias="isEnabled", description="Whether agent is enabled")
     provider: Optional[str] = Field(None, description="Agent provider")
     streaming: bool = Field(default=False, description="Supports streaming")
-    trust_level: str = Field(default="unverified", description="Trust level")
+    trust_level: str = Field(default="unverified", alias="trustLevel", description="Trust level")
+
+    class Config:
+        populate_by_name = True  # Allow both snake_case and camelCase on input
 
 
 class AgentListResponse(BaseModel):
@@ -425,7 +516,7 @@ class RegistryClient:
 
         response = self._make_request(
             method="POST",
-            endpoint="/api/internal/register",
+            endpoint="/api/servers/register",
             data=registration.model_dump(exclude_none=True)
         )
 
@@ -449,7 +540,7 @@ class RegistryClient:
 
         response = self._make_request(
             method="POST",
-            endpoint="/api/internal/remove",
+            endpoint="/api/servers/remove",
             data={"service_path": service_path}
         )
 
@@ -473,7 +564,7 @@ class RegistryClient:
 
         response = self._make_request(
             method="POST",
-            endpoint="/api/internal/toggle",
+            endpoint="/api/servers/toggle",
             data={"service_path": service_path}
         )
 
@@ -495,7 +586,7 @@ class RegistryClient:
 
         response = self._make_request(
             method="GET",
-            endpoint="/api/internal/list"
+            endpoint="/api/servers"
         )
 
         result = ServerListResponse(**response.json())
@@ -515,8 +606,8 @@ class RegistryClient:
         logger.info("Performing health check on all services")
 
         response = self._make_request(
-            method="POST",
-            endpoint="/api/internal/healthcheck"
+            method="GET",
+            endpoint="/api/servers/health"
         )
 
         result = response.json()
@@ -545,7 +636,7 @@ class RegistryClient:
 
         response = self._make_request(
             method="POST",
-            endpoint="/api/internal/add-to-groups",
+            endpoint="/api/servers/groups/add",
             data={
                 "server_name": server_name,
                 "group_names": ",".join(group_names)
@@ -577,7 +668,7 @@ class RegistryClient:
 
         response = self._make_request(
             method="POST",
-            endpoint="/api/internal/remove-from-groups",
+            endpoint="/api/servers/groups/remove",
             data={
                 "server_name": server_name,
                 "group_names": ",".join(group_names)
@@ -617,7 +708,7 @@ class RegistryClient:
 
         response = self._make_request(
             method="POST",
-            endpoint="/api/internal/create-group",
+            endpoint="/api/servers/groups/create",
             data=data
         )
 
@@ -654,7 +745,7 @@ class RegistryClient:
 
         response = self._make_request(
             method="POST",
-            endpoint="/api/internal/delete-group",
+            endpoint="/api/servers/groups/delete",
             data=data
         )
 
@@ -688,7 +779,7 @@ class RegistryClient:
 
         response = self._make_request(
             method="GET",
-            endpoint="/api/internal/list-groups",
+            endpoint="/api/servers/groups",
             params=params
         )
 
