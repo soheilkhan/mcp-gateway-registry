@@ -10,14 +10,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && pip install uv
 
-# Copy dependency files (deploy scripts copy these to .tmp/ directory before build)
+# Copy dependency files (build-images.sh copies these to .tmp/ directory before build)
 COPY .tmp/pyproject.toml .tmp/uv.lock ./
 
 # Install Python dependencies using uv (as root, before switching users)
 RUN uv sync --frozen --no-dev
 
-# Copy agent code (from src/flight-booking-agent/ relative to build context at agents/a2a/)
-COPY src/flight-booking-agent/ ./
+# Copy agent code (all files from the context directory)
+COPY . ./
 
 # Create non-root user
 RUN useradd -m -u 1000 bedrock_agentcore

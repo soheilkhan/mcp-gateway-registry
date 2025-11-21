@@ -273,7 +273,6 @@ TASK_DEF=$(cat <<EOF
       "name": "auth-config",
       "efsVolumeConfiguration": {
         "fileSystemId": "$EFS_ID",
-        "rootDirectory": "/",
         "transitEncryption": "ENABLED",
         "authorizationConfig": {
           "accessPointId": "$ACCESS_POINT_ID"

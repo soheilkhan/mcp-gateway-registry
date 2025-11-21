@@ -45,7 +45,7 @@ resource "aws_route53_record" "keycloak_certificate_validation" {
 
 # Wait for certificate validation
 resource "aws_acm_certificate_validation" "keycloak" {
-  certificate_arn           = aws_acm_certificate.keycloak.arn
+  certificate_arn = aws_acm_certificate.keycloak.arn
   timeouts {
     create = "5m"
   }

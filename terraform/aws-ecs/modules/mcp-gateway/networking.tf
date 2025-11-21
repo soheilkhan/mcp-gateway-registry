@@ -13,9 +13,9 @@ module "alb" {
   source  = "terraform-aws-modules/alb/aws"
   version = "~> 9.0"
 
-  name               = "${local.name_prefix}-alb"
-  load_balancer_type = "application"
-  internal           = var.alb_scheme == "internal"
+  name                       = "${local.name_prefix}-alb"
+  load_balancer_type         = "application"
+  internal                   = var.alb_scheme == "internal"
   enable_deletion_protection = false
 
   vpc_id  = var.vpc_id

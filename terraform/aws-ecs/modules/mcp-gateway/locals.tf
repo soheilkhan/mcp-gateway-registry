@@ -5,8 +5,8 @@ locals {
 
   common_tags = merge(
     {
-      stack        = var.name
-      component    = "mcp-gateway-registry"
+      stack     = var.name
+      component = "mcp-gateway-registry"
     },
     var.additional_tags
   )

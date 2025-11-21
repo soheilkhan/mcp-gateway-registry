@@ -22,9 +22,9 @@ module "efs" {
   }
 
   # Security group configuration
-  create_security_group      = true
-  security_group_vpc_id      = var.vpc_id
-  security_group_name        = "${local.name_prefix}-efs-"
+  create_security_group          = true
+  security_group_vpc_id          = var.vpc_id
+  security_group_name            = "${local.name_prefix}-efs-"
   security_group_use_name_prefix = true
 
   security_group_ingress_rules = {
@@ -135,6 +135,25 @@ module "efs" {
       }
       tags = merge(local.common_tags, {
         Name = "${local.name_prefix} Auth Config"
+      })
+    }
+
+    mcpgw_data = {
+      name = "${local.name_prefix}-mcpgw-data"
+      posix_user = {
+        gid = 1000
+        uid = 1000
+      }
+      root_directory = {
+        path = "/mcpgw_data"
+        creation_info = {
+          owner_gid   = 1000
+          owner_uid   = 1000
+          permissions = "755"
+        }
+      }
+      tags = merge(local.common_tags, {
+        Name = "${local.name_prefix} MCPGW Data"
       })
     }
   }

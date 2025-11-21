@@ -2478,10 +2478,73 @@ async def remove_service_api(
       -F "path=/myservice"
     ```
     """
+    from ..search.service import faiss_service
+    from ..health.service import health_service
+    from ..core.nginx_service import nginx_service
+    from ..utils.scopes_manager import remove_server_scopes
+
     logger.info(f"API remove service request from user '{user_context.get('username')}' for path '{path}'")
 
-    # Call the existing internal_remove_service function
-    return await internal_remove_service(path=path)
+    # Normalize path
+    if not path.startswith('/'):
+        path = '/' + path
+
+    # Check if server exists
+    server_info = server_service.get_server_info(path)
+    if not server_info:
+        logger.warning(f"Service not found at path '{path}'")
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": "Service not found",
+                "reason": f"No service registered at path '{path}'",
+                "suggestion": "Check the service path and ensure it is registered"
+            },
+        )
+
+    # Remove the server
+    success = server_service.remove_server(path)
+
+    if not success:
+        logger.warning(f"Failed to remove service at path '{path}'")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Service removal failed",
+                "reason": f"Failed to remove service at path '{path}'",
+                "suggestion": "Check server logs for detailed error information"
+            },
+        )
+
+    logger.info(f"Service removed successfully: {path} by user {user_context.get('username')}")
+
+    # Remove from FAISS index
+    await faiss_service.remove_service(path)
+
+    # Regenerate Nginx configuration
+    enabled_servers = {
+        server_path: server_service.get_server_info(server_path)
+        for server_path in server_service.get_enabled_services()
+    }
+    await nginx_service.generate_config_async(enabled_servers)
+
+    # Broadcast health status update to WebSocket clients
+    await health_service.broadcast_health_update(path)
+
+    # Remove server from scopes.yml and reload auth server
+    try:
+        await remove_server_scopes(path)
+        logger.info(f"Successfully removed server {path} from scopes")
+    except Exception as e:
+        logger.warning(f"Failed to remove server {path} from scopes: {e}")
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "message": "Service removed successfully",
+            "path": path
+        }
+    )
 
 
 @router.get("/servers/health")

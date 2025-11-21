@@ -754,6 +754,23 @@ setup_client_secrets() {
         fi
     fi
 
+    # Save M2M client secret to AWS Secrets Manager
+    if [ -n "$m2m_secret" ] && command -v aws &> /dev/null; then
+        echo "Saving M2M client secret to AWS Secrets Manager..."
+        if aws secretsmanager update-secret \
+            --secret-id mcp-gateway-keycloak-m2m-client-secret \
+            --secret-string "{\"client_id\": \"mcp-gateway-m2m\", \"client_secret\": \"${m2m_secret}\"}" \
+            --region us-west-2 &>/dev/null; then
+            echo -e "${GREEN}M2M client secret saved to AWS Secrets Manager!${NC}"
+        else
+            echo -e "${YELLOW}Warning: Could not save M2M client secret to Secrets Manager${NC}"
+            echo "You can manually update it with:"
+            echo "  aws secretsmanager update-secret --secret-id mcp-gateway-keycloak-m2m-client-secret \\"
+            echo "    --secret-string '{\"client_id\": \"mcp-gateway-m2m\", \"client_secret\": \"${m2m_secret}\"}' \\"
+            echo "    --region us-west-2"
+        fi
+    fi
+
     echo ""
     echo "=============================================="
     echo -e "${YELLOW}Client credentials have been created.${NC}"
@@ -767,7 +784,9 @@ setup_client_secrets() {
     echo "  Client ID: mcp-gateway-m2m"
     echo "  Secret: ${m2m_secret}"
     echo ""
-    echo -e "${GREEN}Note: Web client secret has been saved to AWS Secrets Manager${NC}"
+    echo -e "${GREEN}Note: Both client secrets have been saved to AWS Secrets Manager${NC}"
+    echo "  - mcp-gateway-keycloak-client-secret (web client)"
+    echo "  - mcp-gateway-keycloak-m2m-client-secret (M2M client)"
     echo "=============================================="
 }
 

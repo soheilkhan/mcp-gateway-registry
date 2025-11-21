@@ -66,13 +66,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TERRAFORM_DIR="$REPO_ROOT/terraform/aws-ecs"
 OUTPUTS_FILE="$SCRIPT_DIR/terraform-outputs.json"
 
-# Log groups mapping
-declare -A LOG_GROUPS=(
-    [keycloak]="/ecs/keycloak"
-    [registry]="/ecs/mcp-gateway-v2-registry"
-    [auth-server]="/ecs/mcp-gateway-v2-auth-server"
-    [alb]="/aws/alb"
-)
+# Log groups mapping - will be populated dynamically
+declare -A LOG_GROUPS=()
 
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $*"
@@ -99,12 +94,66 @@ show_help() {
     exit 0
 }
 
+_discover_ecs_log_groups() {
+    log_info "Discovering ECS services and log groups..."
+
+    # Get all log groups matching ECS patterns
+    local ecs_logs=$(aws logs describe-log-groups \
+        --log-group-name-prefix "/ecs/" \
+        --region "${AWS_REGION:-us-west-2}" \
+        --query 'logGroups[*].logGroupName' \
+        --output text 2>/dev/null || true)
+
+    if [[ -z "$ecs_logs" ]]; then
+        ecs_logs=$(aws logs describe-log-groups \
+            --log-group-name-prefix "/aws/ecs/" \
+            --region "${AWS_REGION:-us-west-2}" \
+            --query 'logGroups[*].logGroupName' \
+            --output text 2>/dev/null || true)
+    fi
+
+    # Also add ALB logs
+    local alb_logs=$(aws logs describe-log-groups \
+        --log-group-name-prefix "/aws/alb" \
+        --region "${AWS_REGION:-us-west-2}" \
+        --query 'logGroups[*].logGroupName' \
+        --output text 2>/dev/null || true)
+
+    # Combine all logs
+    local all_logs="$ecs_logs $alb_logs"
+
+    # Populate the LOG_GROUPS array
+    for log_group in $all_logs; do
+        # Extract service name from log group
+        local service_name=$(basename "$log_group")
+
+        # Clean up common prefixes
+        service_name=$(echo "$service_name" | sed 's/^mcp-gateway-v2-//' | sed 's/^mcp-gateway-//')
+        service_name=$(echo "$service_name" | sed 's/-server$//' | sed 's/-init$//')
+
+        # Use full name if empty after cleanup
+        if [[ -z "$service_name" ]]; then
+            service_name=$(basename "$log_group")
+        fi
+
+        LOG_GROUPS[$service_name]="$log_group"
+    done
+
+    if [[ ${#LOG_GROUPS[@]} -eq 0 ]]; then
+        log_warning "No ECS log groups found in region ${AWS_REGION:-us-west-2}"
+        return 1
+    fi
+
+    log_success "Found ${#LOG_GROUPS[@]} log groups"
+}
+
 _validate_outputs_file() {
     if [[ ! -f "$OUTPUTS_FILE" ]]; then
-        log_error "Terraform outputs file not found: $OUTPUTS_FILE"
-        log_info "Run './terraform/aws-ecs/scripts/save-terraform-outputs.sh' first"
-        exit 1
+        log_warning "Terraform outputs file not found: $OUTPUTS_FILE"
+        log_info "Discovering services from AWS instead..."
+        return 1
     fi
+    return 0
 }
 
 _get_log_groups() {
@@ -337,7 +386,15 @@ fi
 export AWS_REGION="${AWS_REGION:-us-west-2}"
 
 # Main execution
-_validate_outputs_file
+# Always try discovery first (more reliable than outputs file)
+_discover_ecs_log_groups || {
+    log_warning "Discovery from AWS failed, attempting to use Terraform outputs..."
+    _validate_outputs_file || {
+        log_error "Failed to discover ECS log groups and outputs file not found"
+        exit 1
+    }
+}
+
 _view_all_logs "$FOLLOW"
 
 exit 0

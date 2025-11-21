@@ -346,6 +346,10 @@ class NginxConfigService:
         
         # Common proxy settings
         common_settings = f"""
+        # Use IPv4 resolver (disable IPv6)
+        resolver 8.8.8.8 8.8.4.4 valid=10s;
+        resolver_timeout 5s;
+
         # Authenticate request - pass entire request to auth server
         auth_request /validate;
         
@@ -361,6 +365,7 @@ class NginxConfigService:
         # Proxy to MCP server
         proxy_pass {proxy_pass_url};
         proxy_http_version 1.1;
+        proxy_ssl_server_name on;
         proxy_set_header Host {host_header};
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -398,22 +403,26 @@ class NginxConfigService:
             transport_settings = """
         # Capture request body for auth validation using Lua
         rewrite_by_lua_file /etc/nginx/lua/capture_body.lua;
-        
+
         # For SSE connections and WebSocket upgrades
         proxy_buffering off;
         proxy_cache off;
         proxy_set_header Connection $http_connection;
         proxy_set_header Upgrade $http_upgrade;
+        # Explicitly preserve Accept header for MCP protocol requirements
+        proxy_set_header Accept $http_accept;
         chunked_transfer_encoding off;"""
         
         elif transport_type == "streamable-http":
             transport_settings = """
         # Capture request body for auth validation using Lua
         rewrite_by_lua_file /etc/nginx/lua/capture_body.lua;
-        
+
         # HTTP transport configuration
         proxy_buffering off;
-        proxy_set_header Connection "";"""
+        proxy_set_header Connection "";
+        # Explicitly preserve Accept header for MCP protocol requirements
+        proxy_set_header Accept $http_accept;"""
         
         else:  # direct
             transport_settings = """

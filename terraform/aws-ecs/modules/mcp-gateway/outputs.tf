@@ -65,7 +65,7 @@ output "efs_access_points" {
     logs        = module.efs.access_points["logs"].id
     auth_config = module.efs.access_points["auth_config"].id
   }
-  sensitive   = false
+  sensitive = false
 }
 
 # Service Discovery outputs

@@ -86,3 +86,77 @@ variable "keycloak_log_level" {
   default     = "INFO"
 }
 
+#
+# MCP Gateway Services - Container Images
+#
+
+variable "auth_server_image_uri" {
+  description = "Container image URI for auth server service"
+  type        = string
+  default     = "mcpgateway/auth-server:latest"
+}
+
+variable "currenttime_image_uri" {
+  description = "Container image URI for currenttime MCP server"
+  type        = string
+  default     = ""
+}
+
+variable "mcpgw_image_uri" {
+  description = "Container image URI for mcpgw MCP server"
+  type        = string
+  default     = ""
+}
+
+variable "realserverfaketools_image_uri" {
+  description = "Container image URI for realserverfaketools MCP server"
+  type        = string
+  default     = ""
+}
+
+variable "flight_booking_agent_image_uri" {
+  description = "Container image URI for flight booking A2A agent"
+  type        = string
+  default     = ""
+}
+
+variable "travel_assistant_agent_image_uri" {
+  description = "Container image URI for travel assistant A2A agent"
+  type        = string
+  default     = ""
+}
+
+#
+# MCP Gateway Services - Replica Counts
+#
+
+variable "currenttime_replicas" {
+  description = "Number of replicas for CurrentTime MCP server"
+  type        = number
+  default     = 1
+}
+
+variable "mcpgw_replicas" {
+  description = "Number of replicas for MCPGW MCP server"
+  type        = number
+  default     = 1
+}
+
+variable "realserverfaketools_replicas" {
+  description = "Number of replicas for RealServerFakeTools MCP server"
+  type        = number
+  default     = 1
+}
+
+variable "flight_booking_agent_replicas" {
+  description = "Number of replicas for Flight Booking A2A agent"
+  type        = number
+  default     = 1
+}
+
+variable "travel_assistant_agent_replicas" {
+  description = "Number of replicas for Travel Assistant A2A agent"
+  type        = number
+  default     = 1
+}
+

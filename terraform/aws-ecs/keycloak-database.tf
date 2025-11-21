@@ -38,12 +38,12 @@ resource "aws_db_proxy_target" "keycloak" {
 
 # Aurora MySQL Serverless v2 Cluster
 resource "aws_rds_cluster" "keycloak" {
-  cluster_identifier      = "keycloak"
-  engine                  = "aurora-mysql"
-  engine_version          = "8.0.mysql_aurora.3.08.2"
-  database_name           = "keycloak"
-  master_username         = var.keycloak_database_username
-  master_password         = var.keycloak_database_password
+  cluster_identifier = "keycloak"
+  engine             = "aurora-mysql"
+  engine_version     = "8.0.mysql_aurora.3.08.2"
+  database_name      = "keycloak"
+  master_username    = var.keycloak_database_username
+  master_password    = var.keycloak_database_password
 
   db_subnet_group_name            = aws_db_subnet_group.keycloak.name
   db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.keycloak.name
@@ -76,8 +76,8 @@ resource "aws_rds_cluster" "keycloak" {
 resource "aws_rds_cluster_instance" "keycloak" {
   cluster_identifier = aws_rds_cluster.keycloak.id
   instance_class     = "db.serverless"
-  engine              = aws_rds_cluster.keycloak.engine
-  engine_version      = aws_rds_cluster.keycloak.engine_version
+  engine             = aws_rds_cluster.keycloak.engine
+  engine_version     = aws_rds_cluster.keycloak.engine_version
 
   performance_insights_enabled = false
 

@@ -50,6 +50,36 @@ variable "auth_server_image_uri" {
   default     = "mcpgateway/auth-server:latest"
 }
 
+variable "currenttime_image_uri" {
+  description = "Container image URI for currenttime MCP server"
+  type        = string
+  default     = ""
+}
+
+variable "mcpgw_image_uri" {
+  description = "Container image URI for mcpgw MCP server"
+  type        = string
+  default     = ""
+}
+
+variable "realserverfaketools_image_uri" {
+  description = "Container image URI for realserverfaketools MCP server"
+  type        = string
+  default     = ""
+}
+
+variable "flight_booking_agent_image_uri" {
+  description = "Container image URI for flight booking A2A agent"
+  type        = string
+  default     = ""
+}
+
+variable "travel_assistant_agent_image_uri" {
+  description = "Container image URI for travel assistant A2A agent"
+  type        = string
+  default     = ""
+}
+
 variable "dockerhub_org" {
   description = "Docker Hub organization for pre-built images"
   type        = string
@@ -91,6 +121,56 @@ variable "auth_replicas" {
   validation {
     condition     = var.auth_replicas > 0
     error_message = "Auth replicas must be greater than 0."
+  }
+}
+
+variable "currenttime_replicas" {
+  description = "Number of replicas for CurrentTime MCP server"
+  type        = number
+  default     = 1
+  validation {
+    condition     = var.currenttime_replicas > 0
+    error_message = "CurrentTime replicas must be greater than 0."
+  }
+}
+
+variable "mcpgw_replicas" {
+  description = "Number of replicas for MCPGW MCP server"
+  type        = number
+  default     = 1
+  validation {
+    condition     = var.mcpgw_replicas > 0
+    error_message = "MCPGW replicas must be greater than 0."
+  }
+}
+
+variable "realserverfaketools_replicas" {
+  description = "Number of replicas for RealServerFakeTools MCP server"
+  type        = number
+  default     = 1
+  validation {
+    condition     = var.realserverfaketools_replicas > 0
+    error_message = "RealServerFakeTools replicas must be greater than 0."
+  }
+}
+
+variable "flight_booking_agent_replicas" {
+  description = "Number of replicas for Flight Booking A2A agent"
+  type        = number
+  default     = 1
+  validation {
+    condition     = var.flight_booking_agent_replicas > 0
+    error_message = "Flight Booking agent replicas must be greater than 0."
+  }
+}
+
+variable "travel_assistant_agent_replicas" {
+  description = "Number of replicas for Travel Assistant A2A agent"
+  type        = number
+  default     = 1
+  validation {
+    condition     = var.travel_assistant_agent_replicas > 0
+    error_message = "Travel Assistant agent replicas must be greater than 0."
   }
 }
 

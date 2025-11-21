@@ -33,7 +33,7 @@ module "vpc" {
   enable_dns_support   = true
 
   # VPC Flow Logs
-  enable_flow_log                      = false
+  enable_flow_log = false
 
   # Tags for ECS and ALB usage
   private_subnet_tags = {
