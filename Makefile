@@ -1,4 +1,4 @@
-.PHONY: help test test-unit test-integration test-e2e test-fast test-coverage test-auth test-servers test-search test-health test-core install-dev lint format check-deps clean build-keycloak push-keycloak build-and-push-keycloak deploy-keycloak update-keycloak save-outputs view-logs view-logs-keycloak view-logs-registry view-logs-auth view-logs-follow
+.PHONY: help test test-unit test-integration test-e2e test-fast test-coverage test-auth test-servers test-search test-health test-core install-dev lint format check-deps clean build-keycloak push-keycloak build-and-push-keycloak deploy-keycloak update-keycloak save-outputs view-logs view-logs-keycloak view-logs-registry view-logs-auth view-logs-follow list-images build push build-push generate-manifest validate-config compose-up-agents compose-down-agents compose-logs-agents build-agents push-agents
 
 # Default target
 help:
@@ -43,6 +43,24 @@ help:
 	@echo "  view-logs-registry          View Registry logs (last 30 min)"
 	@echo "  view-logs-auth              View Auth Server logs (last 30 min)"
 	@echo "  view-logs-follow            Follow logs in real-time for all components"
+	@echo ""
+	@echo "Container Build & Registry:"
+	@echo "  list-images                 List all configured container images"
+	@echo "  build                       Build all images locally"
+	@echo "  build IMAGE=name            Build specific image (e.g., IMAGE=registry)"
+	@echo "  push                        Push all images to ECR"
+	@echo "  push IMAGE=name             Push specific image to ECR"
+	@echo "  build-push                  Build and push all images"
+	@echo "  build-push IMAGE=name       Build and push specific image"
+	@echo "  generate-manifest           Generate image-manifest.json for Terraform"
+	@echo "  validate-config             Validate build-config.yaml syntax"
+	@echo ""
+	@echo "Local A2A Agent Development:"
+	@echo "  compose-up-agents           Start A2A agents with docker-compose"
+	@echo "  compose-down-agents         Stop A2A agents"
+	@echo "  compose-logs-agents         Follow A2A agent logs in real-time"
+	@echo "  build-agents                Build both A2A agent images locally"
+	@echo "  push-agents                 Push both A2A agent images to ECR"
 
 # Installation
 install-dev:
@@ -188,3 +206,56 @@ view-logs-auth:
 view-logs-follow:
 	@echo "📋 Following CloudWatch logs in real-time for all components..."
 	./terraform/aws-ecs/scripts/view-cloudwatch-logs.sh --follow
+
+# ========================================
+# Unified Container Build System
+# ========================================
+
+list-images:
+	@./scripts/generate-image-manifest.sh --list
+
+generate-manifest:
+	@./scripts/generate-image-manifest.sh
+
+validate-config:
+	@python3 -c "import yaml; yaml.safe_load(open('build-config.yaml'))" && echo "Config is valid!"
+
+build:
+	@$(if $(IMAGE),IMAGE=$(IMAGE),) ./scripts/build-images.sh build
+
+push:
+	@$(if $(IMAGE),IMAGE=$(IMAGE),) ./scripts/build-images.sh push
+
+build-push:
+	@$(if $(IMAGE),IMAGE=$(IMAGE),) ./scripts/build-images.sh build-push
+
+# ========================================
+# Local A2A Agent Development
+# ========================================
+
+compose-up-agents:
+	@echo "Starting A2A agents with docker-compose..."
+	cd agents/a2a && docker-compose -f docker-compose.local.yml up -d
+	@echo "Agents started:"
+	@echo "  Flight Booking Agent: http://localhost:9002/ping"
+	@echo "  Travel Assistant Agent: http://localhost:9001/ping"
+
+compose-down-agents:
+	@echo "Stopping A2A agents..."
+	cd agents/a2a && docker-compose -f docker-compose.local.yml down
+
+compose-logs-agents:
+	@echo "Following A2A agent logs..."
+	cd agents/a2a && docker-compose -f docker-compose.local.yml logs -f
+
+build-agents:
+	@echo "Building A2A agent images locally..."
+	@$(MAKE) build IMAGE=flight_booking_agent
+	@$(MAKE) build IMAGE=travel_assistant_agent
+	@echo "Both agents built successfully"
+
+push-agents:
+	@echo "Pushing A2A agent images to ECR..."
+	@$(MAKE) push IMAGE=flight_booking_agent
+	@$(MAKE) push IMAGE=travel_assistant_agent
+	@echo "Both agents pushed to ECR"
