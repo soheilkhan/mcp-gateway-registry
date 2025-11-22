@@ -63,8 +63,10 @@ Anthropic Registry API (v0.1):
     # Get server details
     uv run python registry_management.py anthropic-get --server-name "io.mcpgateway/example-server" --version latest
 
-Environment Variables:
-    REGISTRY_URL: Registry base URL (default: https://registry.mycorp.click)
+Environment Variables (Required):
+    REGISTRY_URL: Registry base URL (e.g., https://registry.mycorp.click) - REQUIRED
+
+Environment Variables (Optional):
     CLIENT_NAME: Keycloak client name (default: registry-admin-bot)
     GET_TOKEN_SCRIPT: Path to get-m2m-token.sh script
 """
@@ -107,40 +109,24 @@ logger = logging.getLogger(__name__)
 
 def _get_registry_url() -> str:
     """
-    Get registry URL from environment variable or terraform-outputs.json.
-
-    Priority:
-    1. REGISTRY_URL environment variable
-    2. terraform-outputs.json file
-    3. Default value
+    Get registry URL from environment variable.
 
     Returns:
         Registry base URL
+
+    Raises:
+        ValueError: If REGISTRY_URL environment variable is not set
     """
-    # Check environment variable first
     registry_url = os.getenv("REGISTRY_URL")
-    if registry_url:
-        logger.debug(f"Using registry URL from environment: {registry_url}")
-        return registry_url
+    if not registry_url:
+        raise ValueError(
+            "REGISTRY_URL environment variable is required.\n"
+            "Please set it before running this script:\n"
+            "  export REGISTRY_URL=https://registry.mycorp.click"
+        )
 
-    # Try to load from terraform-outputs.json
-    try:
-        script_dir = Path(__file__).parent
-        tf_outputs_file = script_dir / "terraform-outputs.json"
-        if tf_outputs_file.exists():
-            with open(tf_outputs_file, 'r') as f:
-                tf_outputs = json.load(f)
-                registry_url = tf_outputs.get('registry_url', {}).get('value')
-                if registry_url:
-                    logger.debug(f"Using registry URL from terraform-outputs.json: {registry_url}")
-                    return registry_url
-    except Exception as e:
-        logger.debug(f"Could not load registry URL from terraform-outputs.json: {e}")
-
-    # Fall back to default
-    default_url = "https://registry.mycorp.click"
-    logger.debug(f"Using default registry URL: {default_url}")
-    return default_url
+    logger.debug(f"Using registry URL from environment: {registry_url}")
+    return registry_url
 
 
 def _get_client_name() -> str:
