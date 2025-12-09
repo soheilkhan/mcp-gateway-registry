@@ -33,6 +33,7 @@ export interface Agent {
   last_checked_time?: string;
   usersCount?: number;
   rating?: number;
+  rating_details?: Array<{ user: string; rating: number }>;
   status?: 'healthy' | 'healthy-auth-expired' | 'unhealthy' | 'unknown';
 }
 
@@ -344,7 +345,7 @@ const AgentCard: React.FC<AgentCardProps> = ({
             <StarRatingWidget
               agentPath={agent.path}
               initialRating={agent.rating || 0}
-              initialCount={agent.usersCount || 0}
+              initialCount={agent.rating_details?.length || 0}
               authToken={authToken}
               onShowToast={onShowToast}
               onRatingUpdate={(newRating) => {
