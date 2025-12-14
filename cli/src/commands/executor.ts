@@ -3,8 +3,55 @@ import {resolveTaskCommand} from "../chat/taskInterpreter.js";
 import {executeMcpCommand, formatMcpResult} from "../runtime/mcp.js";
 import {runScriptTaskToString} from "../runtime/script.js";
 import type {TaskContext} from "../tasks/types.js";
+import {spawn} from "node:child_process";
+import {REGISTRY_CLI_WRAPPER, REPO_ROOT} from "../paths.js";
 
 export interface CommandExecutionContext extends TaskContext {}
+
+// Helper function to call the registry CLI wrapper
+async function callRegistryWrapper(args: string[], context: CommandExecutionContext): Promise<{stdout: string; stderr: string; exitCode: number}> {
+  const baseArgs = [
+    "run",
+    "python",
+    REGISTRY_CLI_WRAPPER,
+    "--base-url",
+    context.gatewayBaseUrl,
+    ...args
+  ];
+
+  const env = context.backendToken
+    ? {...process.env, GATEWAY_TOKEN: context.backendToken}
+    : process.env;
+
+  return new Promise((resolve) => {
+    const child = spawn("uv", baseArgs, {
+      cwd: REPO_ROOT,
+      env: env as NodeJS.ProcessEnv,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("close", (code) => {
+      resolve({stdout, stderr, exitCode: code ?? -1});
+    });
+    child.on("error", (error) => {
+      resolve({
+        stdout,
+        stderr: `${stderr}\nFailed to start process: ${(error as Error).message}`,
+        exitCode: -1
+      });
+    });
+  });
+}
 
 export async function executeSlashCommand(
   input: string,
@@ -188,133 +235,42 @@ async function executeAgents(parsed: AgentsCommand, context: CommandExecutionCon
 }
 
 async function executeAgentsList(context: CommandExecutionContext) {
-  try {
-    const response = await fetch(`${context.gatewayUrl}/agents`, {
-      method: "GET",
-      headers: {
-        "X-Authorization": `Bearer ${context.backendToken}`,
-        "Content-Type": "application/json"
-      }
-    });
+  const result = await callRegistryWrapper(["agent", "list"], context);
 
-    if (!response.ok) {
-      return {lines: [`Error: ${response.status} - Failed to list agents`], isError: true};
-    }
-
-    const data = await response.json() as any;
-    const agents = Array.isArray(data.agents) ? data.agents : (data.agents && typeof data.agents === "object" ? Object.values(data.agents) : []);
-
-    if (!Array.isArray(agents) || agents.length === 0) {
-      return {lines: ["No agents found."]};
-    }
-
-    const lines: string[] = [`Found ${agents.length} agent(s):\n`];
-    agents.forEach((agent: any, index: number) => {
-      lines.push(`${index + 1}. ${agent.name || "Unknown"}`);
-      lines.push(`   Path: ${agent.path || "N/A"}`);
-      if (agent.description) {
-        const desc = agent.description.length > 80
-          ? agent.description.substring(0, 80) + "..."
-          : agent.description;
-        lines.push(`   Description: ${desc}`);
-      }
-      lines.push(`   Status: ${agent.enabled ? "enabled" : "disabled"}`);
-      if (agent.tags && Array.isArray(agent.tags) && agent.tags.length > 0) {
-        lines.push(`   Tags: ${agent.tags.slice(0, 5).join(", ")}${agent.tags.length > 5 ? "..." : ""}`);
-      }
-      lines.push("");
-    });
-
-    return {lines};
-  } catch (error) {
-    return {lines: [`Error listing agents: ${(error as Error).message}`], isError: true};
+  if (result.exitCode !== 0) {
+    return {
+      lines: [`Error listing agents:`, result.stderr || result.stdout],
+      isError: true
+    };
   }
+
+  return {lines: [result.stdout]};
 }
 
 async function executeAgentsGet(agentPath: string, context: CommandExecutionContext) {
-  try {
-    const response = await fetch(`${context.gatewayUrl}/agents${agentPath}`, {
-      method: "GET",
-      headers: {
-        "X-Authorization": `Bearer ${context.backendToken}`,
-        "Content-Type": "application/json"
-      }
-    });
+  const result = await callRegistryWrapper(["agent", "get", agentPath], context);
 
-    if (!response.ok) {
-      return {lines: [`Error: ${response.status} - Agent not found or access denied`], isError: true};
-    }
-
-    const agent = await response.json() as any;
-    const lines: string[] = [];
-
-    lines.push(`${agent.name || "Unknown"} (${agent.path || agentPath})`);
-    lines.push(`Description: ${agent.description || "N/A"}`);
-    if (agent.url) lines.push(`URL: ${agent.url}`);
-    if (agent.version) lines.push(`Version: ${agent.version}`);
-
-    if (agent.skills && Array.isArray(agent.skills) && agent.skills.length > 0) {
-      lines.push("\nSkills:");
-      agent.skills.forEach((skill: any, index: number) => {
-        lines.push(`  ${index + 1}. ${skill.name || skill.id || "Unknown"}`);
-        if (skill.description) {
-          lines.push(`     ${skill.description}`);
-        }
-      });
-    }
-
-    if (agent.tags && Array.isArray(agent.tags) && agent.tags.length > 0) {
-      lines.push(`\nTags: ${agent.tags.join(", ")}`);
-    }
-
-    lines.push(`\nVisibility: ${agent.visibility || "N/A"}`);
-    lines.push(`Trust Level: ${agent.trust_level || "N/A"}`);
-    lines.push(`Status: ${agent.enabled ? "enabled" : "disabled"}`);
-
-    return {lines};
-  } catch (error) {
-    return {lines: [`Error fetching agent: ${(error as Error).message}`], isError: true};
+  if (result.exitCode !== 0) {
+    return {
+      lines: [`Error getting agent:`, result.stderr || result.stdout],
+      isError: true
+    };
   }
+
+  return {lines: [result.stdout]};
 }
 
 async function executeAgentsSearch(query: string, context: CommandExecutionContext) {
-  try {
-    const response = await fetch(`${context.gatewayUrl}/agents?query=${encodeURIComponent(query)}`, {
-      method: "GET",
-      headers: {
-        "X-Authorization": `Bearer ${context.backendToken}`,
-        "Content-Type": "application/json"
-      }
-    });
+  const result = await callRegistryWrapper(["agent", "search", query], context);
 
-    if (!response.ok) {
-      return {lines: [`Error: ${response.status} - Search failed`], isError: true};
-    }
-
-    const data = await response.json() as any;
-    const agents = Array.isArray(data.agents) ? data.agents : (data.agents && typeof data.agents === "object" ? Object.values(data.agents) : []);
-
-    if (!Array.isArray(agents) || agents.length === 0) {
-      return {lines: [`No agents found matching: "${query}"`]};
-    }
-
-    const lines: string[] = [`Found ${agents.length} agent(s) matching "${query}":\n`];
-    agents.forEach((agent: any, index: number) => {
-      lines.push(`${index + 1}. ${agent.name || "Unknown"}`);
-      lines.push(`   Path: ${agent.path || "N/A"}`);
-      if (agent.description) {
-        const desc = agent.description.length > 80
-          ? agent.description.substring(0, 80) + "..."
-          : agent.description;
-        lines.push(`   ${desc}`);
-      }
-      lines.push("");
-    });
-
-    return {lines};
-  } catch (error) {
-    return {lines: [`Error searching agents: ${(error as Error).message}`], isError: true};
+  if (result.exitCode !== 0) {
+    return {
+      lines: [`Error searching agents:`, result.stderr || result.stdout],
+      isError: true
+    };
   }
+
+  return {lines: [result.stdout]};
 }
 
 async function executeAgentsTest(agentPath: string, context: CommandExecutionContext) {

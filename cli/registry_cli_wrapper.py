@@ -235,6 +235,39 @@ def _handle_anthropic_get(
     _print_json_response(result.model_dump())
 
 
+def _handle_agent_list(
+    args: argparse.Namespace,
+) -> None:
+    """Handle agent list command."""
+    client = _get_registry_client(args.base_url, args.token_file)
+
+    query = args.query if hasattr(args, 'query') else None
+    enabled_only = args.enabled_only if hasattr(args, 'enabled_only') else False
+
+    result = client.list_agents(query=query, enabled_only=enabled_only)
+    _print_json_response(result.model_dump())
+
+
+def _handle_agent_get(
+    args: argparse.Namespace,
+) -> None:
+    """Handle agent get command."""
+    client = _get_registry_client(args.base_url, args.token_file)
+
+    result = client.get_agent(path=args.path)
+    _print_json_response(result.model_dump())
+
+
+def _handle_agent_search(
+    args: argparse.Namespace,
+) -> None:
+    """Handle agent search command (alias for list with query)."""
+    client = _get_registry_client(args.base_url, args.token_file)
+
+    result = client.list_agents(query=args.query, enabled_only=False)
+    _print_json_response(result.model_dump())
+
+
 def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -327,6 +360,23 @@ def main() -> None:
     get_parser = anthropic_subparsers.add_parser("get", help="Get server details (Anthropic API)")
     get_parser.add_argument("server_name", help="Server name")
 
+    # Agent management commands
+    agent_parser = subparsers.add_parser("agent", help="Agent management commands")
+    agent_subparsers = agent_parser.add_subparsers(dest="subcommand")
+
+    # Agent list
+    agent_list_parser = agent_subparsers.add_parser("list", help="List agents")
+    agent_list_parser.add_argument("--query", help="Search query")
+    agent_list_parser.add_argument("--enabled-only", action="store_true", help="Show only enabled agents")
+
+    # Agent get
+    agent_get_parser = agent_subparsers.add_parser("get", help="Get agent details")
+    agent_get_parser.add_argument("path", help="Agent path")
+
+    # Agent search
+    agent_search_parser = agent_subparsers.add_parser("search", help="Search agents")
+    agent_search_parser.add_argument("query", help="Search query")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -379,6 +429,17 @@ def main() -> None:
                 _handle_anthropic_get(args)
             else:
                 anthropic_parser.print_help()
+                sys.exit(1)
+
+        elif args.command == "agent":
+            if args.subcommand == "list":
+                _handle_agent_list(args)
+            elif args.subcommand == "get":
+                _handle_agent_get(args)
+            elif args.subcommand == "search":
+                _handle_agent_search(args)
+            else:
+                agent_parser.print_help()
                 sys.exit(1)
 
         else:
