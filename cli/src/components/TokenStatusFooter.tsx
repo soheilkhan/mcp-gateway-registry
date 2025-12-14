@@ -101,7 +101,7 @@ export function TokenStatusFooter({
       {registryVersion && (
         <Text>
           <Text color="gray"> | Registry: </Text>
-          <Text color="magenta">v{registryVersion}</Text>
+          <Text color="magenta">{registryVersion}</Text>
         </Text>
       )}
     </Box>

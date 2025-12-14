@@ -105,7 +105,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {version && (
                 <div className="hidden md:flex items-center px-2.5 py-1 bg-purple-50 dark:bg-purple-900/20 rounded-md">
                   <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
-                    v{version}
+                    {version}
                   </span>
                 </div>
               )}
