@@ -221,6 +221,15 @@ uv run python api/registry_management.py --token-file <token> \
 - For production: AWS credentials with access to SSM Parameter Store
 - For localhost: Running `docker-compose` stack with Keycloak
 
+## API Specification
+
+You can access the live OpenAPI specification directly from your running instance:
+
+- **Localhost**: `http://localhost/openapi.json`
+- **Production**: `https://registry.<region>.example.com/openapi.json` (replace with your actual domain)
+
+The OpenAPI spec is auto-generated and always reflects the current API implementation.
+
 ## Authentication
 
 All commands require a valid JWT token:
