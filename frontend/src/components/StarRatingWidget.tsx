@@ -14,7 +14,8 @@ interface RatingInfoResponse {
 }
 
 interface StarRatingWidgetProps {
-  agentPath: string;
+  resourceType: 'agents' | 'servers';
+  path: string;
   initialRating?: number;
   initialCount?: number;
   authToken?: string | null;
@@ -24,7 +25,8 @@ interface StarRatingWidgetProps {
 
 
 const StarRatingWidget: React.FC<StarRatingWidgetProps> = ({
-  agentPath,
+  resourceType,
+  path,
   initialRating = 0,
   initialCount = 0,
   authToken,
@@ -47,7 +49,7 @@ const StarRatingWidget: React.FC<StarRatingWidgetProps> = ({
     if (authToken) {
       loadCurrentRating();
     }
-  }, [agentPath, authToken]);
+  }, [resourceType, path, authToken]);
 
 
   // Close dropdown when clicking outside
@@ -72,7 +74,7 @@ const StarRatingWidget: React.FC<StarRatingWidgetProps> = ({
     try {
       const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
       const response = await axios.get<RatingInfoResponse>(
-        `/api/agents${agentPath}/rating`,
+        `/api/${resourceType}${path}/rating`,
         headers ? { headers } : undefined
       );
 
@@ -102,7 +104,7 @@ const StarRatingWidget: React.FC<StarRatingWidgetProps> = ({
     try {
       const headers = { Authorization: `Bearer ${authToken}` };
       const response = await axios.post(
-        `/api/agents${agentPath}/rate`,
+        `/api/${resourceType}${path}/rate`,
         { rating: selectedRating },
         { headers }
       );
@@ -181,8 +183,8 @@ const StarRatingWidget: React.FC<StarRatingWidgetProps> = ({
       <button
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
         className="flex items-center gap-2 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 p-2 rounded-lg transition-colors duration-200"
-        title="Click to rate this agent"
-        aria-label="Rate this agent"
+        title={`Click to rate this ${resourceType.slice(0, -1)}`}
+        aria-label={`Rate this ${resourceType.slice(0, -1)}`}
         aria-expanded={isDropdownOpen}
         aria-haspopup="dialog"
       >
@@ -204,7 +206,7 @@ const StarRatingWidget: React.FC<StarRatingWidgetProps> = ({
         <div
           className="absolute top-full left-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 p-4"
           role="dialog"
-          aria-label="Agent rating form"
+          aria-label={`${resourceType.slice(0, -1)} rating form`}
         >
           {/* Success State */}
           {showSuccess ? (
@@ -248,7 +250,7 @@ const StarRatingWidget: React.FC<StarRatingWidgetProps> = ({
             // Rating Form
             <>
               <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-                {currentUserRating ? 'Update your rating:' : 'Rate this agent:'}
+                {currentUserRating ? 'Update your rating:' : `Rate this ${resourceType.slice(0, -1)}:`}
               </h4>
               {currentUserRating && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
