@@ -1437,10 +1437,9 @@ def cmd_user_create_m2m(args: argparse.Namespace) -> int:
 
         logger.info(f"M2M account created successfully\n")
         print(f"Client ID: {result.client_id}")
-        print(f"Client Secret: {result.client_secret}")
         print(f"Groups: {', '.join(result.groups)}")
         print()
-        print("IMPORTANT: Save the client secret - it will not be shown again!")
+        print("IMPORTANT: The client secret was created and must be handled securely. It will not be displayed or logged. Please retrieve the secret from a secure source as per documentation.")
 
         return 0
 
