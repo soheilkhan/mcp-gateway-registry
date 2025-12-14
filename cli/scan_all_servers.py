@@ -411,30 +411,20 @@ def _scan_all_servers(
         logger.error(f"Failed to get server list: {e}")
         sys.exit(1)
 
-    # Filter enabled servers
+    # Filter enabled servers (using Pydantic attribute access)
     enabled_servers = []
-    for server_obj in servers:
-        # Handle both dict and object responses
-        if hasattr(server_obj, 'server'):
-            server = server_obj.server
-        else:
-            server = server_obj.get("server", {})
+    for server_response in servers:
+        # AnthropicServerResponse has a .server attribute of type AnthropicServerDetail
+        server = server_response.server
 
-        # Get metadata
-        if hasattr(server, '_meta'):
-            meta = server._meta
-        else:
-            meta = server.get("_meta", {})
+        # Access meta attribute (Optional[Dict[str, Any]])
+        # The meta field has alias "_meta" but is accessed via .meta attribute
+        if server.meta and "io.mcpgateway/internal" in server.meta:
+            internal_meta = server.meta["io.mcpgateway/internal"]
+            is_enabled = internal_meta.get("is_enabled", False)
 
-        if hasattr(meta, 'get'):
-            internal_meta = meta.get("io.mcpgateway/internal", {})
-        else:
-            internal_meta = getattr(meta, "io.mcpgateway/internal", {})
-
-        is_enabled = internal_meta.get("is_enabled", False) if hasattr(internal_meta, 'get') else getattr(internal_meta, "is_enabled", False)
-
-        if is_enabled:
-            enabled_servers.append(server)
+            if is_enabled:
+                enabled_servers.append(server)
 
     logger.info(f"Found {len(enabled_servers)} enabled servers")
 
@@ -461,24 +451,14 @@ def _scan_all_servers(
     # Note: access_token already loaded above for RegistryClient
 
     for idx, server in enumerate(enabled_servers, 1):
-        # Handle both dict and object responses
-        if hasattr(server, 'name'):
-            server_name = server.name
-        else:
-            server_name = server.get("name", "unknown")
+        # Server is AnthropicServerDetail with direct attribute access
+        server_name = server.name
 
-        # Get the path from metadata
-        if hasattr(server, '_meta'):
-            meta = server._meta
-        else:
-            meta = server.get("_meta", {})
-
-        if hasattr(meta, 'get'):
-            internal_meta = meta.get("io.mcpgateway/internal", {})
-        else:
-            internal_meta = getattr(meta, "io.mcpgateway/internal", {})
-
-        server_path = internal_meta.get("path") if hasattr(internal_meta, 'get') else getattr(internal_meta, "path", None)
+        # Get the path from metadata (meta is Optional[Dict])
+        server_path = None
+        if server.meta and "io.mcpgateway/internal" in server.meta:
+            internal_meta = server.meta["io.mcpgateway/internal"]
+            server_path = internal_meta.get("path")
 
         if not server_path:
             logger.warning(f"[{idx}/{stats['total']}] {server_name}: No path found in metadata, skipping")
