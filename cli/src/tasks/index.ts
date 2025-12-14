@@ -51,7 +51,7 @@ const buildRegistryCommand = (args: string[], context: TaskContext): ScriptComma
   return {
     command: "uv",
     args: [...baseArgs, ...args],
-    env: process.env
+    env: process.env as Record<string, string>
   };
 };
 
@@ -274,7 +274,7 @@ const userTasks: ScriptTask[] = [
         optional: true
       }
     ],
-    build(values) {
+    build(values, context) {
       const name = trim(values.name);
       const groups = trim(values.groups);
       const description = trim(values.description);
@@ -282,6 +282,7 @@ const userTasks: ScriptTask[] = [
         throw new Error("Name and groups are required.");
       }
       const args = [
+        "user",
         "create-m2m",
         "--name",
         name,
@@ -315,7 +316,7 @@ const userTasks: ScriptTask[] = [
         optional: true
       }
     ],
-    build(values) {
+    build(values, context) {
       const username = trim(values.username);
       const email = trim(values.email);
       const firstName = trim(values.firstName);
@@ -326,14 +327,15 @@ const userTasks: ScriptTask[] = [
         throw new Error("Username, email, first name, last name, and groups are required.");
       }
       const args = [
+        "user",
         "create-human",
         "--username",
         username,
         "--email",
         email,
-        "--firstname",
+        "--first-name",
         firstName,
-        "--lastname",
+        "--last-name",
         lastName,
         "--groups",
         groups
@@ -355,7 +357,7 @@ const userTasks: ScriptTask[] = [
         placeholder: "agent-finance-bot"
       }
     ],
-    build(values) {
+    build(values, context) {
       const username = trim(values.username);
       if (!username) {
         throw new Error("Username is required.");
@@ -402,13 +404,13 @@ const diagnosticTasks: ScriptTask[] = [
         defaultValue: "http://localhost"
       }
     ],
-    build(values) {
+    build(values, context) {
       const tokenFile = trim(values.tokenFile);
       const baseUrl = trim(values.baseUrl);
       if (!tokenFile) {
         throw new Error("Token file path is required.");
       }
-      const args = ["--token-file", tokenFile];
+      const args = ["anthropic", "list", "--limit", "100"];
       if (baseUrl) {
         args.push("--base-url", baseUrl);
       }
@@ -444,7 +446,7 @@ const diagnosticTasks: ScriptTask[] = [
         defaultValue: "http://localhost"
       }
     ],
-    build(values) {
+    build(values, context) {
       const tokenFile = trim(values.tokenFile);
       const testName = trim(values.testName);
       const serverName = trim(values.serverName);
@@ -452,14 +454,21 @@ const diagnosticTasks: ScriptTask[] = [
       if (!tokenFile || !testName) {
         throw new Error("Token file and test name are required.");
       }
-      const args = ["--token-file", tokenFile, "--test", testName];
-      if (serverName) {
-        args.push("--server-name", serverName);
+
+      // Map test name to Anthropic API command
+      if (testName === "get-server" && serverName) {
+        const args = ["anthropic", "get", serverName];
+        if (baseUrl) {
+          args.push("--base-url", baseUrl);
+        }
+        return buildRegistryCommand(args, context);
+      } else {
+        const args = ["anthropic", "list", "--limit", "100"];
+        if (baseUrl) {
+          args.push("--base-url", baseUrl);
+        }
+        return buildRegistryCommand(args, context);
       }
-      if (baseUrl) {
-        args.push("--base-url", baseUrl);
-      }
-      return buildRegistryCommand(args, context);
     }
   }
 ];
