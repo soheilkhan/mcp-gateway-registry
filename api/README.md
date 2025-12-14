@@ -61,13 +61,27 @@ uv run python api/registry_management.py \
 
 ### For Localhost
 Use `credentials-provider/generate_creds.sh` which creates tokens for local Keycloak instance:
+
+**Using generate_creds.sh (all services):**
 ```bash
 cd credentials-provider && ./generate_creds.sh && cd ..
 ```
 Token saved to: `.oauth-tokens/ingress.json`
 
+**Using generate-agent-token.sh (specific M2M bot):**
+```bash
+# Generate token for default bot (mcp-gateway-m2m)
+./keycloak/setup/generate-agent-token.sh
+
+# Generate token for custom M2M bot
+./keycloak/setup/generate-agent-token.sh lob1-bot
+```
+Tokens saved to: `.oauth-tokens/{agent-name}.json`
+
 ### For Production (AWS)
 Use `api/get-m2m-token.sh` which retrieves tokens from AWS-deployed Keycloak:
+
+**Default admin bot:**
 ```bash
 ./api/get-m2m-token.sh \
   --aws-region us-east-1 \
@@ -75,9 +89,23 @@ Use `api/get-m2m-token.sh` which retrieves tokens from AWS-deployed Keycloak:
   --output-file api/.token \
   registry-admin-bot
 ```
+
+**Custom M2M bot account:**
+```bash
+./api/get-m2m-token.sh \
+  --aws-region us-east-1 \
+  --keycloak-url https://keycloak.us-east-1.example.com \
+  --output-file api/.token \
+  lob1-bot
+```
+
 Token saved to: `api/.token`
 
-**Note:** `get-m2m-token.sh` is for AWS deployments only and requires AWS credentials. It retrieves secrets from SSM Parameter Store.
+**Notes:**
+- `get-m2m-token.sh` is for AWS deployments only and requires AWS credentials
+- It retrieves secrets from SSM Parameter Store
+- You can specify any M2M service account name as the last argument
+- The script automatically handles both `client-name` and `service-account-client-name` formats
 
 ## End-to-End Testing
 
@@ -176,8 +204,8 @@ uv run python api/registry_management.py --token-file <token> \
 
 | Environment | Token Script | Registry URL | Keycloak URL |
 |-------------|--------------|--------------|--------------|
-| **Localhost** | `credentials-provider/generate_creds.sh` | `http://localhost` (default) | `http://localhost:8080` (default) |
-| **Production** | `api/get-m2m-token.sh --aws-region ... --keycloak-url ...` | `https://registry.<region>.example.com` | `https://keycloak.<region>.example.com` |
+| **Localhost** | `credentials-provider/generate_creds.sh` or `keycloak/setup/generate-agent-token.sh` | `http://localhost` (default) | `http://localhost:8080` (default) |
+| **Production** | `api/get-m2m-token.sh --aws-region ... --keycloak-url ...` | `https://registry.us-east-1.example.com` | `https://keycloak.us-east-1.example.com` |
 
 ## Files
 
