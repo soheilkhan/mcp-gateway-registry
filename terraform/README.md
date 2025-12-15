@@ -52,7 +52,7 @@ The [awslabs/ai-on-eks](https://github.com/awslabs/ai-on-eks) project provides p
    ```bash
    cd /path/to/mcp-gateway-registry/charts/mcp-gateway-registry-stack
    helm dependency build && helm dependency update
-   helm install mcp-gateway-registry . -n mcp-gateway --create-namespace
+   helm install mcp-gateway-registry . -n mcp-gateway --create-namespace --set global.domain "YOUR DOMAIN" --set global.secretKey "CHANGEME"
    ```
 
 This approach provides:
