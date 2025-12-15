@@ -73,8 +73,12 @@ const StarRatingWidget: React.FC<StarRatingWidgetProps> = ({
   const loadCurrentRating = async () => {
     try {
       const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
+      // Agents use path parameters, servers use query parameters
+      const url = resourceType === 'agents'
+        ? `/api/${resourceType}${path}/rating`
+        : `/api/${resourceType}/rating?path=${encodeURIComponent(path)}`;
       const response = await axios.get<RatingInfoResponse>(
-        `/api/${resourceType}/rating?path=${encodeURIComponent(path)}`,
+        url,
         headers ? { headers } : undefined
       );
 
@@ -107,7 +111,10 @@ const StarRatingWidget: React.FC<StarRatingWidgetProps> = ({
     setIsSubmitting(true);
     try {
       const headers = { Authorization: `Bearer ${authToken}` };
-      const url = `/api/${resourceType}/rate?path=${encodeURIComponent(path)}`;
+      // Agents use path parameters, servers use query parameters
+      const url = resourceType === 'agents'
+        ? `/api/${resourceType}${path}/rate`
+        : `/api/${resourceType}/rate?path=${encodeURIComponent(path)}`;
       console.log('Submitting rating to:', url, { rating: selectedRating });
 
       const response = await axios.post(
