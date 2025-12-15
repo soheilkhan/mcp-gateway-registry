@@ -42,10 +42,10 @@ The [awslabs/ai-on-eks](https://github.com/awslabs/ai-on-eks) project provides p
 1. **Provision EKS cluster** using ai-on-eks blueprints:
    ```bash
    git clone https://github.com/awslabs/ai-on-eks.git
-   cd ai-on-eks/blueprints
-   # Choose a blueprint (e.g., ai-ml-inference)
-   terraform init
-   terraform apply
+# Until https://github.com/awslabs/ai-on-eks/pull/232 is merged, the custom stack can be used
+
+cd ai-on-eks/infra/custom
+./install.sh
    ```
 
 2. **Deploy MCP Gateway Registry** using Helm charts:
