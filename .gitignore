@@ -187,6 +187,7 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 cookies.txt
+.cookies
 
 # Scratchpad for temporary notes and planning
 .scratchpad/

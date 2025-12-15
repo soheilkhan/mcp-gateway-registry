@@ -510,6 +510,86 @@ class SecurityScannerService:
 
         return str(latest_file)
 
+    def _server_url_to_filename(self, server_url: str) -> str:
+        """
+        Convert server URL to scan result filename.
+
+        Args:
+            server_url: Server URL (e.g., https://docs.mcp.cloudflare.com/mcp)
+
+        Returns:
+            Filename for scan results (e.g., docs.mcp.cloudflare.com_mcp.json)
+        """
+        # Normalize URL: strip trailing slash, ensure /mcp suffix (same as scanner)
+        normalized_url = server_url.rstrip("/")
+        if not normalized_url.endswith("/mcp"):
+            normalized_url = f"{normalized_url}/mcp"
+
+        # Generate safe filename from server URL (same logic as _save_scan_output)
+        safe_url = (
+            normalized_url.replace("https://", "")
+            .replace("http://", "")
+            .replace("/", "_")
+        )
+        server_name = safe_url.replace("localhost_", "")
+        return f"{server_name}.json"
+
+    def get_scan_result(self, server_path: str) -> Optional[dict]:
+        """
+        Get the latest scan result for a server.
+
+        Looks for scan files in the security_scans directory. The scan file
+        is named based on the server URL, not the path, so we need to find it
+        by loading server info and matching URLs, or by using a stored mapping.
+
+        Args:
+            server_path: Server path (e.g., /cloudflare-docs)
+
+        Returns:
+            Dictionary containing scan results, or None if no scan found
+        """
+        # Import here to avoid circular dependency
+        from .server_service import server_service
+
+        # Get server info to retrieve URL
+        server_info = server_service.get_server_info(server_path)
+        if not server_info:
+            logger.warning(f"Server not found: {server_path}")
+            return None
+
+        server_url = server_info.get("proxy_pass_url")
+        if not server_url:
+            logger.warning(f"Server {server_path} has no proxy_pass_url configured")
+            return None
+
+        output_dir = self._ensure_output_directory()
+        filename = self._server_url_to_filename(server_url)
+        scan_file = output_dir / filename
+
+        # Check if the file exists
+        if not scan_file.exists():
+            logger.warning(
+                f"No security scan results found for server {server_path} "
+                f"(URL: {server_url}, expected file: {scan_file})"
+            )
+            return None
+
+        try:
+            with open(scan_file, "r") as f:
+                scan_data = json.load(f)
+            logger.info(f"Loaded security scan results for {server_path} from {scan_file}")
+            return scan_data
+        except json.JSONDecodeError as e:
+            logger.error(
+                f"Failed to parse security scan results for {server_path}: {e}"
+            )
+            return None
+        except Exception as e:
+            logger.exception(
+                f"Unexpected error loading security scan results for {server_path}"
+            )
+            return None
+
 
 # Global singleton instance
 security_scanner_service = SecurityScannerService()

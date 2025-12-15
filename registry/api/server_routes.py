@@ -3351,6 +3351,152 @@ async def get_server_rating(
     }
 
 
+@router.get("/servers/{path:path}/security-scan")
+async def get_server_security_scan(
+    path: str,
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)],
+):
+    """
+    Get security scan results for a server.
+
+    Returns the latest security scan results for the specified server,
+    including threat analysis, severity levels, and detailed findings.
+
+    **Authentication:** JWT Bearer token or session cookie
+    **Authorization:** Requires admin privileges or access to the server
+
+    **Path Parameters:**
+    - `path` (required): Server path (e.g., /cloudflare-docs)
+
+    **Response:**
+    Returns security scan results with analysis_results and tool_results.
+
+    **Example:**
+    ```bash
+    curl -X GET http://localhost/api/servers/cloudflare-docs/security-scan \\
+      --cookie-jar .cookies --cookie .cookies
+    ```
+    """
+    if not path.startswith("/"):
+        path = "/" + path
+
+    # Check if server exists
+    server_info = server_service.get_server_info(path)
+    if not server_info:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Server not found at path '{path}'",
+        )
+
+    # Check user permissions
+    if not user_context["is_admin"]:
+        if not server_service.user_can_access_server_path(
+            path, user_context["accessible_servers"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have access to this server",
+            )
+
+    # Get scan results
+    scan_result = security_scanner_service.get_scan_result(path)
+    if not scan_result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No security scan results found for server '{path}'. "
+            "The server may not have been scanned yet.",
+        )
+
+    return scan_result
+
+
+@router.post("/servers/{path:path}/rescan")
+async def rescan_server(
+    path: str,
+    user_context: Annotated[dict, Depends(nginx_proxied_auth)],
+):
+    """
+    Trigger a manual security scan for a server.
+
+    Initiates a new security scan for the specified server and returns
+    the results. This endpoint is useful for re-scanning servers after
+    updates or for on-demand security assessments.
+
+    **Authentication:** JWT Bearer token or session cookie
+    **Authorization:** Requires admin privileges
+
+    **Path Parameters:**
+    - `path` (required): Server path (e.g., /cloudflare-docs)
+
+    **Response:**
+    Returns the newly generated security scan results.
+
+    **Example:**
+    ```bash
+    curl -X POST http://localhost/api/servers/cloudflare-docs/rescan \\
+      --cookie-jar .cookies --cookie .cookies
+    ```
+    """
+    # Only admins can trigger manual scans
+    if not user_context["is_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can trigger security scans",
+        )
+
+    if not path.startswith("/"):
+        path = "/" + path
+
+    # Check if server exists
+    server_info = server_service.get_server_info(path)
+    if not server_info:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Server not found at path '{path}'",
+        )
+
+    # Get server URL from server info
+    server_url = server_info.get("proxy_pass_url")
+    if not server_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Server '{path}' does not have a proxy_pass_url configured",
+        )
+
+    logger.info(
+        f"Manual security scan requested by user '{user_context.get('username')}' "
+        f"for server '{path}' at URL '{server_url}'"
+    )
+
+    try:
+        # Trigger security scan
+        scan_result = await security_scanner_service.scan_server(
+            server_url=server_url, analyzers=None, api_key=None, headers=None, timeout=None
+        )
+
+        # Return the scan result data
+        return {
+            "server_url": scan_result.server_url,
+            "server_path": path,
+            "scan_timestamp": scan_result.scan_timestamp,
+            "is_safe": scan_result.is_safe,
+            "critical_issues": scan_result.critical_issues,
+            "high_severity": scan_result.high_severity,
+            "medium_severity": scan_result.medium_severity,
+            "low_severity": scan_result.low_severity,
+            "analyzers_used": scan_result.analyzers_used,
+            "scan_failed": scan_result.scan_failed,
+            "error_message": scan_result.error_message,
+            "raw_output": scan_result.raw_output,
+        }
+    except Exception as e:
+        logger.exception(f"Failed to scan server '{path}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to scan server: {str(e)}",
+        )
+
+
 @router.get("/servers/tools/{service_path:path}")
 async def get_service_tools_api(
     service_path: str,
