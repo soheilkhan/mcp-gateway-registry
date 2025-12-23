@@ -50,7 +50,6 @@ interface Tool {
 // Helper function to format time since last checked
 const formatTimeSince = (timestamp: string | null | undefined): string | null => {
   if (!timestamp) {
-    console.log('🕐 formatTimeSince: No timestamp provided', timestamp);
     return null;
   }
   
@@ -60,7 +59,6 @@ const formatTimeSince = (timestamp: string | null | undefined): string | null =>
     
     // Check if the date is valid
     if (isNaN(lastChecked.getTime())) {
-      console.log('🕐 formatTimeSince: Invalid timestamp', timestamp);
       return null;
     }
     
@@ -82,7 +80,6 @@ const formatTimeSince = (timestamp: string | null | undefined): string | null =>
       result = `${diffSeconds}s ago`;
     }
     
-    console.log(`🕐 formatTimeSince: ${timestamp} -> ${result}`);
     return result;
   } catch (error) {
     console.error('🕐 formatTimeSince error:', error, 'for timestamp:', timestamp);
@@ -90,7 +87,7 @@ const formatTimeSince = (timestamp: string | null | undefined): string | null =>
   }
 };
 
-const ServerCard: React.FC<ServerCardProps> = ({ server, onToggle, onEdit, canModify, onRefreshSuccess, onShowToast, onServerUpdate, authToken }) => {
+const ServerCard: React.FC<ServerCardProps> = React.memo(({ server, onToggle, onEdit, canModify, onRefreshSuccess, onShowToast, onServerUpdate, authToken }) => {
   const [tools, setTools] = useState<Tool[]>([]);
   const [loadingTools, setLoadingTools] = useState(false);
   const [showTools, setShowTools] = useState(false);
@@ -363,9 +360,7 @@ const ServerCard: React.FC<ServerCardProps> = ({ server, onToggle, onEdit, canMo
             <div className="flex items-center gap-3">
               {/* Last Checked */}
               {(() => {
-                console.log(`🕐 ServerCard ${server.name}: last_checked_time =`, server.last_checked_time);
                 const timeText = formatTimeSince(server.last_checked_time);
-                console.log(`🕐 ServerCard ${server.name}: timeText =`, timeText);
                 return server.last_checked_time && timeText ? (
                   <div className="text-xs text-gray-500 dark:text-gray-300 flex items-center gap-1.5">
                     <ClockIcon className="h-3.5 w-3.5" />
@@ -464,6 +459,6 @@ const ServerCard: React.FC<ServerCardProps> = ({ server, onToggle, onEdit, canMo
 
     </>
   );
-};
+});
 
-export default ServerCard; 
+export default ServerCard;
