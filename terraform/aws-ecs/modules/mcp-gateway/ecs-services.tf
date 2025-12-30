@@ -159,7 +159,7 @@ module "ecs_service_auth" {
         },
         {
           name  = "STORAGE_BACKEND"
-          value = "opensearch"
+          value = "opensearch_serverless"
         }
       ]
 
@@ -463,7 +463,7 @@ module "ecs_service_registry" {
         },
         {
           name  = "STORAGE_BACKEND"
-          value = "opensearch"
+          value = "opensearch_serverless"
         }
       ]
 
