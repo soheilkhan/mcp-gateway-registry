@@ -25,6 +25,45 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Show help function
+show_help() {
+    cat << EOF
+AOSS Index Management CLI
+
+Usage: $0 <command> [options]
+
+Commands:
+  list                           List all indexes in the OpenSearch collection
+  inspect <index>                Inspect index mapping and settings
+  count <index>                  Count documents in an index
+  search <index> [size]          Search documents in an index (default size: 10)
+  delete <index> [--confirm]     Delete an index (with confirmation)
+
+Options:
+  -h, --help                     Show this help message
+
+Examples:
+  $0 list
+  $0 inspect mcp-servers-default
+  $0 count mcp-embeddings-1536-default
+  $0 search mcp-servers-default 20
+  $0 delete old-index-name --confirm
+
+Environment Variables:
+  OPENSEARCH_HOST                Override OpenSearch endpoint (optional)
+  AWS_REGION                     AWS region (default: us-east-1)
+
+The script automatically reads the OpenSearch endpoint from terraform-outputs.json
+if available, otherwise falls back to OPENSEARCH_HOST environment variable.
+EOF
+    exit 0
+}
+
+# Check for help flag
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    show_help
+fi
+
 # Parse command
 COMMAND=${1:-list}
 shift || true
@@ -41,6 +80,7 @@ case "$COMMAND" in
         if [ -z "$INDEX_NAME" ]; then
             echo -e "${RED}Error: Index name required for $COMMAND command${NC}"
             echo "Usage: $0 $COMMAND <index-name>"
+            echo "Run '$0 --help' for more information"
             exit 1
         fi
         shift || true
@@ -59,6 +99,7 @@ case "$COMMAND" in
         if [ -z "$INDEX_NAME" ]; then
             echo -e "${RED}Error: Index name required for search command${NC}"
             echo "Usage: $0 search <index-name> [size]"
+            echo "Run '$0 --help' for more information"
             exit 1
         fi
         COMMAND_JSON="\"$COMMAND\", \"--index\", \"$INDEX_NAME\", \"--size\", \"$SIZE\""
@@ -73,6 +114,8 @@ case "$COMMAND" in
         echo "  count <index>                  - Count documents in index"
         echo "  search <index> [size]          - Search documents (default size: 10)"
         echo "  delete <index> [--confirm]     - Delete index"
+        echo ""
+        echo "Run '$0 --help' for detailed usage information"
         exit 1
         ;;
 esac
