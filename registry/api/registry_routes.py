@@ -154,10 +154,10 @@ async def list_server_versions(
     lookup_path = "/" + decoded_name.replace(expected_prefix, "")
 
     # Get server info - try with and without trailing slash
-    server_info = server_service.get_server_info(lookup_path)
+    server_info = await server_service.get_server_info(lookup_path)
     if not server_info:
         # Try with trailing slash
-        server_info = server_service.get_server_info(lookup_path + "/")
+        server_info = await server_service.get_server_info(lookup_path + "/")
 
     if not server_info:
         logger.warning(f"Server not found: {lookup_path}")
@@ -250,10 +250,10 @@ async def get_server_version(
     lookup_path = "/" + decoded_name.replace(expected_prefix, "")
 
     # Get server info - try with and without trailing slash
-    server_info = server_service.get_server_info(lookup_path)
+    server_info = await server_service.get_server_info(lookup_path)
     if not server_info:
         # Try with trailing slash
-        server_info = server_service.get_server_info(lookup_path + "/")
+        server_info = await server_service.get_server_info(lookup_path + "/")
 
     if not server_info:
         logger.warning(f"Server not found: {lookup_path}")
