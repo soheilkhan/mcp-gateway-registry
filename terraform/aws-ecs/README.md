@@ -560,126 +560,64 @@ You can now:
 
 For advanced usage, see the [Operations and Maintenance](#operations-and-maintenance) section below.
 
-### Optional: OpenSearch Backend Setup
+### DocumentDB Backend Setup
 
-The MCP Gateway Registry supports two storage backends: **file-based** (default) and **OpenSearch** (for production/scale).
+The MCP Gateway Registry uses **DocumentDB** (MongoDB-compatible) for production storage backend.
 
-**When to use OpenSearch:**
+**DocumentDB provides:**
 - Multi-instance deployments (horizontal scaling)
-- High concurrent write operations
-- Distributed storage requirements
-- Advanced search capabilities
+- High concurrent read/write operations
+- Distributed storage with automatic replication
+- ACID transactions and strong consistency
 
-**Setup OpenSearch Serverless backend:**
+**DocumentDB Setup:**
+
+The DocumentDB cluster is automatically provisioned by Terraform. To initialize the database with indexes and scopes:
 
 ```bash
-# 1. Deploy OpenSearch Serverless infrastructure
-# The terraform configuration includes opensearch-serverless.tf for AWS OpenSearch Serverless
-# Ensure it's deployed with: terraform apply
+# 1. Run the DocumentDB initialization script
+./terraform/aws-ecs/scripts/run-documentdb-init.sh
 
-# 2. Build and push the OpenSearch initialization container
-make build-opensearch-init
+# This creates:
+# - All required collections (servers, agents, scopes, embeddings)
+# - Database indexes for optimal query performance
+# - Initial scope configurations from auth_server/scopes.yml
 
-# 3. Run the initialization task to create indices and import scopes
-# This creates all OpenSearch indices AND imports scopes from auth_server/scopes.yml
-# Creates 5 dimension-specific embedding indexes (384, 768, 1024, 1536, 3072)
-make run-opensearch-init-skip-build
-
-# Alternative: Recreate all indices (WARNING: deletes existing data)
-make run-opensearch-init-recreate
-
-# 4. Verify all indexes were created (including dimension-specific embedding indexes)
-./terraform/aws-ecs/scripts/run-aoss-cli.sh list
-# Expected: mcp-servers-default, mcp-agents-default, mcp-scopes-default,
-#           mcp-embeddings-384-default, mcp-embeddings-768-default,
-#           mcp-embeddings-1024-default, mcp-embeddings-1536-default,
-#           mcp-embeddings-3072-default, mcp-security-scans-default,
-#           mcp-federation-config-default
-
-# 5. Verify scopes were imported successfully
-aws logs tail /ecs/mcp-gateway-opensearch-init --since 5m --region us-east-1
-
-# 6. The registry and auth services should automatically pick up the scopes
-# Check that scopes loaded successfully:
-./terraform/aws-ecs/scripts/view-cloudwatch-logs.sh registry | grep "Loaded from OpenSearch"
+# 2. Verify initialization completed successfully
+aws logs tail /ecs/mcp-gateway-v2-registry --since 5m --region us-east-1 | grep "Loaded from repository"
 ```
 
-**Full rebuild sequence (if you made changes to init scripts):**
+**Loading Scopes into DocumentDB:**
 
 ```bash
-# 1. Build all service containers
-make build-push
+# Load a scope configuration file
+./terraform/aws-ecs/scripts/run-documentdb-cli.sh load-scopes cli/examples/currenttime-users.json
 
-# 2. Build the OpenSearch init container
-make build-opensearch-init
-
-# 3. Run the init task to populate OpenSearch with indices and scopes
-make run-opensearch-init-skip-build
+# Or use the Python script directly (if DocumentDB credentials are in env)
+uv run python scripts/load-scopes.py --scopes-file cli/examples/currenttime-users.json
 ```
 
-**Verify OpenSearch is working:**
+**Managing DocumentDB:**
 
 ```bash
-# Check indices created
-aws logs tail /ecs/mcp-gateway-opensearch-init --since 10m --region us-east-1
+# Interactive DocumentDB CLI
+./terraform/aws-ecs/scripts/run-documentdb-cli.sh
 
-# View registry logs to confirm scope loading
-./terraform/aws-ecs/scripts/view-cloudwatch-logs.sh registry | grep "Loaded from OpenSearch"
+# List all scopes
+./terraform/aws-ecs/scripts/run-documentdb-cli.sh list-scopes
 
-# Check auth server loaded scopes
-aws logs tail /ecs/mcp-gateway-v2-auth-server --since 5m --region us-east-1 | grep "Loaded from OpenSearch"
-```
-
-**Multi-Index Embedding Strategy:**
-
-The registry uses a dimension-based routing strategy for embeddings:
-
-```bash
-# The registry automatically routes to dimension-specific indexes based on your config
-# In .env or environment:
-EMBEDDINGS_MODEL_DIMENSIONS=1536
-
-# Registry automatically uses: mcp-embeddings-1536-default
-# No code changes needed when switching models!
-
-# Switch to different embedding model:
-EMBEDDINGS_MODEL_DIMENSIONS=1024  # Amazon Titan v2
-
-# Registry automatically uses: mcp-embeddings-1024-default
-# Previous embeddings in mcp-embeddings-1536-default remain intact
-```
-
-**Supported Embedding Dimensions:**
-- **384**: sentence-transformers/all-MiniLM-L6-v2, Cohere embed-english-light-v3.0
-- **768**: sentence-transformers/all-mpnet-base-v2, OpenAI ada-001
-- **1024**: Amazon Titan Embed Text v2, Cohere embed-english-v3.0
-- **1536**: OpenAI text-embedding-ada-002, text-embedding-3-small
-- **3072**: OpenAI text-embedding-3-large
-
-**Inspect Specific Embedding Index:**
-
-```bash
-# List documents in dimension-specific index
-./terraform/aws-ecs/scripts/run-aoss-cli.sh search mcp-embeddings-1536-default 10
-
-# Count documents
-./terraform/aws-ecs/scripts/run-aoss-cli.sh count mcp-embeddings-1536-default
-
-# Inspect index mapping
-./terraform/aws-ecs/scripts/run-aoss-cli.sh inspect mcp-embeddings-1536-default
+# View a specific scope
+./terraform/aws-ecs/scripts/run-documentdb-cli.sh get-scope currenttime-users4
 ```
 
 **Important Notes:**
-- The OpenSearch init task runs both index creation AND scopes import automatically
-- Creates 5 dimension-specific embedding indexes for multi-model support
-- Registry automatically routes to correct index based on EMBEDDINGS_MODEL_DIMENSIONS
-- Scopes are imported from `auth_server/scopes.yml` during the init task
-- After OpenSearch is populated, the auth and registry services will load scopes from OpenSearch
-- The init task can be re-run safely - use `--recreate` flag to reset all indices
-- For AWS OpenSearch Serverless, the services use AWS IAM authentication with SigV4 signing
-- Each embedding document includes metadata tracking the model used
+- Auth-server queries DocumentDB directly on every request for real-time scope validation
+- No cache refresh needed - scope changes are immediately effective
+- DocumentDB credentials are managed via AWS Secrets Manager
+- TLS is enabled by default with automatic CA bundle download
+- Both auth-server and registry connect to the same DocumentDB cluster
 
-See [docs/configuration.md](../../docs/configuration.md#storage-backend-configuration) for detailed backend configuration options.
+See [terraform/aws-ecs/scripts/README-DOCUMENTDB-CLI.md](terraform/aws-ecs/scripts/README-DOCUMENTDB-CLI.md) for detailed DocumentDB CLI documentation.
 
 ## Operations and Maintenance
 
