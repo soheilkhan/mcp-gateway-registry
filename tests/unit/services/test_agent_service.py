@@ -14,14 +14,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from registry.services.agent_service import (
-    AgentService,
-    _load_agent_from_file,
-    _load_state_file,
-    _path_to_filename,
-    _persist_state_to_disk,
-    _save_agent_to_disk,
-)
+from registry.services.agent_service import AgentService
 from tests.fixtures.constants import (
     TEST_AGENT_NAME_1,
     TEST_AGENT_NAME_2,

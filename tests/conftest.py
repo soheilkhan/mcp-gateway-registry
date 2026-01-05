@@ -12,6 +12,7 @@ import tempfile
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -221,6 +222,151 @@ def mock_settings(test_settings: Settings, monkeypatch):
     monkeypatch.setattr("registry.core.config.settings", test_settings)
     logger.debug("Patched global settings with test settings")
     return test_settings
+
+
+@pytest.fixture
+def mock_scope_repository():
+    """
+    Mock scope repository to avoid DocumentDB access.
+
+    Returns:
+        AsyncMock instance with common scope repository methods
+    """
+    mock = AsyncMock()
+    mock.get_group_mappings.return_value = []
+    mock.list_groups.return_value = []
+    mock.get_scope_definition.return_value = None
+    mock.list_scope_definitions.return_value = []
+    return mock
+
+
+@pytest.fixture
+def mock_server_repository():
+    """
+    Mock server repository to avoid DocumentDB access.
+
+    Returns:
+        AsyncMock instance with common server repository methods
+    """
+    mock = AsyncMock()
+    mock.load_all.return_value = []
+    mock.list_all.return_value = []
+    mock.get.return_value = None
+    mock.save.return_value = None
+    mock.delete.return_value = None
+    mock.create.return_value = True
+    mock.update.return_value = True
+    mock.get_state.return_value = False
+    mock.set_state.return_value = True
+    return mock
+
+
+@pytest.fixture
+def mock_agent_repository():
+    """
+    Mock agent repository to avoid DocumentDB access.
+
+    Returns:
+        AsyncMock instance with common agent repository methods
+    """
+    mock = AsyncMock()
+    mock.load_all.return_value = []
+    mock.list_all.return_value = []
+    mock.get.return_value = None
+    mock.save.return_value = None
+    mock.delete.return_value = None
+    mock.create.return_value = True
+    mock.update.return_value = True
+    mock.get_state.return_value = False
+    mock.set_state.return_value = True
+    mock.get_all_state.return_value = {}
+    return mock
+
+
+@pytest.fixture
+def mock_search_repository():
+    """
+    Mock search repository to avoid DocumentDB/FAISS access.
+
+    Returns:
+        AsyncMock instance with common search repository methods
+    """
+    mock = AsyncMock()
+    mock.initialize.return_value = None
+    mock.add_embedding.return_value = None
+    mock.search.return_value = []
+    mock.hybrid_search.return_value = []
+    mock.index_server.return_value = None
+    mock.index_agent.return_value = None
+    return mock
+
+
+@pytest.fixture
+def mock_federation_config_repository():
+    """
+    Mock federation config repository to avoid DocumentDB access.
+
+    Returns:
+        AsyncMock instance with common federation config methods
+    """
+    mock = AsyncMock()
+    mock.get_config.return_value = None
+    mock.save_config.return_value = None
+    mock.list_configs.return_value = []
+    return mock
+
+
+@pytest.fixture
+def mock_security_scan_repository():
+    """
+    Mock security scan repository to avoid DocumentDB access.
+
+    Returns:
+        AsyncMock instance with common security scan methods
+    """
+    mock = AsyncMock()
+    mock.save_scan.return_value = None
+    mock.get_scan.return_value = None
+    mock.list_scans.return_value = []
+    return mock
+
+
+@pytest.fixture(autouse=True)
+def mock_all_repositories(
+    mock_scope_repository,
+    mock_server_repository,
+    mock_agent_repository,
+    mock_search_repository,
+    mock_federation_config_repository,
+    mock_security_scan_repository
+):
+    """
+    Auto-mock all repository factory functions to prevent DocumentDB access.
+
+    This fixture automatically applies to all tests and prevents any
+    accidental DocumentDB connections during test execution.
+
+    Args:
+        mock_scope_repository: Mock scope repository
+        mock_server_repository: Mock server repository
+        mock_agent_repository: Mock agent repository
+        mock_search_repository: Mock search repository
+        mock_federation_config_repository: Mock federation config repository
+        mock_security_scan_repository: Mock security scan repository
+
+    Yields:
+        None
+    """
+    # Most tests only need registry patches, not auth_server patches
+    # Only patch auth_server for auth_server tests (they have their own conftest)
+    with patch('registry.repositories.factory.get_scope_repository', return_value=mock_scope_repository), \
+         patch('registry.repositories.factory.get_server_repository', return_value=mock_server_repository), \
+         patch('registry.repositories.factory.get_agent_repository', return_value=mock_agent_repository), \
+         patch('registry.repositories.factory.get_search_repository', return_value=mock_search_repository), \
+         patch('registry.repositories.factory.get_federation_config_repository', return_value=mock_federation_config_repository), \
+         patch('registry.repositories.factory.get_security_scan_repository', return_value=mock_security_scan_repository):
+        logger.debug("Auto-mocked all repository factory functions")
+        yield
 
 
 @pytest.fixture
