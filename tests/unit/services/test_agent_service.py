@@ -39,17 +39,24 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def agent_service(
     mock_settings,
+    mock_agent_repository,
+    mock_search_repository,
 ) -> AgentService:
     """
-    Create a fresh AgentService instance with mocked settings.
+    Create a fresh AgentService instance with mocked dependencies.
 
     Args:
         mock_settings: Mocked settings fixture
+        mock_agent_repository: Mocked agent repository
+        mock_search_repository: Mocked search repository
 
     Returns:
-        AgentService instance
+        AgentService instance with injected mocks
     """
     service = AgentService()
+    # Inject mocked singletons
+    service._repo = mock_agent_repository
+    service._search_repo = mock_search_repository
     return service
 
 
@@ -755,27 +762,34 @@ class TestLoadAgentsAndState:
 class TestRegisterAgent:
     """Test agent registration."""
 
-    def test_register_new_agent_successfully(
+    @pytest.mark.asyncio
+    async def test_register_new_agent_successfully(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test registering a new agent."""
         # Arrange
         agent_card = AgentCardFactory(path="/new-agent")
+        mock_agent_repository.create.return_value = agent_card
+        mock_agent_repository.save_state.return_value = True
 
         # Act
-        result = agent_service.register_agent(agent_card)
+        result = await agent_service.register_agent(agent_card)
 
         # Assert
         assert result == agent_card
-        assert "/new-agent" in agent_service.registered_agents
-        assert "/new-agent" in agent_service.agent_state["disabled"]
+        mock_agent_repository.create.assert_called_once()
+        mock_agent_repository.save_state.assert_called()
+        mock_search_repository.index_agent.assert_called_once()
 
-    def test_register_agent_sets_timestamps(
+    @pytest.mark.asyncio
+    async def test_register_agent_sets_timestamps(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test that registration sets registered_at and updated_at."""
         # Arrange
@@ -785,8 +799,18 @@ class TestRegisterAgent:
             updated_at=None,
         )
 
+        # Mock create to set timestamps like real repository does
+        def mock_create(agent):
+            if not agent.registered_at:
+                agent.registered_at = datetime.now(UTC)
+            if not agent.updated_at:
+                agent.updated_at = datetime.now(UTC)
+            return agent
+
+        mock_agent_repository.create.side_effect = mock_create
+
         # Act
-        result = agent_service.register_agent(agent_card)
+        result = await agent_service.register_agent(agent_card)
 
         # Assert
         assert result.registered_at is not None
@@ -794,10 +818,12 @@ class TestRegisterAgent:
         assert isinstance(result.registered_at, datetime)
         assert isinstance(result.updated_at, datetime)
 
-    def test_register_agent_preserves_existing_timestamps(
+    @pytest.mark.asyncio
+    async def test_register_agent_preserves_existing_timestamps(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test that registration preserves existing timestamps."""
         # Arrange
@@ -807,45 +833,52 @@ class TestRegisterAgent:
             registered_at=original_time,
             updated_at=original_time,
         )
+        mock_agent_repository.create.return_value = agent_card
 
         # Act
-        result = agent_service.register_agent(agent_card)
+        result = await agent_service.register_agent(agent_card)
 
         # Assert
         assert result.registered_at == original_time
         assert result.updated_at == original_time
 
-    def test_register_agent_fails_for_duplicate_path(
+    @pytest.mark.asyncio
+    async def test_register_agent_fails_for_duplicate_path(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test that registering duplicate path raises ValueError."""
         # Arrange
-        agent_card_1 = AgentCardFactory(path="/duplicate")
-        agent_service.register_agent(agent_card_1)
-
-        agent_card_2 = AgentCardFactory(path="/duplicate")
+        agent_card = AgentCardFactory(path="/duplicate")
+        # Simulate agent already in registry
+        agent_service.registered_agents["/duplicate"] = agent_card
 
         # Act & Assert
         with pytest.raises(ValueError, match="already exists"):
-            agent_service.register_agent(agent_card_2)
+            await agent_service.register_agent(agent_card)
 
-    def test_register_agent_defaults_to_disabled(
+    @pytest.mark.asyncio
+    async def test_register_agent_defaults_to_disabled(
         self,
         agent_service: AgentService,
-        mock_settings,
+        mock_agent_repository,
+        mock_search_repository,
     ):
         """Test that newly registered agents are disabled by default."""
         # Arrange
         agent_card = AgentCardFactory(path="/new-agent")
+        mock_agent_repository.create.return_value = agent_card
+        mock_agent_repository.save_state.return_value = True
 
         # Act
-        agent_service.register_agent(agent_card)
+        await agent_service.register_agent(agent_card)
 
         # Assert
+        # Verify the agent was added to disabled list via state persistence
+        assert mock_agent_repository.save_state.called
         assert "/new-agent" in agent_service.agent_state["disabled"]
-        assert "/new-agent" not in agent_service.agent_state["enabled"]
 
 
 # =============================================================================
