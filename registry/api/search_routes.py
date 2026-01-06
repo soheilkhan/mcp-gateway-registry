@@ -25,7 +25,7 @@ def get_search_repo() -> SearchRepositoryBase:
 class MatchingToolResult(BaseModel):
     tool_name: str
     description: Optional[str] = None
-    relevance_score: float = Field(0.0, ge=0.0)
+    relevance_score: float = Field(0.0, ge=0.0, le=1.0)
     match_context: Optional[str] = None
 
 

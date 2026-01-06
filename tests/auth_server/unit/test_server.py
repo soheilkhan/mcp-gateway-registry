@@ -7,7 +7,7 @@ rate limiting, and helper functions.
 
 import logging
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt
 import pytest
@@ -171,48 +171,69 @@ class TestServerNameNormalization:
 class TestGroupToScopeMapping:
     """Tests for mapping IdP groups to MCP scopes."""
 
-    def test_map_groups_to_scopes_basic(self, mock_scopes_config):
+    @pytest.mark.asyncio
+    async def test_map_groups_to_scopes_basic(self, mock_scopes_config):
         """Test basic group to scope mapping."""
         from auth_server.server import map_groups_to_scopes
 
-        # Arrange - temporarily set scopes config
-        with patch.dict('auth_server.server.SCOPES_CONFIG', mock_scopes_config):
+        # Arrange - Mock the repository to return scopes for groups
+        mock_repo = AsyncMock()
+        mock_repo.get_group_mappings.side_effect = lambda group: {
+            "users": ["read:servers", "read:tools"],
+            "developers": ["write:servers"]
+        }.get(group, [])
+
+        with patch('auth_server.server.get_scope_repository', return_value=mock_repo):
             groups = ["users", "developers"]
 
             # Act
-            scopes = map_groups_to_scopes(groups)
+            scopes = await map_groups_to_scopes(groups)
 
             # Assert
             assert "read:servers" in scopes
             assert "write:servers" in scopes
             assert "read:tools" in scopes
 
-    def test_map_groups_to_scopes_no_duplicates(self, mock_scopes_config):
+    @pytest.mark.asyncio
+    async def test_map_groups_to_scopes_no_duplicates(self, mock_scopes_config):
         """Test that duplicate scopes are removed."""
         from auth_server.server import map_groups_to_scopes
 
-        # Arrange
-        with patch.dict('auth_server.server.SCOPES_CONFIG', mock_scopes_config):
+        # Arrange - Mock the repository to return scopes for groups
+        mock_repo = AsyncMock()
+        # Both groups return "read:servers" to test deduplication
+        mock_repo.get_group_mappings.side_effect = lambda group: {
+            "users": ["read:servers", "read:tools"],
+            "developers": ["read:servers", "write:servers"]
+        }.get(group, [])
+
+        with patch('auth_server.server.get_scope_repository', return_value=mock_repo):
             # Both groups have "read:servers"
             groups = ["users", "developers"]
 
             # Act
-            scopes = map_groups_to_scopes(groups)
+            scopes = await map_groups_to_scopes(groups)
 
             # Assert
-            # Should only appear once
+            # Should only appear once (duplicates removed)
             assert scopes.count("read:servers") == 1
+            assert "write:servers" in scopes
+            assert "read:tools" in scopes
 
-    def test_map_groups_to_scopes_unknown_group(self, mock_scopes_config):
+    @pytest.mark.asyncio
+    async def test_map_groups_to_scopes_unknown_group(self, mock_scopes_config):
         """Test mapping with unknown group."""
         from auth_server.server import map_groups_to_scopes
 
-        # Arrange
-        with patch.dict('auth_server.server.SCOPES_CONFIG', mock_scopes_config):
+        # Arrange - Mock repository to return empty list for unknown groups
+        mock_repo = AsyncMock()
+        mock_repo.get_group_mappings.return_value = []
+
+        with patch('auth_server.server.get_scope_repository', return_value=mock_repo):
             groups = ["unknown-group"]
 
             # Act
-            scopes = map_groups_to_scopes(groups)
+            scopes = await map_groups_to_scopes(groups)
 
             # Assert
             assert len(scopes) == 0
@@ -221,7 +242,8 @@ class TestGroupToScopeMapping:
 class TestScopeValidation:
     """Tests for scope-based access validation."""
 
-    def test_validate_server_tool_access_allowed(self, mock_scopes_config):
+    @pytest.mark.asyncio
+    async def test_validate_server_tool_access_allowed(self, mock_scopes_config):
         """Test access validation when allowed."""
         from auth_server.server import validate_server_tool_access
 
@@ -233,12 +255,13 @@ class TestScopeValidation:
             user_scopes = ["read:servers"]
 
             # Act
-            result = validate_server_tool_access(server_name, method, tool_name, user_scopes)
+            result = await validate_server_tool_access(server_name, method, tool_name, user_scopes)
 
             # Assert
             assert result is True
 
-    def test_validate_server_tool_access_denied(self, mock_scopes_config):
+    @pytest.mark.asyncio
+    async def test_validate_server_tool_access_denied(self, mock_scopes_config):
         """Test access validation when denied."""
         from auth_server.server import validate_server_tool_access
 
@@ -250,12 +273,13 @@ class TestScopeValidation:
             user_scopes = ["read:servers"]  # Only for test-server
 
             # Act
-            result = validate_server_tool_access(server_name, method, tool_name, user_scopes)
+            result = await validate_server_tool_access(server_name, method, tool_name, user_scopes)
 
             # Assert
             assert result is False
 
-    def test_validate_server_tool_access_wildcard_server(self, mock_scopes_config):
+    @pytest.mark.asyncio
+    async def test_validate_server_tool_access_wildcard_server(self, mock_scopes_config):
         """Test wildcard server access."""
         from auth_server.server import validate_server_tool_access
 
@@ -267,12 +291,13 @@ class TestScopeValidation:
             user_scopes = ["admin:all"]
 
             # Act
-            result = validate_server_tool_access(server_name, method, tool_name, user_scopes)
+            result = await validate_server_tool_access(server_name, method, tool_name, user_scopes)
 
             # Assert
             assert result is True
 
-    def test_validate_server_tool_access_tools_call(self, mock_scopes_config):
+    @pytest.mark.asyncio
+    async def test_validate_server_tool_access_tools_call(self, mock_scopes_config):
         """Test access validation for tools/call method."""
         from auth_server.server import validate_server_tool_access
 
@@ -284,7 +309,7 @@ class TestScopeValidation:
             user_scopes = ["write:servers"]  # Has wildcard tools
 
             # Act
-            result = validate_server_tool_access(server_name, method, tool_name, user_scopes)
+            result = await validate_server_tool_access(server_name, method, tool_name, user_scopes)
 
             # Assert
             assert result is True
@@ -385,7 +410,8 @@ class TestRateLimiting:
 class TestSessionCookieValidation:
     """Tests for session cookie validation."""
 
-    def test_validate_session_cookie_valid(self, auth_env_vars, valid_session_cookie):
+    @pytest.mark.asyncio
+    async def test_validate_session_cookie_valid(self, auth_env_vars, valid_session_cookie):
         """Test validating a valid session cookie."""
         from itsdangerous import URLSafeTimedSerializer
 
@@ -397,7 +423,7 @@ class TestSessionCookieValidation:
         # Patch the module's signer to use test key (loaded at import time)
         with patch('auth_server.server.signer', test_signer):
             # Act
-            result = validate_session_cookie(valid_session_cookie)
+            result = await validate_session_cookie(valid_session_cookie)
 
             # Assert
             assert result["valid"] is True
@@ -405,7 +431,8 @@ class TestSessionCookieValidation:
             assert result["method"] == "session_cookie"
             assert "users" in result["groups"]
 
-    def test_validate_session_cookie_expired(self, auth_env_vars):
+    @pytest.mark.asyncio
+    async def test_validate_session_cookie_expired(self, auth_env_vars):
         """Test validating an expired session cookie."""
         from itsdangerous import URLSafeTimedSerializer
 
@@ -425,9 +452,10 @@ class TestSessionCookieValidation:
         with patch('auth_server.server.signer', test_signer):
             # Act & Assert
             with pytest.raises(ValueError, match="expired"):
-                validate_session_cookie(old_cookie)
+                await validate_session_cookie(old_cookie)
 
-    def test_validate_session_cookie_invalid_signature(self, auth_env_vars):
+    @pytest.mark.asyncio
+    async def test_validate_session_cookie_invalid_signature(self, auth_env_vars):
         """Test validating cookie with invalid signature."""
         from auth_server.server import validate_session_cookie
 
@@ -436,7 +464,7 @@ class TestSessionCookieValidation:
 
         # Act & Assert
         with pytest.raises(ValueError, match="Invalid session cookie"):
-            validate_session_cookie(invalid_cookie)
+            await validate_session_cookie(invalid_cookie)
 
 
 # =============================================================================

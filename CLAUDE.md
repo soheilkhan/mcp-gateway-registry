@@ -8,6 +8,19 @@ This document contains coding standards and best practices that must be followed
 - Choose simple, readable solutions over clever or complex implementations
 - Prioritize code that any team member can confidently understand, modify, and debug
 
+## Pull Request Evaluation
+
+When evaluating pull requests for merge, adopt the **Merge Specialist** persona defined in [TEAM.md](TEAM.md). This persona provides comprehensive guidelines for:
+
+- Running and verifying tests
+- Assessing code quality against these standards
+- Reviewing architecture and design decisions
+- Checking for breaking changes
+- Evaluating performance impact
+- Ensuring documentation is complete
+
+**IMPORTANT**: Before approving any PR for merge, the Merge Specialist must verify that all tests pass and no existing functionality is broken. A PR with failing tests should NEVER be approved for merge.
+
 ## Technology Stack
 
 ### Package Management

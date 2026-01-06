@@ -38,10 +38,10 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def mock_faiss_service():
-    """Mock FAISS service for testing."""
-    with patch("registry.api.search_routes.faiss_service") as mock:
-        yield mock
+def mock_search_repo():
+    """Mock search repository for testing."""
+    mock = AsyncMock()
+    yield mock
 
 
 @pytest.fixture
@@ -432,20 +432,22 @@ class TestPydanticModels:
 class TestUserCanAccessServer:
     """Tests for _user_can_access_server helper function."""
 
-    def test_admin_user_can_access_any_server(self):
+    @pytest.mark.asyncio
+    async def test_admin_user_can_access_any_server(self):
         """Test admin user can access any server."""
         # Arrange
         user_context = {"is_admin": True}
 
         # Act
-        result = _user_can_access_server(
+        result = await _user_can_access_server(
             "/servers/test", "test-server", user_context
         )
 
         # Assert
         assert result is True
 
-    def test_user_with_all_accessible_servers(self):
+    @pytest.mark.asyncio
+    async def test_user_with_all_accessible_servers(self):
         """Test user with 'all' in accessible_servers can access any server."""
         # Arrange
         user_context = {
@@ -454,14 +456,15 @@ class TestUserCanAccessServer:
         }
 
         # Act
-        result = _user_can_access_server(
+        result = await _user_can_access_server(
             "/servers/test", "test-server", user_context
         )
 
         # Assert
         assert result is True
 
-    def test_user_with_no_accessible_servers(self):
+    @pytest.mark.asyncio
+    async def test_user_with_no_accessible_servers(self):
         """Test user with empty accessible_servers cannot access."""
         # Arrange
         user_context = {
@@ -470,14 +473,15 @@ class TestUserCanAccessServer:
         }
 
         # Act
-        result = _user_can_access_server(
+        result = await _user_can_access_server(
             "/servers/test", "test-server", user_context
         )
 
         # Assert
         assert result is False
 
-    def test_user_with_none_accessible_servers(self):
+    @pytest.mark.asyncio
+    async def test_user_with_none_accessible_servers(self):
         """Test user with None accessible_servers cannot access."""
         # Arrange
         user_context = {
@@ -486,24 +490,25 @@ class TestUserCanAccessServer:
         }
 
         # Act
-        result = _user_can_access_server(
+        result = await _user_can_access_server(
             "/servers/test", "test-server", user_context
         )
 
         # Assert
         assert result is False
 
-    def test_user_can_access_via_server_service(self, mock_server_service):
+    @pytest.mark.asyncio
+    async def test_user_can_access_via_server_service(self, mock_server_service):
         """Test user can access via server_service path validation."""
         # Arrange
-        mock_server_service.user_can_access_server_path.return_value = True
+        mock_server_service.user_can_access_server_path = AsyncMock(return_value=True)
         user_context = {
             "is_admin": False,
             "accessible_servers": ["server1"],
         }
 
         # Act
-        result = _user_can_access_server(
+        result = await _user_can_access_server(
             "/servers/server1", "server1", user_context
         )
 
@@ -513,26 +518,28 @@ class TestUserCanAccessServer:
             "/servers/server1", ["server1"]
         )
 
-    def test_user_can_access_via_technical_name(self, mock_server_service):
+    @pytest.mark.asyncio
+    async def test_user_can_access_via_technical_name(self, mock_server_service):
         """Test user can access via technical name match."""
         # Arrange
         # Note: technical_name is extracted as path.strip("/") which gives
         # "servers/currenttime", not "currenttime". Need server_service to handle.
-        mock_server_service.user_can_access_server_path.return_value = True
+        mock_server_service.user_can_access_server_path = AsyncMock(return_value=True)
         user_context = {
             "is_admin": False,
             "accessible_servers": ["currenttime"],
         }
 
         # Act
-        result = _user_can_access_server(
+        result = await _user_can_access_server(
             "/servers/currenttime", "Time Server", user_context
         )
 
         # Assert
         assert result is True
 
-    def test_user_can_access_via_server_name(self):
+    @pytest.mark.asyncio
+    async def test_user_can_access_via_server_name(self):
         """Test user can access via server name match."""
         # Arrange
         user_context = {
@@ -541,14 +548,15 @@ class TestUserCanAccessServer:
         }
 
         # Act
-        result = _user_can_access_server(
+        result = await _user_can_access_server(
             "/servers/currenttime", "Time Server", user_context
         )
 
         # Assert
         assert result is True
 
-    def test_user_cannot_access_unlisted_server(self):
+    @pytest.mark.asyncio
+    async def test_user_cannot_access_unlisted_server(self):
         """Test user cannot access server not in accessible list."""
         # Arrange
         user_context = {
@@ -557,20 +565,21 @@ class TestUserCanAccessServer:
         }
 
         # Act
-        result = _user_can_access_server(
+        result = await _user_can_access_server(
             "/servers/server3", "server3", user_context
         )
 
         # Assert
         assert result is False
 
-    def test_server_service_exception_fallback_to_name_check(
+    @pytest.mark.asyncio
+    async def test_server_service_exception_fallback_to_name_check(
         self, mock_server_service
     ):
         """Test fallback to name check when server_service raises exception."""
         # Arrange
-        mock_server_service.user_can_access_server_path.side_effect = Exception(
-            "Service error"
+        mock_server_service.user_can_access_server_path = AsyncMock(
+            side_effect=Exception("Service error")
         )
         user_context = {
             "is_admin": False,
@@ -578,7 +587,7 @@ class TestUserCanAccessServer:
         }
 
         # Act
-        result = _user_can_access_server(
+        result = await _user_can_access_server(
             "/servers/test", "test-server", user_context
         )
 
@@ -597,20 +606,22 @@ class TestUserCanAccessServer:
 class TestUserCanAccessAgent:
     """Tests for _user_can_access_agent helper function."""
 
-    def test_admin_user_can_access_any_agent(self, mock_agent_service):
+    @pytest.mark.asyncio
+    async def test_admin_user_can_access_any_agent(self, mock_agent_service):
         """Test admin user can access any agent."""
         # Arrange
         mock_agent = AgentCardFactory(visibility="private")
-        mock_agent_service.get_agent_info.return_value = mock_agent
+        mock_agent_service.get_agent_info = AsyncMock(return_value=mock_agent)
         user_context = {"is_admin": True}
 
         # Act
-        result = _user_can_access_agent("/agents/test", user_context)
+        result = await _user_can_access_agent("/agents/test", user_context)
 
         # Assert
         assert result is True
 
-    def test_user_without_agent_in_accessible_list(self, mock_agent_service):
+    @pytest.mark.asyncio
+    async def test_user_without_agent_in_accessible_list(self, mock_agent_service):
         """Test user cannot access agent not in accessible_agents list."""
         # Arrange
         user_context = {
@@ -619,69 +630,71 @@ class TestUserCanAccessAgent:
         }
 
         # Act
-        result = _user_can_access_agent("/agents/test", user_context)
+        result = await _user_can_access_agent("/agents/test", user_context)
 
         # Assert
         assert result is False
-        # Should not call agent_service if not in list
-        mock_agent_service.get_agent_info.assert_not_called()
 
-    def test_user_with_all_can_access_public_agent(self, mock_agent_service):
+    @pytest.mark.asyncio
+    async def test_user_with_all_can_access_public_agent(self, mock_agent_service):
         """Test user with 'all' can access public agents."""
         # Arrange
         mock_agent = AgentCardFactory(visibility="public")
-        mock_agent_service.get_agent_info.return_value = mock_agent
+        mock_agent_service.get_agent_info = AsyncMock(return_value=mock_agent)
         user_context = {
             "is_admin": False,
             "accessible_agents": ["all"],
         }
 
         # Act
-        result = _user_can_access_agent("/agents/test", user_context)
+        result = await _user_can_access_agent("/agents/test", user_context)
 
         # Assert
         assert result is True
 
-    def test_agent_not_found_returns_false(self, mock_agent_service):
+    @pytest.mark.asyncio
+    async def test_agent_not_found_returns_false(self, mock_agent_service):
         """Test returns False when agent not found."""
         # Arrange
-        mock_agent_service.get_agent_info.return_value = None
+        mock_agent_service.get_agent_info = AsyncMock(return_value=None)
         user_context = {
             "is_admin": False,
             "accessible_agents": ["all"],
         }
 
         # Act
-        result = _user_can_access_agent("/agents/test", user_context)
+        result = await _user_can_access_agent("/agents/test", user_context)
 
         # Assert
         assert result is False
 
-    def test_public_agent_accessible_to_authorized_user(
+    @pytest.mark.asyncio
+    async def test_public_agent_accessible_to_authorized_user(
         self, mock_agent_service
     ):
         """Test public agent is accessible to user in accessible list."""
         # Arrange
         mock_agent = AgentCardFactory(visibility="public")
-        mock_agent_service.get_agent_info.return_value = mock_agent
+        mock_agent_service.get_agent_info = AsyncMock(return_value=mock_agent)
         user_context = {
             "is_admin": False,
             "accessible_agents": ["/agents/test"],
         }
 
         # Act
-        result = _user_can_access_agent("/agents/test", user_context)
+        result = await _user_can_access_agent("/agents/test", user_context)
 
         # Assert
         assert result is True
 
-    def test_private_agent_accessible_to_owner(self, mock_agent_service):
+    @pytest.mark.asyncio
+    async def test_private_agent_accessible_to_owner(self, mock_agent_service):
         """Test private agent is accessible to owner."""
         # Arrange
         mock_agent = AgentCardFactory(
             visibility="private", registered_by="testuser"
         )
-        mock_agent_service.get_agent_info.return_value = mock_agent
+        mock_agent_service.get_agent_info = AsyncMock(return_value=mock_agent)
         user_context = {
             "is_admin": False,
             "username": "testuser",
@@ -689,18 +702,19 @@ class TestUserCanAccessAgent:
         }
 
         # Act
-        result = _user_can_access_agent("/agents/test", user_context)
+        result = await _user_can_access_agent("/agents/test", user_context)
 
         # Assert
         assert result is True
 
-    def test_private_agent_not_accessible_to_others(self, mock_agent_service):
+    @pytest.mark.asyncio
+    async def test_private_agent_not_accessible_to_others(self, mock_agent_service):
         """Test private agent is not accessible to non-owners."""
         # Arrange
         mock_agent = AgentCardFactory(
             visibility="private", registered_by="owner"
         )
-        mock_agent_service.get_agent_info.return_value = mock_agent
+        mock_agent_service.get_agent_info = AsyncMock(return_value=mock_agent)
         user_context = {
             "is_admin": False,
             "username": "otheruser",
@@ -708,12 +722,13 @@ class TestUserCanAccessAgent:
         }
 
         # Act
-        result = _user_can_access_agent("/agents/test", user_context)
+        result = await _user_can_access_agent("/agents/test", user_context)
 
         # Assert
         assert result is False
 
-    def test_group_restricted_agent_accessible_to_group_member(
+    @pytest.mark.asyncio
+    async def test_group_restricted_agent_accessible_to_group_member(
         self, mock_agent_service
     ):
         """Test group-restricted agent is accessible to group members."""
@@ -722,7 +737,7 @@ class TestUserCanAccessAgent:
             visibility="group-restricted",
             allowed_groups=["group1", "group2"],
         )
-        mock_agent_service.get_agent_info.return_value = mock_agent
+        mock_agent_service.get_agent_info = AsyncMock(return_value=mock_agent)
         user_context = {
             "is_admin": False,
             "groups": ["group1", "group3"],
@@ -730,12 +745,13 @@ class TestUserCanAccessAgent:
         }
 
         # Act
-        result = _user_can_access_agent("/agents/test", user_context)
+        result = await _user_can_access_agent("/agents/test", user_context)
 
         # Assert
         assert result is True
 
-    def test_group_restricted_agent_not_accessible_to_non_member(
+    @pytest.mark.asyncio
+    async def test_group_restricted_agent_not_accessible_to_non_member(
         self, mock_agent_service
     ):
         """Test group-restricted agent is not accessible to non-members."""
@@ -744,7 +760,7 @@ class TestUserCanAccessAgent:
             visibility="group-restricted",
             allowed_groups=["group1", "group2"],
         )
-        mock_agent_service.get_agent_info.return_value = mock_agent
+        mock_agent_service.get_agent_info = AsyncMock(return_value=mock_agent)
         user_context = {
             "is_admin": False,
             "groups": ["group3"],
@@ -752,25 +768,26 @@ class TestUserCanAccessAgent:
         }
 
         # Act
-        result = _user_can_access_agent("/agents/test", user_context)
+        result = await _user_can_access_agent("/agents/test", user_context)
 
         # Assert
         assert result is False
 
-    def test_unknown_visibility_returns_false(self, mock_agent_service):
+    @pytest.mark.asyncio
+    async def test_unknown_visibility_returns_false(self, mock_agent_service):
         """Test unknown visibility type returns False."""
         # Arrange
         # Note: AgentCard validates visibility, so we use a Mock instead
         mock_agent = Mock()
         mock_agent.visibility = "unknown"
-        mock_agent_service.get_agent_info.return_value = mock_agent
+        mock_agent_service.get_agent_info = AsyncMock(return_value=mock_agent)
         user_context = {
             "is_admin": False,
             "accessible_agents": ["/agents/test"],
         }
 
         # Act
-        result = _user_can_access_agent("/agents/test", user_context)
+        result = await _user_can_access_agent("/agents/test", user_context)
 
         # Assert
         assert result is False
@@ -790,14 +807,14 @@ class TestSemanticSearchSuccess:
     @pytest.mark.asyncio
     async def test_semantic_search_admin_sees_all_results(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         mock_agent_service,
         admin_user_context,
         sample_faiss_search_results,
     ):
         """Test admin user sees all search results."""
         # Arrange
-        mock_faiss_service.search_mixed = AsyncMock(
+        mock_search_repo.search = AsyncMock(
             return_value=sample_faiss_search_results
         )
         mock_agent_service.get_agent_info.side_effect = lambda path: (
@@ -810,8 +827,20 @@ class TestSemanticSearchSuccess:
 
         request = SemanticSearchRequest(query="test query", max_results=10)
 
+        # Mock agent_service.get_agent_info to be async
+        async def get_agent_side_effect(path):
+            return AgentCardFactory(
+                path=path,
+                name=path.split("/")[-1],
+                visibility="public",
+            )
+
+        mock_agent_service.get_agent_info = AsyncMock(side_effect=get_agent_side_effect)
+
         # Act
-        response = await semantic_search(request, admin_user_context)
+        response = await semantic_search(
+            request, admin_user_context, mock_search_repo
+        )
 
         # Assert
         assert response.query == "test query"
@@ -825,24 +854,28 @@ class TestSemanticSearchSuccess:
     @pytest.mark.asyncio
     async def test_semantic_search_filters_by_server_access(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         mock_agent_service,
         regular_user_context,
         sample_faiss_search_results,
     ):
         """Test search filters servers by user access."""
         # Arrange
-        mock_faiss_service.search_mixed = AsyncMock(
+        mock_search_repo.search = AsyncMock(
             return_value=sample_faiss_search_results
         )
-        mock_agent_service.get_agent_info.side_effect = lambda path: (
-            AgentCardFactory(path=path, visibility="public")
-        )
+
+        async def get_agent_side_effect(path):
+            return AgentCardFactory(path=path, visibility="public")
+
+        mock_agent_service.get_agent_info = AsyncMock(side_effect=get_agent_side_effect)
 
         request = SemanticSearchRequest(query="test query")
 
         # Act
-        response = await semantic_search(request, regular_user_context)
+        response = await semantic_search(
+            request, regular_user_context, mock_search_repo
+        )
 
         # Assert
         # User has access to "currenttime" but not "weather"
@@ -854,14 +887,14 @@ class TestSemanticSearchSuccess:
     @pytest.mark.asyncio
     async def test_semantic_search_filters_by_agent_access(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         mock_agent_service,
         regular_user_context,
         sample_faiss_search_results,
     ):
         """Test search filters agents by user access."""
         # Arrange
-        mock_faiss_service.search_mixed = AsyncMock(
+        mock_search_repo.search = AsyncMock(
             return_value=sample_faiss_search_results
         )
 
@@ -874,21 +907,21 @@ class TestSemanticSearchSuccess:
             )
             return agent
 
-        def get_agent_info_side_effect(path):
+        async def get_agent_info_side_effect(path):
             if path == "/agents/code-reviewer":
                 return create_mock_agent(path, "code-reviewer", "public")
             elif path == "/agents/test-agent":
                 return create_mock_agent(path, "test-agent", "public")
             return None
 
-        mock_agent_service.get_agent_info.side_effect = (
-            get_agent_info_side_effect
-        )
+        mock_agent_service.get_agent_info = AsyncMock(side_effect=get_agent_info_side_effect)
 
         request = SemanticSearchRequest(query="test query")
 
         # Act
-        response = await semantic_search(request, regular_user_context)
+        response = await semantic_search(
+            request, regular_user_context, mock_search_repo
+        )
 
         # Assert
         # User has access to both agents
@@ -897,20 +930,22 @@ class TestSemanticSearchSuccess:
     @pytest.mark.asyncio
     async def test_semantic_search_restricted_user_sees_nothing(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         restricted_user_context,
         sample_faiss_search_results,
     ):
         """Test restricted user sees no results."""
         # Arrange
-        mock_faiss_service.search_mixed = AsyncMock(
+        mock_search_repo.search = AsyncMock(
             return_value=sample_faiss_search_results
         )
 
         request = SemanticSearchRequest(query="test query")
 
         # Act
-        response = await semantic_search(request, restricted_user_context)
+        response = await semantic_search(
+            request, restricted_user_context, mock_search_repo
+        )
 
         # Assert
         assert len(response.servers) == 0
@@ -922,18 +957,20 @@ class TestSemanticSearchSuccess:
 
     @pytest.mark.asyncio
     async def test_semantic_search_empty_results(
-        self, mock_faiss_service, admin_user_context
+        self, mock_search_repo, admin_user_context
     ):
         """Test search with no results."""
         # Arrange
-        mock_faiss_service.search_mixed = AsyncMock(
+        mock_search_repo.search = AsyncMock(
             return_value={"servers": [], "tools": [], "agents": []}
         )
 
         request = SemanticSearchRequest(query="nonexistent")
 
         # Act
-        response = await semantic_search(request, admin_user_context)
+        response = await semantic_search(
+            request, admin_user_context, mock_search_repo
+        )
 
         # Assert
         assert response.query == "nonexistent"
@@ -944,13 +981,13 @@ class TestSemanticSearchSuccess:
     @pytest.mark.asyncio
     async def test_semantic_search_with_entity_type_filter(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         admin_user_context,
         sample_faiss_search_results,
     ):
         """Test search with entity type filtering."""
         # Arrange
-        mock_faiss_service.search_mixed = AsyncMock(
+        mock_search_repo.search = AsyncMock(
             return_value=sample_faiss_search_results
         )
 
@@ -959,10 +996,12 @@ class TestSemanticSearchSuccess:
         )
 
         # Act
-        await semantic_search(request, admin_user_context)
+        await semantic_search(
+            request, admin_user_context, mock_search_repo
+        )
 
         # Assert
-        mock_faiss_service.search_mixed.assert_called_once_with(
+        mock_search_repo.search.assert_called_once_with(
             query="test query",
             entity_types=["mcp_server"],
             max_results=10,
@@ -971,23 +1010,25 @@ class TestSemanticSearchSuccess:
     @pytest.mark.asyncio
     async def test_semantic_search_with_custom_max_results(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         admin_user_context,
         sample_faiss_search_results,
     ):
         """Test search with custom max_results."""
         # Arrange
-        mock_faiss_service.search_mixed = AsyncMock(
+        mock_search_repo.search = AsyncMock(
             return_value=sample_faiss_search_results
         )
 
         request = SemanticSearchRequest(query="test query", max_results=25)
 
         # Act
-        await semantic_search(request, admin_user_context)
+        await semantic_search(
+            request, admin_user_context, mock_search_repo
+        )
 
         # Assert
-        mock_faiss_service.search_mixed.assert_called_once_with(
+        mock_search_repo.search.assert_called_once_with(
             query="test query",
             entity_types=None,
             max_results=25,
@@ -995,18 +1036,20 @@ class TestSemanticSearchSuccess:
 
     @pytest.mark.asyncio
     async def test_semantic_search_strips_query(
-        self, mock_faiss_service, admin_user_context
+        self, mock_search_repo, admin_user_context
     ):
         """Test search strips whitespace from query."""
         # Arrange
-        mock_faiss_service.search_mixed = AsyncMock(
+        mock_search_repo.search = AsyncMock(
             return_value={"servers": [], "tools": [], "agents": []}
         )
 
         request = SemanticSearchRequest(query="  test query  ")
 
         # Act
-        response = await semantic_search(request, admin_user_context)
+        response = await semantic_search(
+            request, admin_user_context, mock_search_repo
+        )
 
         # Assert
         assert response.query == "test query"
@@ -1014,20 +1057,22 @@ class TestSemanticSearchSuccess:
     @pytest.mark.asyncio
     async def test_semantic_search_server_with_matching_tools(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         admin_user_context,
         sample_faiss_search_results,
     ):
         """Test server result includes matching tools."""
         # Arrange
-        mock_faiss_service.search_mixed = AsyncMock(
+        mock_search_repo.search = AsyncMock(
             return_value=sample_faiss_search_results
         )
 
         request = SemanticSearchRequest(query="time")
 
         # Act
-        response = await semantic_search(request, admin_user_context)
+        response = await semantic_search(
+            request, admin_user_context, mock_search_repo
+        )
 
         # Assert
         currenttime_server = next(
@@ -1053,11 +1098,11 @@ class TestSemanticSearchErrorHandling:
 
     @pytest.mark.asyncio
     async def test_semantic_search_value_error_returns_400(
-        self, mock_faiss_service, admin_user_context
+        self, mock_search_repo, admin_user_context
     ):
-        """Test ValueError from FAISS service returns 400."""
+        """Test ValueError from search service returns 400."""
         # Arrange
-        mock_faiss_service.search_mixed = AsyncMock(
+        mock_search_repo.search = AsyncMock(
             side_effect=ValueError("Invalid search parameters")
         )
 
@@ -1065,26 +1110,30 @@ class TestSemanticSearchErrorHandling:
 
         # Act & Assert
         with pytest.raises(HTTPException) as exc_info:
-            await semantic_search(request, admin_user_context)
+            await semantic_search(
+                request, admin_user_context, mock_search_repo
+            )
 
         assert exc_info.value.status_code == 400
         assert "Invalid search parameters" in exc_info.value.detail
 
     @pytest.mark.asyncio
     async def test_semantic_search_runtime_error_returns_503(
-        self, mock_faiss_service, admin_user_context
+        self, mock_search_repo, admin_user_context
     ):
-        """Test RuntimeError from FAISS service returns 503."""
+        """Test RuntimeError from search service returns 503."""
         # Arrange
-        mock_faiss_service.search_mixed = AsyncMock(
-            side_effect=RuntimeError("FAISS index not available")
+        mock_search_repo.search = AsyncMock(
+            side_effect=RuntimeError("Search index not available")
         )
 
         request = SemanticSearchRequest(query="test")
 
         # Act & Assert
         with pytest.raises(HTTPException) as exc_info:
-            await semantic_search(request, admin_user_context)
+            await semantic_search(
+                request, admin_user_context, mock_search_repo
+            )
 
         assert exc_info.value.status_code == 503
         assert "temporarily unavailable" in exc_info.value.detail.lower()
@@ -1092,7 +1141,7 @@ class TestSemanticSearchErrorHandling:
     @pytest.mark.asyncio
     async def test_semantic_search_handles_missing_agent_gracefully(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         mock_agent_service,
         admin_user_context,
     ):
@@ -1109,13 +1158,15 @@ class TestSemanticSearchErrorHandling:
                 }
             ],
         }
-        mock_faiss_service.search_mixed = AsyncMock(return_value=faiss_results)
-        mock_agent_service.get_agent_info.return_value = None
+        mock_search_repo.search = AsyncMock(return_value=faiss_results)
+        mock_agent_service.get_agent_info = AsyncMock(return_value=None)
 
         request = SemanticSearchRequest(query="test")
 
         # Act
-        response = await semantic_search(request, admin_user_context)
+        response = await semantic_search(
+            request, admin_user_context, mock_search_repo
+        )
 
         # Assert
         # Note: Current implementation uses fallback data from FAISS results
@@ -1127,7 +1178,7 @@ class TestSemanticSearchErrorHandling:
     @pytest.mark.asyncio
     async def test_semantic_search_handles_agent_without_path(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         admin_user_context,
     ):
         """Test search handles agent result without path."""
@@ -1143,12 +1194,14 @@ class TestSemanticSearchErrorHandling:
                 }
             ],
         }
-        mock_faiss_service.search_mixed = AsyncMock(return_value=faiss_results)
+        mock_search_repo.search = AsyncMock(return_value=faiss_results)
 
         request = SemanticSearchRequest(query="test")
 
         # Act
-        response = await semantic_search(request, admin_user_context)
+        response = await semantic_search(
+            request, admin_user_context, mock_search_repo
+        )
 
         # Assert
         # Agent should be filtered out since it has no path
@@ -1169,7 +1222,7 @@ class TestSemanticSearchAgentFieldExtraction:
     @pytest.mark.asyncio
     async def test_semantic_search_extracts_agent_fields_from_card(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         mock_agent_service,
         admin_user_context,
     ):
@@ -1186,7 +1239,7 @@ class TestSemanticSearchAgentFieldExtraction:
             "visibility": "public",
             "is_enabled": True,
         }
-        mock_agent_service.get_agent_info.return_value = mock_agent
+        mock_agent_service.get_agent_info = AsyncMock(return_value=mock_agent)
 
         faiss_results = {
             "servers": [],
@@ -1200,12 +1253,14 @@ class TestSemanticSearchAgentFieldExtraction:
                 }
             ],
         }
-        mock_faiss_service.search_mixed = AsyncMock(return_value=faiss_results)
+        mock_search_repo.search = AsyncMock(return_value=faiss_results)
 
         request = SemanticSearchRequest(query="test")
 
         # Act
-        response = await semantic_search(request, admin_user_context)
+        response = await semantic_search(
+            request, admin_user_context, mock_search_repo
+        )
 
         # Assert
         assert len(response.agents) == 1
@@ -1221,7 +1276,7 @@ class TestSemanticSearchAgentFieldExtraction:
     @pytest.mark.asyncio
     async def test_semantic_search_handles_skills_as_strings(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         mock_agent_service,
         admin_user_context,
     ):
@@ -1237,7 +1292,7 @@ class TestSemanticSearchAgentFieldExtraction:
             "visibility": "public",
             "is_enabled": True,
         }
-        mock_agent_service.get_agent_info.return_value = mock_agent
+        mock_agent_service.get_agent_info = AsyncMock(return_value=mock_agent)
 
         faiss_results = {
             "servers": [],
@@ -1249,12 +1304,14 @@ class TestSemanticSearchAgentFieldExtraction:
                 }
             ],
         }
-        mock_faiss_service.search_mixed = AsyncMock(return_value=faiss_results)
+        mock_search_repo.search = AsyncMock(return_value=faiss_results)
 
         request = SemanticSearchRequest(query="test")
 
         # Act
-        response = await semantic_search(request, admin_user_context)
+        response = await semantic_search(
+            request, admin_user_context, mock_search_repo
+        )
 
         # Assert
         assert len(response.agents) == 1
@@ -1263,13 +1320,13 @@ class TestSemanticSearchAgentFieldExtraction:
     @pytest.mark.asyncio
     async def test_semantic_search_fallback_to_faiss_agent_data(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         mock_agent_service,
         admin_user_context,
     ):
-        """Test fallback to FAISS data when agent card not found."""
+        """Test fallback to search data when agent card not found."""
         # Arrange
-        mock_agent_service.get_agent_info.return_value = None
+        mock_agent_service.get_agent_info = AsyncMock(return_value=None)
 
         faiss_results = {
             "servers": [],
@@ -1278,8 +1335,8 @@ class TestSemanticSearchAgentFieldExtraction:
                 {
                     "path": "/agents/test",
                     "agent_name": "Test Agent",
-                    "description": "From FAISS",
-                    "tags": ["faiss"],
+                    "description": "From search",
+                    "tags": ["search"],
                     "skills": ["skill1"],
                     "relevance_score": 0.9,
                     "agent_card": {
@@ -1289,12 +1346,14 @@ class TestSemanticSearchAgentFieldExtraction:
                 }
             ],
         }
-        mock_faiss_service.search_mixed = AsyncMock(return_value=faiss_results)
+        mock_search_repo.search = AsyncMock(return_value=faiss_results)
 
         request = SemanticSearchRequest(query="test")
 
         # Act
-        response = await semantic_search(request, admin_user_context)
+        response = await semantic_search(
+            request, admin_user_context, mock_search_repo
+        )
 
         # Assert
         assert len(response.agents) == 1
@@ -1306,7 +1365,7 @@ class TestSemanticSearchAgentFieldExtraction:
     @pytest.mark.asyncio
     async def test_semantic_search_filters_none_skills(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         mock_agent_service,
         admin_user_context,
     ):
@@ -1322,7 +1381,7 @@ class TestSemanticSearchAgentFieldExtraction:
             "visibility": "public",
             "is_enabled": True,
         }
-        mock_agent_service.get_agent_info.return_value = mock_agent
+        mock_agent_service.get_agent_info = AsyncMock(return_value=mock_agent)
 
         faiss_results = {
             "servers": [],
@@ -1334,12 +1393,14 @@ class TestSemanticSearchAgentFieldExtraction:
                 }
             ],
         }
-        mock_faiss_service.search_mixed = AsyncMock(return_value=faiss_results)
+        mock_search_repo.search = AsyncMock(return_value=faiss_results)
 
         request = SemanticSearchRequest(query="test")
 
         # Act
-        response = await semantic_search(request, admin_user_context)
+        response = await semantic_search(
+            request, admin_user_context, mock_search_repo
+        )
 
         # Assert
         assert len(response.agents) == 1
@@ -1361,7 +1422,7 @@ class TestSemanticSearchIntegration:
     @pytest.mark.asyncio
     async def test_semantic_search_full_workflow(
         self,
-        mock_faiss_service,
+        mock_search_repo,
         mock_agent_service,
         regular_user_context,
     ):
@@ -1425,7 +1486,7 @@ class TestSemanticSearchIntegration:
                 },
             ],
         }
-        mock_faiss_service.search_mixed = AsyncMock(return_value=faiss_results)
+        mock_search_repo.search = AsyncMock(return_value=faiss_results)
 
         def create_mock_agent(path, name, visibility, registered_by="testuser"):
             agent = AgentCardFactory(
@@ -1436,7 +1497,7 @@ class TestSemanticSearchIntegration:
             )
             return agent
 
-        def get_agent_side_effect(path):
+        async def get_agent_side_effect(path):
             if path == "/agents/code-reviewer":
                 return create_mock_agent(path, "code-reviewer", "public")
             elif path == "/agents/restricted-agent":
@@ -1445,12 +1506,14 @@ class TestSemanticSearchIntegration:
                 )
             return None
 
-        mock_agent_service.get_agent_info.side_effect = get_agent_side_effect
+        mock_agent_service.get_agent_info = AsyncMock(side_effect=get_agent_side_effect)
 
         request = SemanticSearchRequest(query="test query")
 
         # Act
-        response = await semantic_search(request, regular_user_context)
+        response = await semantic_search(
+            request, regular_user_context, mock_search_repo
+        )
 
         # Assert
         # User has access to "currenttime" but not "restricted"

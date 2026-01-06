@@ -129,16 +129,16 @@ def mock_auth_regular(regular_user_context, mock_settings):
 def mock_server_service():
     """Mock server_service dependency."""
     mock_service = MagicMock()
-    mock_service.get_all_servers = MagicMock(return_value={})
-    mock_service.get_all_servers_with_permissions = MagicMock(return_value={})
-    mock_service.get_server_info = MagicMock(return_value=None)
-    mock_service.is_service_enabled = MagicMock(return_value=True)
-    mock_service.toggle_service = MagicMock(return_value=True)
-    mock_service.register_server = MagicMock(return_value=True)
-    mock_service.update_server = MagicMock(return_value=True)
-    mock_service.remove_server = MagicMock(return_value=True)
-    mock_service.get_enabled_services = MagicMock(return_value=[])
-    mock_service.user_can_access_server_path = MagicMock(return_value=True)
+    mock_service.get_all_servers = AsyncMock(return_value={})
+    mock_service.get_all_servers_with_permissions = AsyncMock(return_value={})
+    mock_service.get_server_info = AsyncMock(return_value=None)
+    mock_service.is_service_enabled = AsyncMock(return_value=True)
+    mock_service.toggle_service = AsyncMock(return_value=True)
+    mock_service.register_server = AsyncMock(return_value=True)
+    mock_service.update_server = AsyncMock(return_value=True)
+    mock_service.remove_server = AsyncMock(return_value=True)
+    mock_service.get_enabled_services = AsyncMock(return_value=[])
+    mock_service.user_can_access_server_path = AsyncMock(return_value=True)
     return mock_service
 
 
@@ -185,6 +185,7 @@ def mock_security_scanner_service():
     # If scan is called anyway, return a passing result
     mock_service.scan_server = AsyncMock(return_value=SecurityScanResult(
         server_url="http://localhost:9000/mcp",
+        server_path="/test-server",
         scan_timestamp="2025-01-01T00:00:00Z",
         is_safe=True,
         critical_issues=0,
