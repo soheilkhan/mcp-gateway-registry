@@ -1013,12 +1013,3 @@ class TestAgentStateQueries:
         assert len(result) == 1
         assert "/agent-2" in result
         assert "/agent-1" not in result
-
-
-# =============================================================================
-# TEST: Agent Ratings
-# =============================================================================
-
-
-@pytest.mark.unit
-@pytest.mark.agents
