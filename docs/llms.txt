@@ -25,6 +25,103 @@ Key features include: centralized server management, OAuth 2.0/3.0 authenticatio
 - **Communication:** Uses MCP protocol over SSE (Server-Sent Events) and Streamable HTTP
 - **Key Components:** Gateway (Nginx reverse proxy), Registry (Web UI & API), Auth Server (OAuth/JWT), MCP Servers, Metrics Service, Token Refresh Service
 
+### 1.5. Repository Structure
+
+**Top-Level Directories:**
+
+| Directory | Purpose | Key Files |
+|-----------|---------|-----------|
+| `registry/` | **Core Registry Application** - FastAPI backend, repositories, services | `main.py` (FastAPI app), `core/config.py` (settings) |
+| `auth_server/` | **OAuth Authentication Server** - Keycloak/Cognito/Entra ID integration | `app.py` (Flask auth server), `scopes.yml` (group mappings) |
+| `frontend/` | **Web UI** - React/TypeScript admin dashboard | `src/App.tsx` (main app), `src/pages/` (UI pages) |
+| `servers/` | **Example MCP Servers** - Reference implementations | `currenttime/`, `mcpgw/` (MCP Gateway server) |
+| `terraform/` | **Infrastructure as Code** - AWS deployment automation | `aws-ecs/` (ECS Fargate), `modules/` (reusable modules) |
+| `tests/` | **Test Suite** - pytest unit, integration, E2E tests | `conftest.py`, `unit/`, `integration/` |
+| `docs/` | **Documentation** - Architecture, guides, design docs | `llms.txt` (this file), `design/` (architecture) |
+| `cli/` | **Command-Line Tools** - MCP client, service management | `mcp_client.py`, `service_mgmt.sh` |
+| `keycloak/` | **Keycloak Setup** - Docker configs, initialization scripts | `docker-compose.yml`, `setup/` (init scripts) |
+| `docker/` | **Docker Configurations** - Dockerfiles for all services | `Dockerfile.registry`, `Dockerfile.auth` |
+| `scripts/` | **Automation Scripts** - Deployment, testing, utilities | `test.py` (test runner), `publish-containers.sh` |
+| `config/` | **Configuration Templates** - Nginx, environment examples | `nginx.conf.template`, `.env.example` |
+| `metrics-service/` | **Metrics Collection** - OpenTelemetry metrics service | `app.py` (FastAPI metrics API) |
+| `charts/` | **Helm Charts** - Kubernetes deployment manifests | `mcp-gateway/` (Helm chart) |
+| `credentials-provider/` | **Credential Management** - OAuth token handling | `app.py` (credentials service) |
+| `agents/` | **A2A Agent Cards** - Agent-to-Agent protocol agent cards | JSON files for registered agents |
+| `api/` | **Legacy API** - Deprecated standalone API (use `registry/api/`) | - |
+| `release-notes/` | **Release History** - Version release notes | Markdown files per version |
+
+**Registry Application Structure (`registry/`):**
+
+| Subdirectory | Purpose | Key Files |
+|--------------|---------|-----------|
+| `api/` | **API Routes** - FastAPI endpoint definitions | `server_routes.py`, `agent_routes.py`, `search_routes.py`, `auth_routes.py` |
+| `services/` | **Business Logic** - Service layer between routes and repositories | `server_service.py`, `agent_service.py`, `search_service.py`, `rating_service.py` |
+| `repositories/` | **Data Access Layer** - Abstract repositories with multiple backends | `interfaces.py` (abstract base classes), `factory.py`, `documentdb/`, `file/` |
+| `repositories/documentdb/` | **DocumentDB Implementation** - Production storage backend | `server_repository.py`, `agent_repository.py`, `scope_repository.py`, `search_repository.py`, `client.py` |
+| `repositories/file/` | **File Implementation** - Legacy storage backend (DEPRECATED) | `server_repository.py`, `agent_repository.py` |
+| `schemas/` | **Pydantic Models** - Request/response validation | `server.py`, `agent.py`, `auth.py`, `search.py`, `security.py`, `rating.py` |
+| `auth/` | **Authentication Logic** - JWT validation, session management | `dependencies.py` (FastAPI auth dependencies), `session.py` |
+| `core/` | **Core Infrastructure** - Configuration, startup logic | `config.py` (Settings class), `logging.py` |
+| `embeddings/` | **Embedding Providers** - Multiple embedding model support | `factory.py`, `sentence_transformers.py`, `litellm_embeddings.py` |
+| `search/` | **Search Implementation** - Hybrid search (BM25 + vector) | `faiss_service.py` (legacy), `hybrid_search.py` |
+| `health/` | **Health Monitoring** - Server health checks, status tracking | `health_service.py`, `health_routes.py` |
+| `utils/` | **Utilities** - Helper functions, logging, validation | `scopes_manager.py` (scope CRUD), `nginx_service.py` |
+| `services/federation/` | **Federation** - External registry synchronization | `anthropic.py`, `asor.py` (Workday ASOR) |
+| `static/` | **Static Assets** - CSS, JavaScript, images for web UI | - |
+| `templates/` | **Jinja2 Templates** - HTML templates for web UI | `pages/`, `components/` |
+| `scripts/` | **Python Scripts** - Data migration, initialization | `migrate_to_documentdb.py`, `init_opensearch.py` |
+
+**Important Root Files:**
+
+| File | Purpose |
+|------|---------|
+| `pyproject.toml` | Python package configuration, dependencies, pytest settings |
+| `docker-compose.yml` | Local development Docker Compose configuration |
+| `docker-compose.prod.yml` | Production Docker Compose configuration |
+| `.env.example` | Environment variable template with all settings |
+| `README.md` | Project overview, quick start guide |
+| `CLAUDE.md` | Coding standards and best practices |
+| `TEAM.md` | Team roles and personas for development |
+| `MAINTENANCE.md` | Maintenance procedures and troubleshooting |
+| `WRITING_TESTS.md` | Test writing guidelines and patterns |
+
+**Test Structure (`tests/`):**
+
+| Subdirectory | Purpose | Key Files |
+|--------------|---------|-----------|
+| `unit/` | **Unit Tests** - Fast, isolated component tests | `api/`, `services/`, `repositories/`, `auth/` |
+| `integration/` | **Integration Tests** - Multi-component workflow tests | `test_server_lifecycle.py`, `test_search_integration.py`, `conftest.py` |
+| `fixtures/` | **Test Fixtures** - Mock data, factories | `factories.py` (Factory Boy), `mocks/` |
+| `reporting/` | **Test Reports** - HTML coverage reports, test results | - |
+
+**Terraform Structure (`terraform/`):**
+
+| Subdirectory | Purpose | Key Files |
+|--------------|---------|-----------|
+| `aws-ecs/` | **AWS ECS Fargate Deployment** - Production-ready IaC | `main.tf`, `variables.tf`, `outputs.tf`, `ecs.tf` |
+| `modules/` | **Reusable Terraform Modules** - Shared infrastructure components | `ecs-service/`, `alb/`, `networking/` |
+
+**Important Configuration Files:**
+
+| File/Directory | Purpose | Location |
+|----------------|---------|----------|
+| `oauth2_providers.yml` | OAuth provider configurations (Keycloak, Cognito, Entra ID) | `auth_server/` |
+| `scopes.yml` | Group-to-scope mappings, UI permissions | `auth_server/` |
+| `nginx.conf.template` | Nginx reverse proxy configuration | `config/` |
+| `global-bundle.pem` | AWS DocumentDB TLS certificate | Root directory |
+| `.env.example` | Environment variables for all services | Root directory |
+
+**Key Entry Points:**
+
+| Component | Entry Point | Purpose |
+|-----------|-------------|---------|
+| Registry API | `registry/main.py` | FastAPI application for registry and MCP gateway |
+| Auth Server | `auth_server/app.py` | Flask OAuth server for authentication |
+| Frontend | `frontend/src/App.tsx` | React web UI for administration |
+| MCP Client | `cli/mcp_client.py` | CLI tool for calling MCP servers |
+| Test Runner | `scripts/test.py` | Unified test execution script |
+| Metrics Service | `metrics-service/app.py` | OpenTelemetry metrics collection |
+
 ## 2. Core Problem Solved
 
 **Transform this chaos:**
