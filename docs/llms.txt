@@ -1766,6 +1766,132 @@ cd credentials-provider
 ./generate_creds.sh --agentcore-only --verbose  # AgentCore auth
 ```
 
+### 10.4. Testing Architecture
+
+**IMPORTANT:** The project uses **pytest as the primary testing framework**. Shell script tests in `tests/mcp_cmds.sh` are **DEPRECATED** and maintained only for backward compatibility.
+
+**Test Categories:**
+- **Unit Tests** (`tests/unit/`): Test individual functions and classes in isolation
+- **Integration Tests** (`tests/integration/`): Test multiple components working together
+- **E2E Tests** (`tests/e2e/`): End-to-end workflow tests
+
+**Running Tests:**
+```bash
+# Run all tests with parallel execution (8 workers)
+uv run pytest tests/ -n 8
+
+# Expected results (as of 2026-01-06):
+# - 701 passed
+# - 57 skipped
+# - Coverage: ~39.50%
+# - Execution time: ~30 seconds
+
+# Run tests serially (slower, less memory)
+uv run pytest tests/
+
+# Run specific test categories
+uv run pytest tests/unit/          # Unit tests only
+uv run pytest tests/integration/   # Integration tests only
+uv run pytest tests/e2e/           # E2E tests only
+
+# Run with coverage report
+uv run pytest tests/ -n 8 --cov=registry --cov-report=term-missing
+
+# Run specific test file
+uv run pytest tests/unit/test_server_service.py -v
+
+# Stop at first failure
+uv run pytest tests/ -n 8 -x
+```
+
+**Test Configuration:**
+- **Location**: `pyproject.toml` lines 78-114
+- **Minimum Coverage**: 35% (configured in pyproject.toml)
+- **Test Markers**: unit, integration, e2e, auth, servers, search, health, core, repositories, slow, requires_models
+- **Async Mode**: Auto-detected for async tests
+- **Reports**: HTML report at `tests/reports/report.html`, JSON at `tests/reports/report.json`
+
+**Test Prerequisites:**
+```bash
+# MongoDB must be running for integration tests
+docker ps | grep mongo
+# Should show: mcp-mongodb running on 0.0.0.0:27017
+
+# Environment is auto-configured:
+# - DOCUMENTDB_HOST=localhost
+# - STORAGE_BACKEND=mongodb-ce
+# - directConnection=true (single-node MongoDB)
+```
+
+**Test Best Practices:**
+
+1. **Repository Reset Pattern** (for test isolation):
+```python
+@pytest.fixture(autouse=True)
+async def reset_repository():
+    """Reset repository state before each test."""
+    repo = await get_server_repository()
+    await repo.reset()  # Clear all data
+    yield
+    # Cleanup handled by TestClient teardown
+```
+
+2. **Memory Management** (avoid OOM on EC2):
+```python
+# Use -n 8 for parallel tests only if you have enough memory
+# Otherwise run serially: uv run pytest tests/
+
+# For CI/CD pipelines, use moderate parallelism:
+pytest tests/ -n 2
+```
+
+3. **Fixture Cleanup**:
+```python
+# Always cleanup resources in fixtures
+@pytest.fixture
+async def test_client():
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        yield client
+    # Automatic cleanup via async context manager
+```
+
+4. **Mock External Dependencies**:
+```python
+# Mock security scanner, embeddings, external APIs
+@pytest.fixture(autouse=True)
+def mock_security_scanner():
+    mock_service = MagicMock()
+    mock_service.get_scan_config.return_value = SecurityScanConfig(enabled=False)
+    with patch("registry.api.server_routes.security_scanner_service", mock_service):
+        yield mock_service
+```
+
+**Shell Script Tests (DEPRECATED):**
+```bash
+# tests/mcp_cmds.sh - Use pytest instead
+# These are maintained for backward compatibility only
+./tests/mcp_cmds.sh basic
+./tests/mcp_cmds.sh ping
+./tests/mcp_cmds.sh list
+```
+
+**Continuous Integration:**
+- Tests run automatically via GitHub Actions
+- Triggered on PR creation and pushes to main/develop
+- Configuration: `.github/workflows/registry-test.yml`
+- All unit tests must pass (no failures allowed)
+
+**Test Documentation:**
+- Comprehensive guide: `docs/testing/README.md`
+- Writing tests: `docs/testing/WRITING_TESTS.md`
+- Test maintenance: `docs/testing/MAINTENANCE.md`
+- Memory management: `docs/testing/memory-management.md`
+
+**Coverage Requirements:**
+- Minimum: 35% overall coverage (enforced)
+- Target: 80% coverage for new features
+- Coverage report: `htmlcov/index.html` (generated after test run)
+
 ## 11. Security Features
 
 ### 11.1. Security Scanning
@@ -2126,9 +2252,204 @@ def log_auth_event(event_type: str, username: str = None, details: dict = None):
 curl http://localhost:7860/health
 ```
 
-## 14. Additional Resources
+## 14. Code Organization & Patterns
 
-### 14.1. Documentation Links
+**CRITICAL:** The MCP Gateway & Registry follows strict architectural patterns to ensure maintainability and consistency. Follow these patterns religiously - violations will break the application architecture.
+
+### 14.1. Layered Architecture (MANDATORY)
+
+**The application MUST follow this layered architecture:**
+
+```
+API Routes → Services → Repositories → Storage Backends
+```
+
+**Each layer has specific responsibilities:**
+
+1. **API Routes** (`registry/api/`):
+   - Handle HTTP requests and responses
+   - Validate request parameters
+   - Call service layer methods
+   - Return HTTP status codes and responses
+   - **NEVER access repositories directly**
+
+2. **Service Layer** (`registry/services/`):
+   - Implement business logic
+   - Coordinate between multiple repositories
+   - Handle complex operations and workflows
+   - Validate business rules
+   - **ALWAYS use factory pattern to get repositories**
+
+3. **Repository Layer** (`registry/repositories/`):
+   - Abstract data access via interfaces (`interfaces.py`)
+   - Provide consistent API across all storage backends
+   - Handle data persistence and retrieval
+   - Implement search and querying logic
+
+4. **Storage Backends** (`registry/repositories/{backend}/`):
+   - Implement repository interfaces for specific storage
+   - File backend: `registry/repositories/file/` (DEPRECATED)
+   - MongoDB CE: `registry/repositories/mongodb/`
+   - DocumentDB: `registry/repositories/documentdb/`
+
+### 14.2. Factory Pattern (REQUIRED)
+
+**ALWAYS use the factory pattern** to obtain repository instances. NEVER instantiate repositories directly.
+
+**Correct Usage:**
+```python
+from registry.repositories.factory import (
+    get_server_repository,
+    get_agent_repository,
+    get_scope_repository,
+    get_search_repository,
+    get_security_scan_repository
+)
+
+# In service layer
+async def some_service_method():
+    server_repo = await get_server_repository()
+    servers = await server_repo.get_all_servers()
+    return servers
+```
+
+**Wrong Usage (ANTIPATTERN):**
+```python
+# ❌ NEVER DO THIS - Direct instantiation
+from registry.repositories.documentdb.server_repository import DocumentDBServerRepository
+server_repo = DocumentDBServerRepository()  # WRONG!
+
+# ❌ NEVER DO THIS - Direct repository access from routes
+from registry.api.server_routes import router
+
+@router.get("/servers")
+async def list_servers():
+    server_repo = await get_server_repository()  # WRONG! Use service layer
+    return await server_repo.get_all_servers()
+```
+
+### 14.3. Repository Abstraction
+
+**All storage backends MUST provide identical behavior** through polymorphism. Code using repositories should work with ANY backend without modification.
+
+**Abstract Base Classes:**
+- `BaseServerRepository` (registry/repositories/interfaces.py)
+- `BaseAgentRepository`
+- `BaseScopeRepository`
+- `BaseSearchRepository`
+- `BaseSecurityScanRepository`
+
+**Implementation Contract:**
+```python
+# All implementations must provide the same methods with the same signatures
+class DocumentDBServerRepository(BaseServerRepository):
+    async def get_all_servers(self, namespace: Optional[str] = None) -> List[dict]:
+        # DocumentDB-specific implementation
+        pass
+
+class FileServerRepository(BaseServerRepository):
+    async def get_all_servers(self, namespace: Optional[str] = None) -> List[dict]:
+        # File-specific implementation (DEPRECATED)
+        pass
+```
+
+### 14.4. Critical Antipatterns (DO NOT DO THIS)
+
+**❌ 1. Direct Repository Access from Routes**
+```python
+# WRONG - Route directly accessing repository
+@router.get("/servers/{server_path}")
+async def get_server(server_path: str):
+    repo = await get_server_repository()  # ANTIPATTERN!
+    return await repo.get_server(server_path)
+
+# CORRECT - Route calls service layer
+@router.get("/servers/{server_path}")
+async def get_server(server_path: str):
+    return await server_service.get_server(server_path)
+```
+
+**❌ 2. Direct Repository Instantiation**
+```python
+# WRONG - Bypasses factory pattern
+from registry.repositories.documentdb.server_repository import DocumentDBServerRepository
+repo = DocumentDBServerRepository()  # ANTIPATTERN!
+
+# CORRECT - Use factory
+from registry.repositories.factory import get_server_repository
+repo = await get_server_repository()
+```
+
+**❌ 3. Hardcoding Storage Backend**
+```python
+# WRONG - Hardcoded backend selection
+if storage_type == "documentdb":
+    repo = DocumentDBServerRepository()
+elif storage_type == "file":
+    repo = FileServerRepository()
+
+# CORRECT - Factory handles backend selection
+repo = await get_server_repository()  # Uses STORAGE_BACKEND env var
+```
+
+**❌ 4. Skipping Service Layer**
+```python
+# WRONG - Route contains business logic
+@router.post("/servers")
+async def create_server(server: ServerRegistration):
+    repo = await get_server_repository()
+    # Business logic here - ANTIPATTERN!
+    if server.status == "active":
+        await repo.create_server(server)
+    return {"status": "created"}
+
+# CORRECT - Business logic in service layer
+@router.post("/servers")
+async def create_server(server: ServerRegistration):
+    return await server_service.create_server(server)
+```
+
+**❌ 5. Implementing Custom Vector Search**
+```python
+# WRONG - Custom vector search implementation
+def custom_vector_search(query: str):
+    # Don't implement your own vector search!
+    pass
+
+# CORRECT - Use repository abstraction
+search_repo = await get_search_repository()
+results = await search_repo.hybrid_search(query)
+```
+
+### 14.5. Code Organization Checklist
+
+Before submitting code, verify:
+
+- [ ] **No direct repository access from routes** - All routes call service layer
+- [ ] **Factory pattern used** - No direct repository instantiation
+- [ ] **Service layer exists** - Business logic in `registry/services/`
+- [ ] **Repository interfaces** - New repositories extend abstract base classes
+- [ ] **Backend agnostic** - Code works with any storage backend
+- [ ] **No hardcoded backends** - Use `STORAGE_BACKEND` environment variable
+- [ ] **Separation of concerns** - Each layer handles only its responsibility
+- [ ] **Polymorphism** - All repository implementations provide identical APIs
+
+### 14.6. Design Documentation
+
+**Architecture References:**
+- Database Abstraction Layer: `docs/design/database-abstraction-layer.md`
+- Storage Architecture: `docs/design/storage-architecture-mongodb-documentdb.md`
+- Repository Pattern: `registry/repositories/interfaces.py` (docstrings)
+
+**When to Read Design Docs:**
+- Before implementing new repository backend
+- Before adding new data access patterns
+- When confused about layering
+- When reviewing code for architecture compliance
+
+## 15. Additional Resources
+
+### 15.1. Documentation Links
 
 - [Complete Setup Guide](docs/complete-setup-guide.md) - Step-by-step from scratch on AWS EC2
 - [Installation Guide](docs/installation.md) - Complete setup instructions for EC2 and EKS
