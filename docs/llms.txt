@@ -5,7 +5,7 @@ This project provides an enterprise-ready gateway and registry for Model Context
 The repository provides:
 
 1. **Centralized Gateway & Registry**: A unified platform for managing and accessing MCP servers across an organization
-2. **Enterprise Authentication**: Multi-provider OAuth 2.0 support with Keycloak, Amazon Cognito, and custom identity providers
+2. **Enterprise Authentication**: Multi-provider OAuth 2.0 support with Keycloak, Amazon Cognito, Microsoft Entra ID, and custom identity providers
 3. **Fine-Grained Access Control**: Scope-based authorization at server, method, and individual tool levels
 4. **Dynamic Tool Discovery**: AI-powered semantic search using FAISS and sentence transformers for autonomous tool discovery
 5. **Comprehensive Observability**: Dual-path metrics collection with SQLite and OpenTelemetry for detailed analytics
@@ -90,7 +90,7 @@ AI Agent/Coding Assistant
                ↓
 ┌──────────────────────────────────────┐
 │   Identity Provider (Keycloak/      │
-│   Cognito) - OAuth 2.0/OIDC          │
+│   Cognito/Entra ID) - OAuth 2.0      │
 └──────────────┬───────────────────────┘
                │
                ↓
@@ -129,10 +129,11 @@ AI Agent/Coding Assistant
 - **Registry MCP Server**: Dynamic tool discovery, intelligent tool finder
 
 **Identity & Access:**
-- **Keycloak/Cognito**: Primary identity provider
+- **Keycloak/Cognito/Entra ID**: Primary identity provider (choose one or multi-provider)
 - **OAuth 2.0/3.0**: User authentication and authorization
 - **JWT Tokens**: Secure, stateless authentication
 - **Fine-Grained Access Control**: Scope-based permissions at server, method, and tool levels
+- **Enterprise SSO**: SAML/OIDC integration with Microsoft Entra ID for Microsoft 365 environments
 
 **MCP Server Layer:**
 - **Local MCP Servers**: Co-located with gateway (SSE transport)
@@ -145,15 +146,112 @@ AI Agent/Coding Assistant
 - **Grafana**: Real-time dashboards and alerting
 - **CloudWatch/Datadog**: Cloud-native monitoring integration
 
+### 3.4. Storage Backend Architecture
+
+**IMPORTANT:** The MCP Gateway & Registry uses a **repository pattern** with multiple storage backends. File-based storage is **LEGACY and DEPRECATED** - use DocumentDB or MongoDB for production deployments.
+
+**Repository Pattern:**
+```
+Routes → Services → Repositories → Storage Backends
+```
+
+**Three Storage Backends:**
+
+1. **File-Based Storage (LEGACY - DEPRECATED)**
+   - Status: Maintained for backward compatibility only, will be removed
+   - Use Case: Local development and testing ONLY
+   - Vector Search: FAISS with in-memory indexing
+   - Limitations: Not suitable for production, no high availability, file corruption risks
+   - Location: `registry/repositories/file/`
+
+2. **MongoDB Community Edition (Development)**
+   - Status: Recommended for local development and testing
+   - Use Case: Local Docker development, CI/CD testing
+   - Vector Search: Application-level k-NN with BM25 hybrid search
+   - Configuration: `STORAGE_BACKEND=mongodb-ce`
+   - Connection: `DOCUMENTDB_HOST=localhost:27017`
+   - Location: `registry/repositories/mongodb/`
+
+3. **Amazon DocumentDB (Production - RECOMMENDED)**
+   - Status: Production-ready, enterprise-grade
+   - Use Case: AWS production deployments with HA requirements
+   - Vector Search: Native HNSW vector search with BM25 hybrid search
+   - Configuration: `STORAGE_BACKEND=documentdb`
+   - Features: Multi-AZ replication, automatic failover, point-in-time recovery
+   - Namespace Support: Multi-tenancy via `DOCUMENTDB_NAMESPACE`
+   - Location: `registry/repositories/documentdb/`
+
+**Repository Interfaces (Abstract Base Classes):**
+- `ServerRepository`: Server registration, listing, metadata management
+- `AgentRepository`: A2A agent card management
+- `ScopeRepository`: Group and scope CRUD operations
+- `SearchRepository`: Hybrid search (BM25 + vector k-NN)
+
+**Factory Pattern:**
+```python
+from registry.repositories.factory import (
+    get_server_repository,
+    get_agent_repository,
+    get_scope_repository,
+    get_search_repository
+)
+
+# Automatically selects backend based on STORAGE_BACKEND env var
+server_repo = await get_server_repository()
+```
+
+**Key Architectural Principles:**
+1. **Never access repositories directly from API routes** - Always use service layer
+2. **All backends provide identical behavior** - Polymorphism via abstract base classes
+3. **Backend switching is transparent** - Factory pattern handles instantiation
+4. **Use DocumentDB for production** - File-based storage is deprecated
+
+**Configuration:**
+```bash
+# Production (DocumentDB)
+STORAGE_BACKEND=documentdb
+DOCUMENTDB_HOST=docdb-cluster.cluster-xxx.us-east-1.docdb.amazonaws.com
+DOCUMENTDB_PORT=27017
+DOCUMENTDB_DATABASE=mcp_registry
+DOCUMENTDB_NAMESPACE=prod  # For multi-tenancy
+DOCUMENTDB_USE_TLS=true
+DOCUMENTDB_USE_IAM=true
+
+# Development (MongoDB CE)
+STORAGE_BACKEND=mongodb-ce
+DOCUMENTDB_HOST=localhost
+DOCUMENTDB_PORT=27017
+
+# Legacy (File - DEPRECATED)
+STORAGE_BACKEND=file  # NOT RECOMMENDED
+```
+
+**Vector Search Comparison:**
+- **File Backend (Legacy)**: FAISS IndexFlatIP (cosine similarity)
+- **MongoDB CE**: Application-level k-NN with score normalization
+- **DocumentDB**: Native HNSW with optimized indexing
+
+**Hybrid Search Strategy:**
+All backends support hybrid search combining:
+1. **BM25 Text Search**: Keyword matching on server/tool names and descriptions
+2. **Vector k-NN Search**: Semantic similarity using embeddings (384-1536 dimensions)
+3. **Score Fusion**: Weighted combination (configurable weights)
+
+**References:**
+- Design Document: `docs/design/database-abstraction-layer.md`
+- Storage Architecture: `docs/design/storage-architecture-mongodb-documentdb.md`
+- Repository Interfaces: `registry/repositories/interfaces.py`
+- Factory Implementation: `registry/repositories/factory.py`
+
 ## 4. Authentication & Authorization
 
 ### 4.1. Three-Layer Authentication System
 
 **Layer 1: Ingress Authentication (2LO/M2M)**
 - Purpose: Controls who can access the MCP Gateway
-- Providers: Keycloak (M2M service accounts), Cognito (M2M/2LO)
-- Headers: `X-Authorization`, `X-Client-Id`, `X-Keycloak-Realm`, `X-User-Pool-Id`
-- Methods: Machine-to-Machine (JWT tokens), User sessions (OAuth PKCE)
+- Providers: Keycloak (M2M service accounts), Amazon Cognito (M2M/2LO), Microsoft Entra ID (Azure AD)
+- Headers: `X-Authorization`, `X-Client-Id`, `X-Keycloak-Realm`, `X-User-Pool-Id`, `X-Tenant-Id` (Entra ID)
+- Methods: Machine-to-Machine (JWT tokens), User sessions (OAuth PKCE), Enterprise SSO (SAML/OIDC)
 
 **Layer 2: Fine-Grained Access Control (FGAC)**
 - Purpose: Controls which tools/methods within MCP servers can be accessed
@@ -801,6 +899,46 @@ keycloak:
   groups_claim: "groups"
   enabled: true
 ```
+
+**Amazon Cognito Provider:**
+```yaml
+cognito:
+  display_name: "Amazon Cognito"
+  client_id: "${COGNITO_CLIENT_ID}"
+  client_secret: "${COGNITO_CLIENT_SECRET}"
+  auth_url: "https://${COGNITO_DOMAIN}.auth.${AWS_REGION}.amazoncognito.com/oauth2/authorize"
+  token_url: "https://${COGNITO_DOMAIN}.auth.${AWS_REGION}.amazoncognito.com/oauth2/token"
+  user_info_url: "https://${COGNITO_DOMAIN}.auth.${AWS_REGION}.amazoncognito.com/oauth2/userInfo"
+  logout_url: "https://${COGNITO_DOMAIN}.auth.${AWS_REGION}.amazoncognito.com/logout"
+  scopes: ["openid", "email", "profile"]
+  groups_claim: "cognito:groups"
+  enabled: true
+```
+
+**Microsoft Entra ID (Azure AD) Provider:**
+```yaml
+entra_id:
+  display_name: "Microsoft Entra ID"
+  client_id: "${ENTRA_CLIENT_ID}"
+  client_secret: "${ENTRA_CLIENT_SECRET}"
+  tenant_id: "${ENTRA_TENANT_ID}"
+  auth_url: "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/oauth2/v2.0/authorize"
+  token_url: "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/oauth2/v2.0/token"
+  user_info_url: "https://graph.microsoft.com/v1.0/me"
+  logout_url: "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/oauth2/v2.0/logout"
+  scopes: ["openid", "email", "profile", "User.Read"]
+  groups_claim: "groups"
+  enabled: true
+  # Enterprise features
+  conditional_access: true  # Support for conditional access policies
+  mfa_enabled: true  # Multi-factor authentication
+  microsoft_365_integration: true  # Integration with M365 environments
+```
+
+**References:**
+- Entra ID Setup Guide: `docs/entra-id-setup.md`
+- Keycloak Setup Guide: `docs/keycloak-setup.md`
+- Cognito Setup Guide: `docs/cognito-setup.md`
 
 ### 7.4. Scopes Configuration
 
