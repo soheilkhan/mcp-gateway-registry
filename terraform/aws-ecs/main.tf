@@ -38,8 +38,12 @@ module "mcp_gateway" {
   certificate_arn = var.enable_route53_dns ? aws_acm_certificate.registry[0].arn : ""
   domain_name     = var.enable_route53_dns ? "registry.${local.root_domain}" : ""
 
-  # Keycloak configuration
-  keycloak_domain = local.keycloak_domain
+  # Keycloak configuration - use CloudFront domain when CloudFront is enabled
+  keycloak_domain = var.enable_cloudfront && !var.enable_route53_dns ? aws_cloudfront_distribution.keycloak[0].domain_name : local.keycloak_domain
+
+  # CloudFront configuration - allows CloudFront IPs to reach ALB
+  enable_cloudfront           = var.enable_cloudfront
+  cloudfront_prefix_list_name = local.cloudfront_prefix_list_name
 
   # Container images
   registry_image_uri               = var.registry_image_uri

@@ -10,7 +10,10 @@ resource "aws_lb" "keycloak" {
   drop_invalid_header_fields = true
   enable_deletion_protection = false
 
-  security_groups = [aws_security_group.keycloak_lb.id]
+  security_groups = concat(
+    [aws_security_group.keycloak_lb.id],
+    local.cloudfront_prefix_list_name != "" ? [aws_security_group.keycloak_lb_cloudfront[0].id] : []
+  )
   subnets         = module.vpc.public_subnets
 
   tags = merge(

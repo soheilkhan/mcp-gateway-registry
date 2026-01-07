@@ -392,3 +392,16 @@ variable "security_add_pending_tag" {
   type        = bool
   default     = true
 }
+
+# CloudFront Configuration
+variable "enable_cloudfront" {
+  description = "Whether CloudFront is enabled (adds CloudFront prefix list to ALB security group)"
+  type        = bool
+  default     = false
+}
+
+variable "cloudfront_prefix_list_name" {
+  description = "Name of the managed prefix list for CloudFront origin-facing IPs"
+  type        = string
+  default     = "com.amazonaws.global.cloudfront.origin-facing"
+}
