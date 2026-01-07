@@ -36,7 +36,14 @@ module "mcp_gateway" {
 
   # HTTPS configuration - only use certificate when Route53 DNS is enabled
   certificate_arn = var.enable_route53_dns ? aws_acm_certificate.registry[0].arn : ""
-  domain_name     = var.enable_route53_dns ? "registry.${local.root_domain}" : ""
+  
+  # Domain name for the registry - determines REGISTRY_URL and OAuth redirect URIs
+  # - Custom domain mode: use registry.${root_domain}
+  # - CloudFront mode: use CloudFront distribution domain
+  # - Neither: empty (development mode, uses ALB DNS)
+  domain_name = var.enable_route53_dns ? "registry.${local.root_domain}" : (
+    var.enable_cloudfront ? aws_cloudfront_distribution.mcp_gateway[0].domain_name : ""
+  )
 
   # Keycloak configuration - use CloudFront domain when CloudFront is enabled
   keycloak_domain = var.enable_cloudfront && !var.enable_route53_dns ? aws_cloudfront_distribution.keycloak[0].domain_name : local.keycloak_domain

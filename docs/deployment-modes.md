@@ -139,11 +139,12 @@ base_domain         = "mycorp.click"
 
 The application detects HTTPS using the following header priority:
 
-1. `X-Cloudfront-Forwarded-Proto: https` (CloudFront deployments)
-2. `x-forwarded-proto: https` (ALB/custom domain deployments)
-3. Request URL scheme (direct access)
+1. `X-Forwarded-Proto: https` (CloudFront and ALB deployments)
+2. Request URL scheme (direct access)
 
-This ensures session cookies have the correct `Secure` flag regardless of deployment mode.
+CloudFront is configured to send `X-Forwarded-Proto: https` as a custom origin header. This is the same header that ALB uses, so the application code works consistently across deployment modes.
+
+> **Note:** We use `X-Forwarded-Proto` (not a custom header like `X-Cloudfront-Forwarded-Proto`) because Keycloak natively recognizes this header for HTTPS detection.
 
 ## Troubleshooting
 
@@ -153,15 +154,86 @@ This ensures session cookies have the correct `Secure` flag regardless of deploy
 
 **Cause:** The `Secure` flag on cookies requires HTTPS detection to work correctly.
 
-**Solution:** Verify the `X-Cloudfront-Forwarded-Proto` header is being set by CloudFront. Check CloudFront distribution origin settings.
+**Solution:** Verify the `X-Forwarded-Proto` header is being set by CloudFront. Check CloudFront distribution origin settings.
 
-### OAuth2 redirect fails
+### OAuth2 redirect fails with "Invalid parameter: redirect_uri"
 
-**Symptom:** After Keycloak login, redirect fails or goes to wrong URL.
+**Symptom:** After clicking login, Keycloak shows "Invalid parameter: redirect_uri" error.
 
-**Cause:** Keycloak `KC_HOSTNAME` doesn't match the access URL.
+**Cause:** The CloudFront URL is not in Keycloak's allowed redirect URIs for the `mcp-gateway-web` client.
 
-**Solution:** Ensure `KC_HOSTNAME` is set to the CloudFront domain when using CloudFront mode.
+**Solution:** 
+1. Re-run `init-keycloak.sh` after generating fresh terraform outputs:
+   ```bash
+   cd terraform/aws-ecs
+   terraform output -json > scripts/terraform-outputs.json
+   export INITIAL_ADMIN_PASSWORD="your-password"
+   ./scripts/init-keycloak.sh
+   ```
+2. Or manually add the CloudFront URL to Keycloak:
+   - Go to Keycloak Admin → mcp-gateway realm → Clients → mcp-gateway-web
+   - Add `https://<cloudfront-domain>/*` and `https://<cloudfront-domain>/oauth2/callback/keycloak` to Valid Redirect URIs
+   - Add `https://<cloudfront-domain>` to Web Origins
+
+### OAuth2 redirect_uri is malformed (missing hostname)
+
+**Symptom:** The redirect_uri in the OAuth2 request looks like `https:/oauth2/callback/keycloak` (missing hostname).
+
+**Cause:** The MCP Gateway ECS task doesn't have the correct `REGISTRY_URL` environment variable set.
+
+**Solution:** Ensure `domain_name` is passed to the MCP Gateway module in `main.tf`:
+```hcl
+domain_name = var.enable_route53_dns ? "registry.${local.root_domain}" : (
+  var.enable_cloudfront ? aws_cloudfront_distribution.mcp_gateway[0].domain_name : ""
+)
+```
+Then run `terraform apply` to update the ECS task definition.
+
+### Keycloak shows "HTTPS required" error
+
+**Symptom:** Keycloak returns an error about HTTPS being required.
+
+**Cause:** Keycloak doesn't recognize it's behind HTTPS when accessed via CloudFront.
+
+**Solution:** Ensure CloudFront is sending `X-Forwarded-Proto: https` header (not a custom header name). In `cloudfront.tf`:
+```hcl
+custom_header {
+  name  = "X-Forwarded-Proto"
+  value = "https"
+}
+```
+Also ensure Keycloak is configured with `KC_HOSTNAME_URL` (full URL with `https://`) instead of just `KC_HOSTNAME`.
+
+### API returns 403 Forbidden after login
+
+**Symptom:** Login succeeds but API calls return 403 "Access forbidden".
+
+**Cause:** Either the user doesn't have required group memberships, or the MCP scopes haven't been initialized on EFS.
+
+**Solution:**
+1. Check user groups in Keycloak Admin → mcp-gateway realm → Users → select user → Groups
+2. Ensure user is in `mcp-registry-admin` or `mcp-registry-user` group
+3. Run the scopes init task:
+   ```bash
+   ./scripts/run-scopes-init-task.sh --skip-build
+   ```
+4. Restart the registry and auth services:
+   ```bash
+   aws ecs update-service --cluster mcp-gateway-ecs-cluster --service mcp-gateway-v2-registry --force-new-deployment --region us-west-2
+   aws ecs update-service --cluster mcp-gateway-ecs-cluster --service mcp-gateway-v2-auth --force-new-deployment --region us-west-2
+   ```
+
+### Nginx returns default page instead of registry
+
+**Symptom:** Accessing the registry URL shows the default nginx welcome page.
+
+**Cause:** The nginx default site configuration is intercepting requests before they reach the registry.
+
+**Solution:** The `docker/registry-entrypoint.sh` should remove the default site:
+```bash
+rm -f /etc/nginx/sites-enabled/default
+```
+Rebuild and redeploy the registry container.
 
 ### Certificate validation timeout
 
@@ -182,7 +254,7 @@ This ensures session cookies have the correct `Secure` flag regardless of deploy
 
 **Solution:**
 1. Verify ALB health checks are passing
-2. Ensure ALB security group allows inbound from `0.0.0.0/0` on port 80
+2. Ensure ALB security group allows inbound from CloudFront (via prefix list or `0.0.0.0/0`)
 3. Check ECS service is running and healthy
 
 ## Custom Domain with CloudFront

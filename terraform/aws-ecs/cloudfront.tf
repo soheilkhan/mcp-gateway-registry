@@ -34,9 +34,10 @@ resource "aws_cloudfront_distribution" "mcp_gateway" {
       origin_ssl_protocols   = ["TLSv1.2"]
     }
 
-    # Custom header that ALB won't overwrite (unlike x-forwarded-proto)
+    # Custom header to tell backend the original protocol was HTTPS
+    # Note: We use X-Forwarded-Proto directly - ALB won't overwrite origin custom headers
     custom_header {
-      name  = "X-Cloudfront-Forwarded-Proto"
+      name  = "X-Forwarded-Proto"
       value = "https"
     }
   }
@@ -93,9 +94,11 @@ resource "aws_cloudfront_distribution" "keycloak" {
       origin_ssl_protocols   = ["TLSv1.2"]
     }
 
-    # Custom header that ALB won't overwrite
+    # Custom header to tell Keycloak the original protocol was HTTPS
+    # Note: We use X-Forwarded-Proto directly because Keycloak checks this header
+    # The ALB will NOT overwrite this when using http-only origin protocol
     custom_header {
-      name  = "X-Cloudfront-Forwarded-Proto"
+      name  = "X-Forwarded-Proto"
       value = "https"
     }
   }

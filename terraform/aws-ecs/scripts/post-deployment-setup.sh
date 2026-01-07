@@ -207,6 +207,7 @@ _validate_terraform_outputs() {
 
     log_info "Validating required resources..."
 
+    # Core required outputs (always needed)
     local required_outputs=(
         "vpc_id"
         "ecs_cluster_name"
@@ -214,9 +215,12 @@ _validate_terraform_outputs() {
         "mcp_gateway_url"
         "mcp_gateway_auth_url"
         "keycloak_url"
-        "registry_url"
         "mcp_gateway_efs_id"
     )
+    
+    # Note: registry_url is only set in custom domain mode
+    # cloudfront_mcp_gateway_url is only set in CloudFront mode
+    # At least one of these should be available for a valid deployment
 
     local missing_outputs=()
     local validation_passed=true
@@ -240,13 +244,32 @@ _validate_terraform_outputs() {
 
         # Export values for later use
         export KEYCLOAK_ADMIN_URL=$(jq -r '.keycloak_url.value' "$OUTPUTS_FILE")
-        export REGISTRY_URL=$(jq -r '.registry_url.value' "$OUTPUTS_FILE")
         export AUTH_SERVER_EXTERNAL_URL=$(jq -r '.mcp_gateway_auth_url.value' "$OUTPUTS_FILE")
         export ECS_CLUSTER_NAME=$(jq -r '.ecs_cluster_name.value' "$OUTPUTS_FILE")
+        
+        # REGISTRY_URL: prefer custom domain, fallback to CloudFront URL
+        local registry_url=$(jq -r '.registry_url.value // empty' "$OUTPUTS_FILE")
+        local cloudfront_url=$(jq -r '.cloudfront_mcp_gateway_url.value // empty' "$OUTPUTS_FILE")
+        
+        if [[ -n "$registry_url" && "$registry_url" != "null" ]]; then
+            export REGISTRY_URL="$registry_url"
+        elif [[ -n "$cloudfront_url" && "$cloudfront_url" != "null" ]]; then
+            export REGISTRY_URL="$cloudfront_url"
+            log_info "Using CloudFront URL as REGISTRY_URL (custom domain not configured)"
+        else
+            export REGISTRY_URL=$(jq -r '.mcp_gateway_url.value' "$OUTPUTS_FILE")
+            log_warning "Using ALB URL as REGISTRY_URL (no HTTPS configured)"
+        fi
+        
+        # Also export CloudFront URL if available (for init-keycloak.sh)
+        if [[ -n "$cloudfront_url" && "$cloudfront_url" != "null" ]]; then
+            export CLOUDFRONT_REGISTRY_URL="$cloudfront_url"
+        fi
 
         log_info "Exported configuration:"
         log_info "  KEYCLOAK_ADMIN_URL: $KEYCLOAK_ADMIN_URL"
         log_info "  REGISTRY_URL: $REGISTRY_URL"
+        log_info "  CLOUDFRONT_REGISTRY_URL: ${CLOUDFRONT_REGISTRY_URL:-<not set>}"
         log_info "  AUTH_SERVER_EXTERNAL_URL: $AUTH_SERVER_EXTERNAL_URL"
         log_info "  ECS_CLUSTER_NAME: $ECS_CLUSTER_NAME"
 
