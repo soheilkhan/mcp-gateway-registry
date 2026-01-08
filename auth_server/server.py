@@ -1841,7 +1841,7 @@ async def oauth2_callback(
         else:
             logger.info(f"Using explicitly configured cookie domain: {cookie_domain}")
 
-        logger.info(f"Auth server setting session cookie: secure={cookie_secure} (config={cookie_secure_config}, is_https={is_https}), samesite={cookie_samesite}, domain={cookie_domain or 'not set'}, x-forwarded-proto={x_forwarded_proto}, request_scheme={request.url.scheme}")
+        logger.info(f"Auth server setting session cookie: secure={cookie_secure} (config={cookie_secure_config}, is_https={is_https}), samesite={cookie_samesite}, domain={cookie_domain or 'not set'}, x-forwarded-proto={request.headers.get('x-forwarded-proto', 'not set')}, request_scheme={request.url.scheme}")
 
         cookie_params = {
             "key": "mcp_gateway_session",  # Same as registry SESSION_COOKIE_NAME
