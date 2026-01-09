@@ -188,23 +188,35 @@ Flight Booking Agent                     | /flight-booking-agent     |  1.2134
 --------------------------------------------------------------------------------------------------------------
 ```
 
-### Agent-to-Agent Discovery (A2A)
+### Agent-to-Agent Discovery API
 
-Agents can autonomously discover and invoke other agents at runtime using the registry's semantic search API as a tool. This enables dynamic agent composition where agents find collaborators based on capabilities rather than hardcoded references.
+The registry provides a **semantic search API** that agents can use as a tool to discover other A2A agents at runtime. This API enables dynamic agent composition where agents find collaborators based on capabilities rather than hardcoded references.
 
-**How it works:**
-1. An agent uses the `discover_remote_agents` tool with a natural language query (e.g., "agent that can book flights")
-2. The registry returns matching agents ranked by relevance with their endpoint URLs and skills
-3. The agent caches discovered agents and invokes them via A2A protocol using `invoke_remote_agent`
+**Discovery API Endpoint:**
+```
+POST /api/agents/discover/semantic?query=<natural-language-query>&max_results=5
+Authorization: Bearer <jwt-token>
+```
 
-**Example - Travel Assistant discovering Flight Booking Agent:**
+**Response includes:**
+- Agent name, description, and endpoint URL
+- Agent card metadata with skills and capabilities
+- Relevance score for ranking matches
+- Trust level and visibility settings
+
+**How agents use it:**
+1. An agent calls the registry's semantic search API with a natural language query (e.g., "agent that can book flights")
+2. The registry returns matching agents with their endpoint URLs and full agent card metadata
+3. The agent uses the agent card to understand capabilities and invokes the discovered agent via A2A protocol
+
+**Example - Travel Assistant discovering and invoking Flight Booking Agent:**
 ```
 User: "I need to book a flight from NYC to LA"
 
 Travel Assistant:
-  1. Calls discover_remote_agents("agent that can book flights")
-  2. Registry returns Flight Booking Agent (score: 0.85)
-  3. Calls invoke_remote_agent("/flight-booking-agent", "Book a flight from NYC to LA")
+  1. Calls registry API: POST /api/agents/discover/semantic?query="book flights"
+  2. Registry returns Flight Booking Agent with endpoint URL and agent card
+  3. Uses agent card to understand capabilities, then sends A2A message to Flight Booking Agent
   4. Returns booking confirmation to user
 ```
 
