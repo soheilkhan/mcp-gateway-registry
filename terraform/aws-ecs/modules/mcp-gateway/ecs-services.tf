@@ -321,7 +321,7 @@ module "ecs_service_registry" {
       environment = [
         {
           name  = "GATEWAY_ADDITIONAL_SERVER_NAMES"
-          value = var.domain_name != "" ? var.domain_name : ""
+          value = join(" ", compact([var.domain_name, var.additional_server_names]))
         },
         {
           name  = "EC2_PUBLIC_DNS"

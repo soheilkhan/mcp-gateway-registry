@@ -44,6 +44,10 @@ module "mcp_gateway" {
   domain_name = var.enable_route53_dns ? "registry.${local.root_domain}" : (
     var.enable_cloudfront ? aws_cloudfront_distribution.mcp_gateway[0].domain_name : ""
   )
+  
+  # Additional server names for nginx - needed for dual-mode (CloudFront + custom domain)
+  # When both are enabled, nginx needs to accept requests for both hostnames
+  additional_server_names = var.enable_cloudfront && var.enable_route53_dns ? aws_cloudfront_distribution.mcp_gateway[0].domain_name : ""
 
   # Keycloak configuration - use CloudFront domain when CloudFront is enabled
   keycloak_domain = var.enable_cloudfront && !var.enable_route53_dns ? aws_cloudfront_distribution.keycloak[0].domain_name : local.keycloak_domain

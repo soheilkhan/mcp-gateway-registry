@@ -4,6 +4,17 @@
 # Enables HTTPS access using default *.cloudfront.net certificates
 # when custom Route53 DNS is not available (workshops, demos, evaluations)
 #
+# TODO: Simplify deployment modes to avoid dual-access complexity:
+#   1. CloudFront-only: Use *.cloudfront.net URLs directly (no custom domain)
+#   2. Custom Domain → ALB: Traditional setup with ACM certificates
+#   3. Custom Domain → CloudFront: Route53 points to CloudFront (best of both)
+#
+# When enable_cloudfront=true AND enable_route53_dns=true, Route53 should
+# point to CloudFront distributions instead of ALBs. This eliminates the
+# need to handle dual-access (same deployment accessible via both CloudFront
+# and custom domain URLs), which causes OAuth2 callback_uri and session
+# cookie issues due to Host header rewriting.
+#
 
 # Data sources for managed CloudFront policies
 data "aws_cloudfront_cache_policy" "caching_disabled" {
@@ -38,6 +49,13 @@ resource "aws_cloudfront_distribution" "mcp_gateway" {
     # Note: We use X-Forwarded-Proto directly - ALB won't overwrite origin custom headers
     custom_header {
       name  = "X-Forwarded-Proto"
+      value = "https"
+    }
+
+    # Custom header to indicate this request came through CloudFront
+    # The auth server will use this to check X-Forwarded-Host for the original domain
+    custom_header {
+      name  = "X-Cloudfront-Forwarded-Proto"
       value = "https"
     }
   }

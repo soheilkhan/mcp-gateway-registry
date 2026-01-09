@@ -405,3 +405,10 @@ variable "cloudfront_prefix_list_name" {
   type        = string
   default     = "com.amazonaws.global.cloudfront.origin-facing"
 }
+
+
+variable "additional_server_names" {
+  description = "Additional server names for nginx (space-separated). Used in dual-mode to accept both CloudFront and custom domain requests."
+  type        = string
+  default     = ""
+}
