@@ -1,75 +1,83 @@
 #!/usr/bin/env python3
 """
-Interactive LangGraph MCP Client with Cognito Authentication
+Interactive LangGraph Agent with Registry Tool Discovery
 
-This script provides an interactive version of the agent with multi-turn conversation support.
-It maintains conversation history and allows continuous interaction with the agent.
+This agent discovers and invokes MCP tools using semantic search on the registry.
+It supports multi-turn conversation and maintains conversation history.
 
-The script accepts command line arguments for:
-- Server host and port
-- Model ID to use
-- Initial prompt (optional)
-- Cognito authentication parameters
-- Interactive mode flag
+Authentication:
+    The agent requires a JWT token for authenticating with the MCP Registry.
+    The token can be obtained from different sources depending on your setup.
 
-Configuration can be provided via command line arguments or environment variables.
-Command line arguments take precedence over environment variables.
+Usage Examples:
+    # Using token from api/.token file (simple cat):
+    python agents/agent.py \
+        --mcp-registry-url https://mcpgateway.ddns.net/mcpgw/mcp \
+        --jwt-token "$(cat api/.token)" \
+        --provider bedrock \
+        --prompt "What time is it in New York?"
+
+    # Using token from .oauth-tokens/ingress.json (requires jq):
+    python agents/agent.py \
+        --mcp-registry-url https://mcpgateway.ddns.net/mcpgw/mcp \
+        --jwt-token "$(jq -r '.access_token' .oauth-tokens/ingress.json)" \
+        --provider bedrock \
+        --prompt "What time is it in New York?"
+
+    # Interactive mode for multi-turn conversations:
+    python agents/agent.py \
+        --mcp-registry-url https://mcpgateway.ddns.net/mcpgw/mcp \
+        --jwt-token "$(cat api/.token)" \
+        --provider bedrock \
+        --interactive
+
+    # With verbose logging for debugging:
+    python agents/agent.py \
+        --mcp-registry-url https://mcpgateway.ddns.net/mcpgw/mcp \
+        --jwt-token "$(cat api/.token)" \
+        --provider bedrock \
+        --prompt "What time is it in New York?" \
+        --verbose
+
+Available Tools:
+    - calculator: For mathematical calculations
+    - search_registry_tools: Discover MCP tools via semantic search
+    - invoke_mcp_tool: Invoke discovered tools on MCP servers
 
 Environment Variables:
-- COGNITO_CLIENT_ID: Cognito App Client ID
-- COGNITO_CLIENT_SECRET: Cognito App Client Secret
-- COGNITO_USER_POOL_ID: Cognito User Pool ID
-- AWS_REGION: AWS region for Cognito
-- ANTHROPIC_API_KEY: Anthropic API key
-
-Usage:
-    # Interactive mode with initial prompt
-    python agent_interactive.py --prompt "Hello" --interactive
-    
-    # Interactive mode without initial prompt
-    python agent_interactive.py --interactive
-    
-    # Single-turn mode (like original agent.py)
-    python agent_interactive.py --prompt "What time is it?"
-
-Example with environment variables (create a .env file):
-    COGNITO_CLIENT_ID=your_client_id
-    COGNITO_CLIENT_SECRET=your_client_secret
-    COGNITO_USER_POOL_ID=your_user_pool_id
-    AWS_REGION=us-east-1
-    ANTHROPIC_API_KEY=your_api_key
-    
-    python agent_interactive.py --interactive
+    - ANTHROPIC_API_KEY: Required when using --provider anthropic
 """
 
 import asyncio
 import argparse
-import re
-import sys
-import os
-import logging
-import yaml
 import json
-from typing import Dict, List, Any, Optional
-from urllib.parse import urlparse, urljoin
-from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.prebuilt import create_react_agent
+import logging
+import os
+import re
+import yaml
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+)
+from urllib.parse import (
+    urlparse,
+    urljoin,
+)
+
+import mcp
 from langchain_anthropic import ChatAnthropic
 from langchain_aws import ChatBedrock
 from langchain_core.tools import tool
-import mcp
-from mcp import ClientSession
+from langgraph.prebuilt import create_react_agent
 from mcp.client.sse import sse_client
 from mcp.client.streamable_http import streamablehttp_client
-import httpx
-import re
 
-# Import dotenv for loading basic environment variables
-from dotenv import load_dotenv
-
-# Add the auth_server directory to the path to import cognito_utils
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'auth_server'))
-from cognito_utils import generate_token
+from registry_client import (
+    RegistryClient,
+    _format_tool_result,
+)
 
 # Global config for servers that should not have /mcp suffix added
 SERVERS_NO_MCP_SUFFIX = ['/atlassian']
@@ -84,9 +92,8 @@ logging.basicConfig(
 # Get logger
 logger = logging.getLogger(__name__)
 
-# Global constants for default MCP tools to filter and use
-DEFAULT_MCP_TOOL_NAME = "intelligent_tool_finder"
-ALLOWED_MCP_TOOLS = ["intelligent_tool_finder"]
+# Global registry client instance (initialized in main)
+registry_client: Optional[RegistryClient] = None
 
 
 def load_server_config(config_file: str = "server_config.yml") -> Dict[str, Any]:
@@ -223,175 +230,90 @@ def enable_verbose_logging():
     
     logger.info("Verbose logging enabled for httpx, httpcore, mcp libraries, and main logger")
 
-def get_auth_mode_from_args() -> bool:
-    """
-    Parse command line arguments to determine authentication mode.
-
-    Returns:
-        bool: True if using session cookie authentication, False for M2M authentication
-    """
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument('--use-session-cookie', action='store_true',
-                        help='Use session cookie authentication instead of M2M')
-    args, _ = parser.parse_known_args()
-    return args.use_session_cookie
-
-def load_agent_credentials(agent_name: str) -> Optional[Dict[str, Any]]:
-    """
-    Load agent credentials from .oauth-tokens directory.
-    Tries {agent-name}.json and {agent-name}-token.json files.
-
-    Args:
-        agent_name: Name of the agent to load credentials for
-
-    Returns:
-        Dict containing agent credentials or None if not found
-    """
-    oauth_tokens_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.oauth-tokens')
-
-    # Try both possible filenames
-    token_files = [
-        os.path.join(oauth_tokens_dir, f"{agent_name}.json"),
-        os.path.join(oauth_tokens_dir, f"{agent_name}-token.json")
-    ]
-
-    for token_file in token_files:
-        if os.path.exists(token_file):
-            try:
-                logger.info(f"Loading agent credentials from: {token_file}")
-                with open(token_file, 'r') as f:
-                    data = json.load(f)
-
-                # Validate that we have an access token
-                if 'access_token' not in data:
-                    logger.warning(f"No access_token found in {token_file}")
-                    continue
-
-                return data
-            except (json.JSONDecodeError, IOError) as e:
-                logger.warning(f"Failed to load {token_file}: {e}")
-                continue
-
-    logger.warning(f"No valid token files found for agent: {agent_name}")
-    return None
-
-
 def parse_arguments() -> argparse.Namespace:
     """
-    Parse command line arguments for the Interactive LangGraph MCP client with flexible authentication.
-    Command line arguments take precedence over environment variables and config files.
+    Parse command line arguments for the Interactive LangGraph Agent.
 
     Returns:
         argparse.Namespace: The parsed command line arguments
     """
-    # Load basic environment variables for fallback (system environment only)
-    load_dotenv(override=False)  # Only load if not already set
+    parser = argparse.ArgumentParser(
+        description='Interactive LangGraph Agent with Registry Tool Discovery',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    # Using token from api/.token file:
+    python agents/agent.py --jwt-token "$(cat api/.token)" --prompt "What time is it?"
 
-    # Get environment variables for fallback values
-    env_config = {
-        'client_id': os.getenv('COGNITO_CLIENT_ID'),
-        'client_secret': os.getenv('COGNITO_CLIENT_SECRET'),
-        'region': os.getenv('AWS_REGION'),
-        'user_pool_id': os.getenv('COGNITO_USER_POOL_ID'),
-        'domain': os.getenv('COGNITO_DOMAIN'),
-        'anthropic_api_key': os.getenv('ANTHROPIC_API_KEY')
-    }
+    # Using token from .oauth-tokens/ingress.json:
+    python agents/agent.py --jwt-token "$(jq -r '.access_token' .oauth-tokens/ingress.json)" --prompt "What time is it?"
 
-    parser = argparse.ArgumentParser(description='Interactive LangGraph MCP Client with Flexible Authentication')
-    
+    # Interactive mode:
+    python agents/agent.py --jwt-token "$(cat api/.token)" --interactive
+"""
+    )
+
     # Server connection arguments
-    parser.add_argument('--mcp-registry-url', type=str, default='https://mcpgateway.ddns.net/mcpgw/mcp',
-                        help='Hostname of the MCP Registry')
-    
-    # Model and provider arguments
-    parser.add_argument('--provider', type=str, choices=['anthropic', 'bedrock'], default='bedrock',
-                        help='Model provider to use (default: bedrock)')
-    parser.add_argument('--model', type=str, default='us.anthropic.claude-3-7-sonnet-20250219-v1:0',
-                        help='Model ID to use (Bedrock format for bedrock provider, Anthropic format for anthropic provider)')
-    
-    # Prompt arguments (changed from --message)
-    parser.add_argument('--prompt', type=str, default=None,
-                        help='Initial prompt to send to the agent')
-    
-    # Interactive mode argument
-    parser.add_argument('--interactive', '-i', action='store_true',
-                        help='Enable interactive mode for multi-turn conversations')
-    
-    # MCP tool filtering arguments
-    parser.add_argument('--mcp-tool-name', type=str, default=DEFAULT_MCP_TOOL_NAME,
-                        help=f'Name of the MCP tool to filter and use (default: {DEFAULT_MCP_TOOL_NAME})')
-    
-    # Verbose logging argument
-    parser.add_argument('--verbose', '-v', action='store_true',
-                        help='Enable verbose HTTP debugging output')
-    
-    # Authentication method arguments
-    parser.add_argument('--use-session-cookie', action='store_true',
-                        help='Use session cookie authentication instead of M2M')
-    parser.add_argument('--session-cookie-file', type=str, default='~/.mcp/session_cookie',
-                        help='Path to session cookie file (default: ~/.mcp/session_cookie)')
-    parser.add_argument('--jwt-token', type=str,
-                        help='Use a pre-generated JWT token instead of generating M2M token')
+    parser.add_argument(
+        '--mcp-registry-url',
+        type=str,
+        default='https://mcpgateway.ddns.net/mcpgw/mcp',
+        help='URL of the MCP Registry (default: https://mcpgateway.ddns.net/mcpgw/mcp)',
+    )
 
-    # Agent-based authentication arguments
-    parser.add_argument('--agent-name', type=str,
-                        help='Agent name to load credentials from .oauth-tokens/{agent-name}.json or {agent-name}-token.json')
-    parser.add_argument('--access-token', type=str,
-                        help='Direct access token override (takes precedence over agent credentials)')
-    
-    
-    # Cognito authentication arguments - now optional if available in environment
-    parser.add_argument('--client-id', type=str, default=env_config['client_id'],
-                        help='Cognito App Client ID (can be set via COGNITO_CLIENT_ID env var)')
-    parser.add_argument('--client-secret', type=str, default=env_config['client_secret'],
-                        help='Cognito App Client Secret (can be set via COGNITO_CLIENT_SECRET env var)')
-    parser.add_argument('--user-pool-id', type=str, default=env_config['user_pool_id'],
-                        help='Cognito User Pool ID (can be set via COGNITO_USER_POOL_ID env var)')
-    parser.add_argument('--region', type=str, default=env_config['region'],
-                        help='AWS region for Cognito (can be set via AWS_REGION env var)')
-    parser.add_argument('--domain', type=str, default=env_config['domain'],
-                        help='Cognito custom domain (can be set via COGNITO_DOMAIN env var)')
-    parser.add_argument('--scopes', type=str, nargs='*', default=None,
-                        help='Optional scopes for the token request')
-    
+    # Authentication - JWT token required
+    parser.add_argument(
+        '--jwt-token',
+        type=str,
+        required=True,
+        help='JWT token for authentication (required)',
+    )
+
+    # Model and provider arguments
+    parser.add_argument(
+        '--provider',
+        type=str,
+        choices=['anthropic', 'bedrock'],
+        default='bedrock',
+        help='Model provider to use (default: bedrock)',
+    )
+    parser.add_argument(
+        '--model',
+        type=str,
+        default='us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+        help='Model ID to use',
+    )
+
+    # Prompt arguments
+    parser.add_argument(
+        '--prompt',
+        type=str,
+        default=None,
+        help='Initial prompt to send to the agent',
+    )
+
+    # Interactive mode argument
+    parser.add_argument(
+        '--interactive',
+        '-i',
+        action='store_true',
+        help='Enable interactive mode for multi-turn conversations',
+    )
+
+    # Verbose logging argument
+    parser.add_argument(
+        '--verbose',
+        '-v',
+        action='store_true',
+        help='Enable verbose HTTP debugging output',
+    )
+
     args = parser.parse_args()
-    
+
     # Enable verbose logging if requested
     if args.verbose:
         enable_verbose_logging()
-    
-    # Validate authentication parameters based on method
-    if args.use_session_cookie:
-        # For session cookie auth, we just need the cookie file
-        cookie_path = os.path.expanduser(args.session_cookie_file)
-        if not os.path.exists(cookie_path):
-            parser.error(f"Session cookie file not found: {cookie_path}\n"
-                        f"Run 'python agents/cli_user_auth.py' to authenticate first")
-    elif args.jwt_token:
-        # For pre-generated JWT token, we only need the token and basic headers
-        if not args.user_pool_id:
-            # No default fallback - require environment variable or command line arg
-            pass
-        if not args.client_id:
-            # No default fallback - require environment variable or command line arg
-            pass
-        if not args.region:
-            args.region = 'us-east-1'  # Default region
-    else:
-        # For M2M auth, validate Cognito parameters
-        missing_params = []
-        if not args.client_id:
-            missing_params.append('--client-id (or COGNITO_CLIENT_ID env var)')
-        if not args.client_secret:
-            missing_params.append('--client-secret (or COGNITO_CLIENT_SECRET env var)')
-        if not args.user_pool_id:
-            missing_params.append('--user-pool-id (or COGNITO_USER_POOL_ID env var)')
-        if not args.region:
-            missing_params.append('--region (or AWS_REGION env var)')
-        
-        if missing_params:
-            parser.error(f"Missing required parameters for M2M authentication: {', '.join(missing_params)}")
-    
+
     return args
 
 @tool
@@ -431,9 +353,132 @@ def calculator(expression: str) -> str:
     except Exception as e:
         return f"Error evaluating expression: {str(e)}"
 
+
 @tool
-async def invoke_mcp_tool(mcp_registry_url: str, server_name: str, tool_name: str, arguments: Dict[str, Any],
-                         supported_transports: List[str] = None, auth_provider: str = None) -> str:
+async def search_registry_tools(
+    query: str,
+    max_results: int = 10,
+) -> str:
+    """
+    Search for MCP tools using semantic search on the registry.
+
+    Use this tool to discover available MCP tools that can help accomplish a task.
+    The search uses natural language understanding to find the most relevant tools.
+
+    Args:
+        query (str): Natural language description of the capability you need
+            (e.g., "get current time", "search jira issues", "manage files")
+        max_results (int): Maximum number of results to return (default: 10)
+
+    Returns:
+        str: JSON string containing matching tools with their details including:
+            - tool_name: Name of the tool
+            - server_path: Path to invoke the tool on
+            - server_name: Human-readable server name
+            - description: What the tool does
+            - relevance_score: How well it matches your query (0-1)
+            - supported_transports: Transport protocols supported
+            - auth_provider: Authentication provider if needed
+            - tool_schema: Input parameters for the tool
+
+    Example:
+        search_registry_tools("get the current time in different timezones")
+        search_registry_tools("search for jira issues", max_results=5)
+    """
+    global registry_client
+
+    if registry_client is None:
+        return json.dumps({
+            "error": "Registry client not initialized. Check authentication configuration."
+        })
+
+    try:
+        logger.info(f"Searching registry for tools: '{query}' (max_results={max_results})")
+
+        # Search for tools using semantic search
+        search_response = await registry_client.search_tools(
+            query=query,
+            max_results=max_results,
+            entity_types=["mcp_server", "tool"],
+        )
+
+        results = []
+
+        # Process tool results first (most specific)
+        for tool_result in search_response.tools:
+            # Get additional server info for transport and auth details
+            server_info = await registry_client.get_server_info(tool_result.server_path)
+            formatted = _format_tool_result(tool_result, server_info)
+            results.append(formatted)
+
+        # Also include matching tools from server results
+        for server_result in search_response.servers:
+            server_info = await registry_client.get_server_info(server_result.path)
+
+            for matching_tool in server_result.matching_tools:
+                # Check if this tool is already in results
+                existing = [
+                    r for r in results
+                    if r["tool_name"] == matching_tool.tool_name
+                    and r["server_path"] == server_result.path
+                ]
+                if existing:
+                    continue
+
+                tool_data = {
+                    "tool_name": matching_tool.tool_name,
+                    "server_path": server_result.path,
+                    "server_name": server_result.server_name,
+                    "description": matching_tool.description or "No description available",
+                    "relevance_score": matching_tool.relevance_score,
+                }
+
+                if server_info:
+                    tool_data["supported_transports"] = server_info.get(
+                        "supported_transports",
+                        ["streamable_http"]
+                    )
+                    tool_data["auth_provider"] = server_info.get("auth_provider")
+
+                    # Find tool schema in server info
+                    tools_list = server_info.get("tools", [])
+                    for srv_tool in tools_list:
+                        if srv_tool.get("name") == matching_tool.tool_name:
+                            tool_data["tool_schema"] = srv_tool.get("inputSchema", {})
+                            break
+
+                results.append(tool_data)
+
+        # Sort by relevance score
+        results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+
+        # Limit to max_results
+        results = results[:max_results]
+
+        logger.info(f"Found {len(results)} matching tools for query: '{query}'")
+
+        return json.dumps({
+            "query": query,
+            "tools": results,
+            "total_found": len(results),
+        }, indent=2)
+
+    except Exception as e:
+        logger.error(f"Error searching registry: {e}", exc_info=True)
+        return json.dumps({
+            "error": f"Search failed: {str(e)}"
+        })
+
+
+@tool
+async def invoke_mcp_tool(
+    mcp_registry_url: str,
+    server_name: str,
+    tool_name: str,
+    arguments: Dict[str, Any],
+    supported_transports: List[str] = None,
+    auth_provider: str = None,
+) -> str:
     """
     Invoke a tool on an MCP server using the MCP Registry URL and server name with authentication.
     
@@ -978,197 +1023,42 @@ async def main():
     """
     Main function that:
     1. Parses command line arguments
-    2. Generates Cognito M2M authentication token OR loads session cookie
-    3. Sets up the LangChain MCP client and model with authentication
+    2. Uses the provided JWT token for authentication
+    3. Sets up the LLM model (Anthropic or Amazon Bedrock)
     4. Creates a LangGraph agent with available tools
     5. Either runs in interactive mode or processes a single prompt
     """
     # Parse command line arguments
     args = parse_arguments()
-    logger.info(f"Parsed command line arguments successfully, args={args}")
+    logger.info("Parsed command line arguments successfully")
     
-    # Determine authentication method and load credentials
-    access_token = None
-    agent_credentials = None
+    # Use the provided JWT token
+    access_token = args.jwt_token
+    logger.info("Using JWT token for authentication")
 
-    # Check for direct access token override first
-    if args.access_token:
-        access_token = args.access_token
-        logger.info("Using direct access token override")
-    # Then check for agent-name based credentials
-    elif args.agent_name:
-        agent_credentials = load_agent_credentials(args.agent_name)
-        if agent_credentials:
-            access_token = agent_credentials['access_token']
-            logger.info(f"Loaded credentials for agent: {args.agent_name}")
-        else:
-            logger.error(f"Failed to load credentials for agent: {args.agent_name}")
-            raise FileNotFoundError(f"No valid credentials found for agent: {args.agent_name}")
-    # Fallback to ingress.json for backward compatibility
-    else:
-        oauth_tokens_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.oauth-tokens')
-        ingress_file = os.path.join(oauth_tokens_dir, 'ingress.json')
+    # Set global auth variables for invoke_mcp_tool
+    agent_settings.auth_token = access_token
+    agent_settings.ingress_token = access_token
 
-        if os.path.exists(ingress_file):
-            try:
-                with open(ingress_file, 'r') as f:
-                    ingress_data = json.load(f)
-
-                # Validate required fields
-                required_fields = ['access_token', 'user_pool_id', 'client_id', 'region']
-                missing_fields = [field for field in required_fields if not ingress_data.get(field)]
-
-                if missing_fields:
-                    logger.warning(f"Missing required fields in ingress.json: {missing_fields}")
-                else:
-                    # Set ingress authentication in agent_settings
-                    agent_settings.ingress_token = ingress_data['access_token']
-                    agent_settings.ingress_user_pool_id = ingress_data['user_pool_id']
-                    agent_settings.ingress_client_id = ingress_data['client_id']
-                    agent_settings.ingress_region = ingress_data['region']
-
-                    access_token = ingress_data['access_token']
-                    logger.info("Successfully loaded ingress authentication from .oauth-tokens/ingress.json")
-                    logger.info(f"Ingress User Pool ID: {agent_settings.ingress_user_pool_id}")
-                    logger.info(f"Ingress Client ID: {redact_sensitive_value(agent_settings.ingress_client_id)}")
-                    logger.info(f"Ingress Region: {agent_settings.ingress_region}")
-
-            except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse ingress.json: {e}")
-            except Exception as e:
-                logger.warning(f"Failed to load ingress authentication: {e}")
-
-    # If we still don't have an access token and we're not using other auth methods,
-    # we'll need to generate one using Cognito
-    if not access_token and not args.use_session_cookie and not args.jwt_token:
-        logger.info("No access token available, will generate using Cognito M2M authentication")
-    
     # Load server configuration
     global server_config
     server_config = load_server_config()
-    
+
     # Display configuration
-    server_url = args.mcp_registry_url
-    logger.info(f"Connecting to MCP server: {server_url}")
-    logger.info(f"Using model: {args.model}")
+    logger.info(f"MCP Registry URL: {args.mcp_registry_url}")
+    logger.info(f"Model provider: {args.provider}")
+    logger.info(f"Model: {args.model}")
     logger.info(f"Interactive mode: {args.interactive}")
     if args.prompt:
         logger.info(f"Initial prompt: {args.prompt}")
-    if args.jwt_token:
-        auth_display = 'Pre-generated JWT Token'
-    elif args.use_session_cookie:
-        auth_display = 'Session Cookie'
-    else:
-        auth_display = 'M2M Token'
-    logger.info(f"Authentication method: {auth_display}")
-    
-    # Initialize authentication variables (access_token may already be set from above)
-    session_cookie = None
-    auth_method = "session_cookie" if args.use_session_cookie else "m2m"
-    
-    if args.jwt_token:
-        # Use pre-generated JWT token
-        access_token = args.jwt_token
-        logger.info("Using pre-generated JWT token")
-        
-        # Set global auth variables for invoke_mcp_tool (JWT token mode)
-        agent_settings.auth_token = access_token
-        agent_settings.user_pool_id = args.user_pool_id
-        agent_settings.client_id = args.client_id
-        agent_settings.region = args.region
-    elif args.use_session_cookie:
-        # Load session cookie from file
-        try:
-            cookie_path = os.path.expanduser(args.session_cookie_file)
-            with open(cookie_path, 'r') as f:
-                session_cookie = f.read().strip()
-            logger.info(f"Successfully loaded session cookie from {cookie_path}")
-        except Exception as e:
-            logger.error(f"Failed to load session cookie: {e}")
-            return
-            
-        # Set global auth variables for invoke_mcp_tool (session cookie mode)
-        agent_settings.auth_token = None
-        agent_settings.user_pool_id = args.user_pool_id
-        agent_settings.client_id = args.client_id
-        agent_settings.region = args.region
-        agent_settings.session_cookie = session_cookie
-    else:
-        # Check if we already have an access token from agent credentials or ingress
-        if access_token:
-            logger.info("Using previously loaded access token")
 
-            # Set global auth variables for invoke_mcp_tool
-            agent_settings.auth_token = access_token
-
-            # Use credentials from agent file if available, otherwise fall back to ingress or args
-            if agent_credentials:
-                agent_settings.user_pool_id = agent_credentials.get('user_pool_id') or agent_credentials.get('keycloak_realm')
-                agent_settings.client_id = agent_credentials.get('client_id')
-                agent_settings.region = agent_credentials.get('region') or agent_credentials.get('aws_region')
-            elif hasattr(agent_settings, 'ingress_user_pool_id') and agent_settings.ingress_user_pool_id:
-                agent_settings.user_pool_id = agent_settings.ingress_user_pool_id
-                agent_settings.client_id = agent_settings.ingress_client_id
-                agent_settings.region = agent_settings.ingress_region
-            else:
-                agent_settings.user_pool_id = args.user_pool_id
-                agent_settings.client_id = args.client_id
-                agent_settings.region = args.region
-        else:
-            # Generate Cognito M2M authentication token
-            logger.info(f"Cognito User Pool ID: {redact_sensitive_value(args.user_pool_id)}")
-            logger.info(f"Cognito User Pool ID: {args.user_pool_id}")
-            logger.info(f"Cognito Client ID: {redact_sensitive_value(args.client_id)}")
-            logger.info(f"AWS Region: {args.region}")
-
-            try:
-                logger.info("Generating Cognito M2M authentication token...")
-                token_data = generate_token(
-                    client_id=args.client_id,
-                    client_secret=args.client_secret,
-                    user_pool_id=args.user_pool_id,
-                    region=args.region,
-                    scopes=args.scopes,
-                    domain=args.domain
-                )
-                access_token = token_data.get('access_token')
-                if not access_token:
-                    raise ValueError("No access token received from Cognito")
-                logger.info("Successfully generated authentication token")
-
-                # Set global auth variables for invoke_mcp_tool
-                agent_settings.auth_token = access_token
-                agent_settings.user_pool_id = args.user_pool_id
-                agent_settings.client_id = args.client_id
-                agent_settings.region = args.region
-            except Exception as e:
-                logger.error(f"Failed to generate authentication token: {e}")
-                return
-    
-    # Validate provider-specific requirements
-    anthropic_api_key = None
-    aws_region = None
-
+    # Initialize model based on provider
     if args.provider == 'anthropic':
-        # Get Anthropic API key from environment variables
         anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
         if not anthropic_api_key:
             logger.error("ANTHROPIC_API_KEY not found in environment variables")
             return
-    elif args.provider == 'bedrock':
-        # For Bedrock, we'll rely on AWS credentials from environment or IAM role
-        # Check if basic AWS environment is available
-        aws_region = os.getenv('AWS_DEFAULT_REGION', os.getenv('AWS_REGION', 'us-east-1'))
-        logger.info(f"Using Bedrock provider with AWS region: {aws_region}")
-    else:
-        logger.error(f"Unsupported provider: {args.provider}")
-        return
-    
-    # Note: No need to explicitly load server-specific tokens anymore
-    # The system now dynamically discovers them from server_config.yml
 
-    # Initialize the model based on provider
-    if args.provider == 'anthropic':
         model = ChatAnthropic(
             model=args.model,
             api_key=anthropic_api_key,
@@ -1176,7 +1066,11 @@ async def main():
             max_tokens=8192,
         )
         logger.info(f"Initialized Anthropic model: {args.model}")
-    elif args.provider == 'bedrock':
+    else:
+        # Default to Bedrock
+        aws_region = os.getenv('AWS_DEFAULT_REGION', os.getenv('AWS_REGION', 'us-east-1'))
+        logger.info(f"Using Bedrock provider with AWS region: {aws_region}")
+
         model = ChatBedrock(
             model_id=args.model,
             region_name=aws_region,
@@ -1184,94 +1078,35 @@ async def main():
             max_tokens=8192,
         )
         logger.info(f"Initialized Bedrock model: {args.model} in region {aws_region}")
-    else:
-        logger.error(f"Unsupported provider: {args.provider}")
-        return
     
     try:
-        # Prepare headers for MCP client authentication based on method
-        if args.use_session_cookie:
-            auth_headers = {
-                'Cookie': f'mcp_gateway_session={session_cookie}',
-                'X-User-Pool-Id': agent_settings.user_pool_id or '',
-                'X-Client-Id': agent_settings.client_id or '',
-                'X-Region': agent_settings.region or 'us-east-1'
-            }
-        else:
-            # For both M2M and pre-generated JWT tokens
-            auth_headers = {
-                'X-Authorization': f'Bearer {access_token}',
-                'X-User-Pool-Id': agent_settings.user_pool_id or '',
-                'X-Client-Id': agent_settings.client_id or '',
-                'X-Region': agent_settings.region or 'us-east-1'
-            }
-        
-        # Log redacted headers
-        redacted_headers = {}
-        for k, v in auth_headers.items():
-            if k in ['X-Authorization', 'Cookie', 'X-User-Pool-Id', 'X-Client-Id']:
-                redacted_headers[k] = redact_sensitive_value(v) if v else ''
-            else:
-                redacted_headers[k] = v
-        logger.info(f"Using authentication headers: {redacted_headers}")
-        
-        # Initialize MCP client with the server configuration and authentication headers
-        client = MultiServerMCPClient(
-            {
-                "mcp_registry": {
-                    "url": server_url,
-                    "transport": "streamable_http",
-                    "headers": auth_headers
-                }
-            }
-        )
-        logger.info("Connected to MCP server successfully with authentication, server_url: " + server_url)
+        # Initialize the registry client for semantic search
+        global registry_client
 
-        # Get available tools from MCP and display them
-        mcp_tools = await client.get_tools()
-        logger.info(f"Available MCP tools: {[tool.name for tool in mcp_tools]}")
-        
-        # Filter MCP tools to only include allowed tools
-        filtered_tools = [tool for tool in mcp_tools if tool.name in ALLOWED_MCP_TOOLS]
-        logger.info(f"Filtered MCP tools (allowed: {ALLOWED_MCP_TOOLS}): {[tool.name for tool in filtered_tools]}")
-        
-        # Add only the calculator, invoke_mcp_tool, and the allowed MCP tools to the tools array
-        all_tools = [calculator, invoke_mcp_tool] + filtered_tools
-        logger.info(f"All available tools: {[tool.name if hasattr(tool, 'name') else tool.__name__ for tool in all_tools]}")
-        
-        # Create the agent with the model and all tools
-        agent = create_react_agent(
-            model,
-            all_tools
+        # Extract base URL from mcp_registry_url (remove /mcpgw/mcp suffix if present)
+        parsed_registry_url = urlparse(args.mcp_registry_url)
+        registry_base_url = f"{parsed_registry_url.scheme}://{parsed_registry_url.netloc}"
+        logger.info(f"Registry base URL: {registry_base_url}")
+
+        registry_client = RegistryClient(
+            registry_url=registry_base_url,
+            jwt_token=access_token,
         )
-        
-        # Load and format the system prompt with the current time and MCP registry URL
+        logger.info("Initialized registry client for semantic search")
+
+        # Define all tools available to the agent
+        all_tools = [calculator, search_registry_tools, invoke_mcp_tool]
+        logger.info(f"Available tools: {[t.name for t in all_tools]}")
+
+        # Create the agent with the model and all tools
+        agent = create_react_agent(model, all_tools)
+
+        # Load and format the system prompt
         system_prompt_template = load_system_prompt()
-        
-        # Prepare authentication parameters for system prompt
-        if args.use_session_cookie:
-            system_prompt = system_prompt_template.format(
-                current_utc_time=current_utc_time,
-                mcp_registry_url=args.mcp_registry_url,
-                auth_token='',  # Not used for session cookie auth
-                user_pool_id=agent_settings.user_pool_id or '',
-                client_id=agent_settings.client_id or '',
-                region=agent_settings.region or 'us-east-1',
-                auth_method=auth_method,
-                session_cookie=session_cookie
-            )
-        else:
-            # For both M2M and pre-generated JWT tokens
-            system_prompt = system_prompt_template.format(
-                current_utc_time=current_utc_time,
-                mcp_registry_url=args.mcp_registry_url,
-                auth_token=access_token,
-                user_pool_id=agent_settings.user_pool_id or '',
-                client_id=agent_settings.client_id or '',
-                region=agent_settings.region or 'us-east-1',
-                auth_method=auth_method,
-                session_cookie=''  # Not used for JWT auth
-            )
+        system_prompt = system_prompt_template.format(
+            current_utc_time=current_utc_time,
+            mcp_registry_url=args.mcp_registry_url,
+        )
         
         # Create the interactive agent
         interactive_agent = InteractiveAgent(agent, system_prompt, args.verbose)
