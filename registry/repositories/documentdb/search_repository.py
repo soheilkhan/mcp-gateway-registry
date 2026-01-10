@@ -422,9 +422,11 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
             # Format results to match the API contract
             grouped_results = {"servers": [], "tools": [], "agents": []}
 
+            tool_count = 0
             for item in servers:
                 doc = item["doc"]
                 relevance_score = item["relevance_score"]
+                matching_tools = doc.get("_matching_tools", [])
 
                 result_entry = {
                     "entity_type": "mcp_server",
@@ -436,9 +438,26 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                     "is_enabled": doc.get("is_enabled", False),
                     "relevance_score": relevance_score,
                     "match_context": doc.get("description"),
-                    "matching_tools": doc.get("_matching_tools", [])
+                    "matching_tools": matching_tools
                 }
                 grouped_results["servers"].append(result_entry)
+
+                # Also add matching tools to the top-level tools array
+                server_path = doc.get("path", "")
+                server_name = doc.get("name", "")
+                for tool in matching_tools:
+                    if tool_count >= 3:
+                        break
+                    grouped_results["tools"].append({
+                        "entity_type": "tool",
+                        "server_path": server_path,
+                        "server_name": server_name,
+                        "tool_name": tool.get("tool_name", ""),
+                        "description": tool.get("description", ""),
+                        "relevance_score": tool.get("relevance_score", relevance_score),
+                        "match_context": tool.get("match_context", "")
+                    })
+                    tool_count += 1
 
             for item in agents:
                 doc = item["doc"]
@@ -714,6 +733,7 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                 relevance_score = max(0.0, min(1.0, relevance_score))  # Clamp to [0, 1]
 
                 if entity_type == "mcp_server":
+                    matching_tools = doc.get("matching_tools", [])
                     result_entry = {
                         "entity_type": "mcp_server",
                         "path": doc.get("path"),
@@ -724,10 +744,27 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                         "is_enabled": doc.get("is_enabled", False),
                         "relevance_score": relevance_score,
                         "match_context": doc.get("description"),
-                        "matching_tools": doc.get("matching_tools", [])
+                        "matching_tools": matching_tools
                     }
                     grouped_results["servers"].append(result_entry)
                     server_count += 1
+
+                    # Also add matching tools to the top-level tools array
+                    server_path = doc.get("path", "")
+                    server_name = doc.get("name", "")
+                    for tool in matching_tools:
+                        if tool_count >= 3:
+                            break
+                        grouped_results["tools"].append({
+                            "entity_type": "tool",
+                            "server_path": server_path,
+                            "server_name": server_name,
+                            "tool_name": tool.get("tool_name", ""),
+                            "description": tool.get("description", ""),
+                            "relevance_score": tool.get("relevance_score", relevance_score),
+                            "match_context": tool.get("match_context", "")
+                        })
+                        tool_count += 1
 
                 elif entity_type == "a2a_agent":
                     metadata = doc.get("metadata", {})
