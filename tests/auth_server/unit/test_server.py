@@ -720,12 +720,13 @@ class TestGenerateTokenEndpoint:
         # Mock Keycloak provider
         mock_provider = Mock()
         mock_provider.get_provider_info.return_value = {'provider_type': 'keycloak'}
+        # M2M token uses fixed scopes for IdP compatibility, not user-requested scopes
         mock_provider.get_m2m_token.return_value = {
             'access_token': 'mock_keycloak_m2m_token',
             'refresh_token': None,
             'expires_in': 28800,
             'refresh_expires_in': 0,
-            'scope': 'read:servers'
+            'scope': 'openid email profile'
         }
         mock_get_provider.return_value = mock_provider
 
@@ -750,9 +751,10 @@ class TestGenerateTokenEndpoint:
         assert "access_token" in data
         assert data["access_token"] == "mock_keycloak_m2m_token"
         assert data["token_type"] == "Bearer"
-        assert data["scope"] == "read:servers"
-        # Verify Keycloak M2M was called
-        mock_provider.get_m2m_token.assert_called_once_with(scope="read:servers")
+        # Scope in response comes from Keycloak M2M client configuration
+        assert data["scope"] == "openid email profile"
+        # Verify Keycloak M2M was called with IdP-compatible scopes
+        mock_provider.get_m2m_token.assert_called_once_with(scope="openid email profile")
 
     @patch('auth_server.server.get_auth_provider')
     def test_generate_token_missing_username(self, mock_get_provider, auth_env_vars):
