@@ -367,6 +367,10 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                 matching_tools = []
 
                 # Token-based matching for text boost
+                # Check path match first (highest priority - user explicitly named the server)
+                path = doc.get("path", "")
+                if path and _tokens_match_text(query_tokens, path):
+                    text_boost += 5.0
                 if name and _tokens_match_text(query_tokens, name):
                     text_boost += 3.0
                 if description and _tokens_match_text(query_tokens, description):
@@ -381,11 +385,10 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                     if _tokens_match_text(query_tokens, tool_name) or \
                        _tokens_match_text(query_tokens, tool_desc):
                         text_boost += 1.0
-                        # Store full tool object for frontend including schema
+                        # Store tool reference for frontend (schema is in tools[] array)
                         matching_tools.append({
                             "tool_name": tool_name,
                             "description": tool_desc,
-                            "inputSchema": tool.get("inputSchema", {}),
                             "relevance_score": 1.0,  # Tool matched, full score
                             "match_context": tool_desc or f"Tool: {tool_name}"
                         })
@@ -396,7 +399,9 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                 # Hybrid score: vector score + normalized text boost
                 # Normalize vector_score to [0, 1] range (cosine can be [-1, 1])
                 normalized_vector_score = (vector_score + 1.0) / 2.0
-                relevance_score = normalized_vector_score + (text_boost * 0.03)
+                # Increased multiplier (0.05) to give keyword matches more weight
+                # Path match (5.0) adds +0.25, Name match (3.0) adds +0.15
+                relevance_score = normalized_vector_score + (text_boost * 0.05)
                 relevance_score = max(0.0, min(1.0, relevance_score))
 
                 scored_docs.append({
@@ -449,18 +454,26 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                 grouped_results["servers"].append(result_entry)
 
                 # Also add matching tools to the top-level tools array
+                # Build a lookup map from tool name to inputSchema from original tools
+                original_tools = doc.get("tools", [])
+                tool_schema_map = {
+                    t.get("name", ""): t.get("inputSchema", {})
+                    for t in original_tools
+                }
+
                 server_path = doc.get("path", "")
                 server_name = doc.get("name", "")
                 for tool in matching_tools:
                     if tool_count >= 3:
                         break
+                    tool_name = tool.get("tool_name", "")
                     grouped_results["tools"].append({
                         "entity_type": "tool",
                         "server_path": server_path,
                         "server_name": server_name,
-                        "tool_name": tool.get("tool_name", ""),
+                        "tool_name": tool_name,
                         "description": tool.get("description", ""),
-                        "inputSchema": tool.get("inputSchema", {}),
+                        "inputSchema": tool_schema_map.get(tool_name, {}),
                         "relevance_score": tool.get("relevance_score", relevance_score),
                         "match_context": tool.get("match_context", "")
                     })
@@ -496,6 +509,7 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                     "path": doc.get("path"),
                     "tool_name": doc.get("name"),
                     "description": doc.get("description"),
+                    "inputSchema": doc.get("inputSchema", {}),
                     "relevance_score": relevance_score,
                     "match_context": doc.get("description")
                 }
@@ -560,6 +574,18 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
             escaped_tokens = [re.escape(token) for token in query_tokens]
             token_regex = "|".join(escaped_tokens) if escaped_tokens else query
             logger.debug(f"Hybrid search token regex: {token_regex}")
+
+            # NOTE: DocumentDB does not support $unionWith, so we run a separate
+            # keyword query and merge results in Python code after the main pipeline.
+            # Build keyword match filter for later use
+            keyword_match_filter = {
+                "$or": [
+                    {"name": {"$regex": token_regex, "$options": "i"}},
+                    {"path": {"$regex": token_regex, "$options": "i"}}
+                ]
+            }
+            if entity_types:
+                keyword_match_filter["entity_type"] = {"$in": entity_types}
 
             # Add text-based scoring for re-ranking
             # Higher scores for matches in name (3.0), description (2.0), tags (1.5), tools (1.0 per match)
@@ -682,7 +708,6 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                             "in": {
                                 "tool_name": "$$tool.name",
                                 "description": {"$ifNull": ["$$tool.description", ""]},
-                                "inputSchema": {"$ifNull": ["$$tool.inputSchema", {}]},
                                 "relevance_score": 1.0,
                                 "match_context": {
                                     "$cond": [
@@ -705,6 +730,58 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
 
             cursor = collection.aggregate(pipeline)
             results = await cursor.to_list(length=max_results)
+
+            # DocumentDB doesn't support $unionWith, so we run a separate keyword
+            # query to find documents that match by name/path but may not appear
+            # in vector search results (e.g., servers explicitly named like "context7")
+            keyword_cursor = collection.find(keyword_match_filter).limit(5)
+            keyword_results = await keyword_cursor.to_list(length=5)
+
+            # Merge keyword results with vector results, avoiding duplicates
+            # Calculate text_boost and matching_tools for keyword results since they
+            # didn't go through the aggregation pipeline
+            result_ids = {doc.get("_id") for doc in results}
+            for kw_doc in keyword_results:
+                if kw_doc.get("_id") not in result_ids:
+                    # Calculate text_boost for keyword-matched docs
+                    kw_text_boost = 0.0
+                    doc_name = (kw_doc.get("name") or "").lower()
+                    doc_path = (kw_doc.get("path") or "").lower()
+                    doc_desc = (kw_doc.get("description") or "").lower()
+
+                    for token in query_tokens:
+                        token_lower = token.lower()
+                        if token_lower in doc_name:
+                            kw_text_boost += 3.0  # Name match
+                        if token_lower in doc_path:
+                            kw_text_boost += 3.0  # Path match
+                        if token_lower in doc_desc:
+                            kw_text_boost += 2.0  # Description match
+
+                    kw_doc["text_boost"] = kw_text_boost
+
+                    # Calculate matching_tools for keyword-matched docs
+                    tools = kw_doc.get("tools", [])
+                    matching_tools = []
+                    for tool in tools:
+                        tool_name = (tool.get("name") or "").lower()
+                        tool_desc = (tool.get("description") or "").lower()
+                        # Check if any token matches tool name or description
+                        tool_matches = any(
+                            token.lower() in tool_name or token.lower() in tool_desc
+                            for token in query_tokens
+                        )
+                        if tool_matches:
+                            matching_tools.append({
+                                "tool_name": tool.get("name", ""),
+                                "description": tool.get("description", ""),
+                                "relevance_score": 1.0,
+                                "match_context": tool.get("description") or f"Tool: {tool.get('name', '')}"
+                            })
+                    kw_doc["matching_tools"] = matching_tools
+
+                    results.append(kw_doc)
+                    result_ids.add(kw_doc.get("_id"))
 
             # Return results with keys matching the API contract (same as FAISS service)
             # Calculate cosine similarity scores manually since DocumentDB doesn't expose them
@@ -729,15 +806,18 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                 doc_embedding = doc.get("embedding", [])
                 vector_score = self._calculate_cosine_similarity(query_embedding, doc_embedding)
 
-                # Get text boost (already calculated in pipeline)
+                # Get text boost (calculated in pipeline or for keyword results)
                 text_boost = doc.get("text_boost", 0.0)
 
-                # Hybrid score: Keep DocumentDB's vector ranking but show the actual similarity
-                # Text boost adds a small bonus if there are keyword matches
-                # Vector score is 0-1, text_boost can be 0-6.5 (3+2+1.5 max), so normalize text_boost to 0-0.195 range
+                # Hybrid score: Combine vector similarity with keyword matching boost
                 # Normalize vector_score to [0, 1] range (cosine can be [-1, 1])
                 normalized_vector_score = (vector_score + 1.0) / 2.0
-                relevance_score = normalized_vector_score + (text_boost * 0.03)
+
+                # Text boost multiplier: 0.1 gives significant weight to keyword matches
+                # Name match (3.0) adds +0.30, Description (2.0) adds +0.20
+                # This ensures exact name matches rank higher than semantic-only matches
+                text_boost_contribution = text_boost * 0.1
+                relevance_score = normalized_vector_score + text_boost_contribution
                 relevance_score = max(0.0, min(1.0, relevance_score))  # Clamp to [0, 1]
 
                 if entity_type == "mcp_server":
@@ -758,18 +838,26 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                     server_count += 1
 
                     # Also add matching tools to the top-level tools array
+                    # Build a lookup map from tool name to inputSchema from original tools
+                    original_tools = doc.get("tools", [])
+                    tool_schema_map = {
+                        t.get("name", ""): t.get("inputSchema", {})
+                        for t in original_tools
+                    }
+
                     server_path = doc.get("path", "")
                     server_name = doc.get("name", "")
                     for tool in matching_tools:
                         if tool_count >= 3:
                             break
+                        tool_name = tool.get("tool_name", "")
                         grouped_results["tools"].append({
                             "entity_type": "tool",
                             "server_path": server_path,
                             "server_name": server_name,
-                            "tool_name": tool.get("tool_name", ""),
+                            "tool_name": tool_name,
                             "description": tool.get("description", ""),
-                            "inputSchema": tool.get("inputSchema", {}),
+                            "inputSchema": tool_schema_map.get(tool_name, {}),
                             "relevance_score": tool.get("relevance_score", relevance_score),
                             "match_context": tool.get("match_context", "")
                         })
@@ -800,6 +888,7 @@ class DocumentDBSearchRepository(SearchRepositoryBase):
                         "path": doc.get("path"),
                         "tool_name": doc.get("name"),
                         "description": doc.get("description"),
+                        "inputSchema": doc.get("inputSchema", {}),
                         "relevance_score": relevance_score,
                         "match_context": doc.get("description")
                     }

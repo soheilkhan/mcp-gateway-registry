@@ -26,11 +26,14 @@ logger = logging.getLogger(__name__)
 
 
 class MatchingTool(BaseModel):
-    """Tool matching result from semantic search."""
+    """Tool matching result from semantic search.
+
+    Note: inputSchema is NOT included here to avoid duplication.
+    Full tool details including inputSchema are in the tools[] array.
+    """
 
     tool_name: str = Field(..., description="Name of the matching tool")
     description: Optional[str] = Field(None, description="Tool description")
-    inputSchema: Optional[Dict[str, Any]] = Field(None, description="JSON Schema for tool input")
     relevance_score: float = Field(0.0, ge=0.0, le=1.0, description="Relevance score")
     match_context: Optional[str] = Field(None, description="Match context")
 
@@ -351,8 +354,7 @@ def _format_server_result(
             "description": t.description,
             "relevance_score": t.relevance_score,
         }
-        if t.inputSchema:
-            tool_info["tool_schema"] = t.inputSchema
+        # Note: inputSchema is available in the tools[] array, not matching_tools
         matching_tools.append(tool_info)
 
     return {
