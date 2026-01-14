@@ -3,11 +3,11 @@
 # This script sets up the initial realm, clients, groups, and users
 #
 # Usage:
-#   KEYCLOAK_ADMIN_URL=https://kc.mycorp.click \
+#   KEYCLOAK_ADMIN_URL=https://your-keycloak-url \
 #   KEYCLOAK_ADMIN=admin \
-#   KEYCLOAK_ADMIN_PASSWORD=Keycloak@123456! \
-#   AUTH_SERVER_EXTERNAL_URL=http://mcp-gateway-alb-xxx.us-west-2.elb.amazonaws.com:8888 \
-#   REGISTRY_URL=http://mcp-gateway-alb-xxx.us-west-2.elb.amazonaws.com \
+#   KEYCLOAK_ADMIN_PASSWORD=your-admin-password \
+#   AUTH_SERVER_EXTERNAL_URL=https://your-auth-server-url \
+#   REGISTRY_URL=https://your-registry-url \
 #   ./init-keycloak.sh
 #
 # Or set these in a .env file in the project root
@@ -993,7 +993,13 @@ main() {
     fi
 
     # Override KEYCLOAK_URL with KEYCLOAK_ADMIN_URL for API calls
-    KEYCLOAK_URL="${KEYCLOAK_ADMIN_URL:-https://kc.mycorp.click}"
+    KEYCLOAK_URL="${KEYCLOAK_ADMIN_URL:-}"
+    if [ -z "$KEYCLOAK_URL" ]; then
+        echo -e "${RED}Error: KEYCLOAK_ADMIN_URL is required${NC}"
+        echo "Please set KEYCLOAK_ADMIN_URL in your .env file or environment,"
+        echo "or ensure terraform-outputs.json contains keycloak_url."
+        exit 1
+    fi
     KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN:-admin}"
     echo "Using Keycloak API URL: $KEYCLOAK_URL"
 
