@@ -672,8 +672,8 @@ class HumanUserRequest(BaseModel):
     password: Optional[str] = Field(None, description="Initial password")
 
 
-class KeycloakUserSummary(BaseModel):
-    """Keycloak user summary model."""
+class UserSummary(BaseModel):
+    """User summary model."""
 
     id: str = Field(..., description="User ID")
     username: str = Field(..., description="Username")
@@ -687,7 +687,7 @@ class KeycloakUserSummary(BaseModel):
 class UserListResponse(BaseModel):
     """Response model for list users endpoint."""
 
-    users: List[KeycloakUserSummary] = Field(default_factory=list, description="List of users")
+    users: List[UserSummary] = Field(default_factory=list, description="List of users")
     total: int = Field(..., description="Total number of users")
 
 
@@ -713,8 +713,8 @@ class GroupCreateRequest(BaseModel):
     description: Optional[str] = Field(None, description="Group description")
 
 
-class KeycloakGroupSummary(BaseModel):
-    """Keycloak group summary model."""
+class GroupSummary(BaseModel):
+    """Group summary model."""
 
     id: str = Field(..., description="Group ID")
     name: str = Field(..., description="Group name")
@@ -1997,7 +1997,7 @@ class RegistryClient:
         last_name: str,
         groups: List[str],
         password: Optional[str] = None
-    ) -> KeycloakUserSummary:
+    ) -> UserSummary:
         """
         Create a human user account in Keycloak.
 
@@ -2010,7 +2010,7 @@ class RegistryClient:
             password: Optional initial password
 
         Returns:
-            KeycloakUserSummary with created user details
+            UserSummary with created user details
 
         Raises:
             requests.HTTPError: If not authorized (403), already exists (400), or request fails
@@ -2033,7 +2033,7 @@ class RegistryClient:
             data=data
         )
 
-        result = KeycloakUserSummary(**response.json())
+        result = UserSummary(**response.json())
         logger.info(f"User created successfully: {username}")
         return result
 
@@ -2095,7 +2095,7 @@ class RegistryClient:
         self,
         name: str,
         description: Optional[str] = None
-    ) -> KeycloakGroupSummary:
+    ) -> GroupSummary:
         """
         Create a new Keycloak group (admin only).
 
@@ -2104,7 +2104,7 @@ class RegistryClient:
             description: Optional group description
 
         Returns:
-            KeycloakGroupSummary with created group details
+            GroupSummary with created group details
 
         Raises:
             requests.HTTPError: If not authorized (403), already exists (400), or request fails
@@ -2123,7 +2123,7 @@ class RegistryClient:
             data=data
         )
 
-        result = KeycloakGroupSummary(**response.json())
+        result = GroupSummary(**response.json())
         logger.info(f"Group created successfully: {name}")
         return result
 
