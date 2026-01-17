@@ -464,6 +464,146 @@ class EntraIdProvider(AuthProvider):
             logger.error(f"Failed to get M2M token: {e}")
             raise ValueError(f"M2M token generation failed: {e}")
 
+    def initiate_device_code_flow(
+        self,
+        scope: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Initiate device code flow for user authentication.
+
+        This allows CLI applications to authenticate users by displaying a code
+        that the user enters at a browser URL. The user logs in with their
+        credentials and the CLI receives a token on their behalf.
+
+        Args:
+            scope: OAuth scopes to request (defaults to openid profile email)
+
+        Returns:
+            Dictionary containing:
+                - device_code: Code for polling
+                - user_code: Code for user to enter
+                - verification_uri: URL for user to visit
+                - expires_in: Seconds until codes expire
+                - interval: Polling interval in seconds
+                - message: User-friendly instruction message
+
+        Raises:
+            ValueError: If device code request fails
+        """
+        try:
+            logger.info("Initiating device code flow")
+
+            # Default scopes for user authentication
+            if not scope:
+                scope = f'api://{self.client_id}/user_impersonation openid profile email'
+
+            data = {
+                'client_id': self.client_id,
+                'scope': scope
+            }
+
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+
+            # Device code endpoint
+            device_code_url = self.token_url.replace('/token', '/devicecode')
+
+            response = requests.post(
+                device_code_url,
+                data=data,
+                headers=headers,
+                timeout=10
+            )
+            response.raise_for_status()
+
+            result = response.json()
+            logger.info(f"Device code flow initiated, user_code: {result.get('user_code')}")
+
+            return result
+
+        except requests.RequestException as e:
+            logger.error(f"Failed to initiate device code flow: {e}")
+            raise ValueError(f"Device code flow initiation failed: {e}")
+
+    def poll_device_code_token(
+        self,
+        device_code: str,
+        interval: int = 5,
+        timeout: int = 300
+    ) -> Dict[str, Any]:
+        """Poll for token after user completes device code authentication.
+
+        Args:
+            device_code: The device code from initiate_device_code_flow
+            interval: Polling interval in seconds (default 5)
+            timeout: Maximum time to wait in seconds (default 300)
+
+        Returns:
+            Dictionary containing token response:
+                - access_token: The user's access token
+                - token_type: "Bearer"
+                - expires_in: Token expiration time in seconds
+                - refresh_token: Token for refreshing access
+                - id_token: OpenID Connect ID token
+
+        Raises:
+            ValueError: If polling times out or fails
+        """
+        try:
+            logger.info("Polling for device code token")
+
+            data = {
+                'grant_type': 'urn:ietf:params:oauth:grant-type:device_code',
+                'client_id': self.client_id,
+                'device_code': device_code
+            }
+
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+
+            start_time = time.time()
+
+            while (time.time() - start_time) < timeout:
+                response = requests.post(
+                    self.token_url,
+                    data=data,
+                    headers=headers,
+                    timeout=10
+                )
+
+                if response.status_code == 200:
+                    token_data = response.json()
+                    logger.info("Device code authentication successful")
+                    return token_data
+
+                error_data = response.json()
+                error = error_data.get('error', '')
+
+                if error == 'authorization_pending':
+                    # User hasn't completed auth yet, keep polling
+                    logger.debug("Authorization pending, continuing to poll")
+                    time.sleep(interval)
+                    continue
+                elif error == 'slow_down':
+                    # Polling too fast, increase interval
+                    interval += 5
+                    logger.debug(f"Slowing down, new interval: {interval}s")
+                    time.sleep(interval)
+                    continue
+                elif error == 'expired_token':
+                    raise ValueError("Device code expired. Please start over.")
+                elif error == 'access_denied':
+                    raise ValueError("User denied the authorization request.")
+                else:
+                    raise ValueError(f"Token request failed: {error_data.get('error_description', error)}")
+
+            raise ValueError("Device code authentication timed out")
+
+        except requests.RequestException as e:
+            logger.error(f"Failed to poll device code token: {e}")
+            raise ValueError(f"Device code token polling failed: {e}")
+
     def get_provider_info(self) -> Dict[str, Any]:
         """Get provider-specific information.
 
