@@ -1050,7 +1050,7 @@ class RegistryClient:
         self,
         group_name: str,
         description: Optional[str] = None,
-        create_in_keycloak: bool = False
+        create_in_idp: bool = False
     ) -> Dict[str, Any]:
         """
         Create a new user group.
@@ -1058,7 +1058,7 @@ class RegistryClient:
         Args:
             group_name: Name of group
             description: Group description
-            create_in_keycloak: Whether to create in Keycloak
+            create_in_idp: Whether to create in IdP (Keycloak/Entra)
 
         Returns:
             Response data
@@ -1071,8 +1071,8 @@ class RegistryClient:
         data = {"group_name": group_name}
         if description:
             data["description"] = description
-        if create_in_keycloak:
-            data["create_in_keycloak"] = True
+        if create_in_idp:
+            data["create_in_idp"] = True
 
         response = self._make_request(
             method="POST",
@@ -1086,7 +1086,7 @@ class RegistryClient:
     def delete_group(
         self,
         group_name: str,
-        delete_from_keycloak: bool = False,
+        delete_from_idp: bool = False,
         force: bool = False
     ) -> Dict[str, Any]:
         """
@@ -1094,7 +1094,7 @@ class RegistryClient:
 
         Args:
             group_name: Name of group
-            delete_from_keycloak: Whether to delete from Keycloak
+            delete_from_idp: Whether to delete from IdP (Keycloak/Entra)
             force: Force deletion of system groups
 
         Returns:
@@ -1106,8 +1106,8 @@ class RegistryClient:
         logger.info(f"Deleting group: {group_name}")
 
         data = {"group_name": group_name}
-        if delete_from_keycloak:
-            data["delete_from_keycloak"] = True
+        if delete_from_idp:
+            data["delete_from_idp"] = True
         if force:
             data["force"] = True
 
@@ -1136,7 +1136,7 @@ class RegistryClient:
                 - server_access (optional): List of server access definitions
                 - group_mappings (optional): List of group mappings
                 - ui_permissions (optional): Dictionary of UI permissions
-                - create_in_keycloak (optional): Whether to create in Keycloak (default: true)
+                - create_in_idp (optional): Whether to create in IdP (default: true)
 
         Returns:
             Response data

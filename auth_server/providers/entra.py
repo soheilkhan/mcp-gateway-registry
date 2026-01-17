@@ -1,6 +1,7 @@
 """Microsoft Entra ID (Azure AD) authentication provider implementation."""
 
 import logging
+import os
 import time
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode
@@ -16,6 +17,9 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# Default Entra ID login base URL
+DEFAULT_ENTRA_LOGIN_BASE_URL = "https://login.microsoftonline.com"
 
 
 class EntraIdProvider(AuthProvider):
@@ -51,8 +55,14 @@ class EntraIdProvider(AuthProvider):
         self._jwks_cache_time: float = 0
         self._jwks_cache_ttl: int = 3600  # 1 hour
 
+        # Get login base URL from environment variable or use default
+        login_base_url = os.environ.get(
+            "ENTRA_LOGIN_BASE_URL",
+            DEFAULT_ENTRA_LOGIN_BASE_URL
+        )
+
         # Entra ID endpoints
-        base_url = f"https://login.microsoftonline.com/{tenant_id}"
+        base_url = f"{login_base_url}/{tenant_id}"
         self.auth_url = f"{base_url}/oauth2/v2.0/authorize"
         self.token_url = f"{base_url}/oauth2/v2.0/token"
         self.userinfo_url = "https://graph.microsoft.com/oidc/userinfo"

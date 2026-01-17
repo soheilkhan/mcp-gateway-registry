@@ -217,12 +217,12 @@ from registry_client import (
     AnthropicServerResponse,
     M2MAccountRequest,
     HumanUserRequest,
-    KeycloakUserSummary,
+    UserSummary,
     UserListResponse,
     UserDeleteResponse,
     M2MAccountResponse,
     GroupCreateRequest,
-    KeycloakGroupSummary,
+    GroupSummary,
     GroupDeleteResponse,
 )
 
@@ -706,7 +706,7 @@ def cmd_create_group(args: argparse.Namespace) -> int:
         response = client.create_group(
             group_name=args.name,
             description=args.description,
-            create_in_keycloak=args.keycloak
+            create_in_idp=args.idp
         )
 
         logger.info(f"Group created successfully: {args.name}")
@@ -737,7 +737,7 @@ def cmd_delete_group(args: argparse.Namespace) -> int:
         client = _create_client(args)
         response = client.delete_group(
             group_name=args.name,
-            delete_from_keycloak=args.keycloak,
+            delete_from_idp=args.idp,
             force=args.force
         )
 
@@ -2517,9 +2517,9 @@ Examples:
         help="Group description"
     )
     create_group_parser.add_argument(
-        "--keycloak",
+        "--idp",
         action="store_true",
-        help="Also create in Keycloak"
+        help="Also create in IdP (Keycloak/Entra)"
     )
 
     # Delete group command
@@ -2530,9 +2530,9 @@ Examples:
         help="Group name"
     )
     delete_group_parser.add_argument(
-        "--keycloak",
+        "--idp",
         action="store_true",
-        help="Also delete from Keycloak"
+        help="Also delete from IdP (Keycloak/Entra)"
     )
     delete_group_parser.add_argument(
         "--force",

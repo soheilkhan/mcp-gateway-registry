@@ -210,3 +210,28 @@ session_cookie_domain = ""
 # Default: 1 (recommended for most deployments)
 # Increase only when scaling beyond single shard capacity
 # documentdb_shard_count = 1
+
+# ============================================================================
+# MICROSOFT ENTRA ID CONFIGURATION (Alternative to Keycloak)
+# ============================================================================
+
+# To use Microsoft Entra ID instead of Keycloak for authentication:
+# 1. Set AUTH_PROVIDER=entra in your environment
+# 2. Configure the variables below
+
+# Entra ID Tenant ID (Directory ID from Azure Portal)
+# entra_tenant_id = "your-tenant-id-guid"
+
+# Entra ID Application (client) ID
+# entra_client_id = "your-client-id-guid"
+
+# Entra ID Client Secret
+# entra_client_secret = "your-client-secret"
+
+# Entra ID Login Base URL (optional - defaults to Azure Public Cloud)
+# Change only if using a sovereign cloud:
+#   - Azure Public Cloud (default): https://login.microsoftonline.com
+#   - Azure Government: https://login.microsoftonline.us
+#   - Azure China: https://login.chinacloudapi.cn
+#   - Azure Germany: https://login.microsoftonline.de
+# entra_login_base_url = "https://login.microsoftonline.com"

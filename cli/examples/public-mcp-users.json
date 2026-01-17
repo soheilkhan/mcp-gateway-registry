@@ -1,0 +1,46 @@
+{
+  "scope_name": "public-mcp-users",
+  "description": "Users with access to public MCP servers (context7, cloudflare-docs)",
+  "server_access": [
+    {
+      "server": "context7",
+      "methods": ["initialize", "tools/list", "tools/call"],
+      "tools": ["*"]
+    },
+    {
+      "server": "/context7",
+      "methods": ["initialize", "tools/list", "tools/call"],
+      "tools": ["*"]
+    },
+    {
+      "server": "/context7/",
+      "methods": ["initialize", "tools/list", "tools/call"],
+      "tools": ["*"]
+    },
+    {
+      "server": "cloudflare-docs",
+      "methods": ["initialize", "tools/list", "tools/call"],
+      "tools": ["*"]
+    },
+    {
+      "server": "/cloudflare-docs",
+      "methods": ["initialize", "tools/list", "tools/call"],
+      "tools": ["*"]
+    },
+    {
+      "server": "/cloudflare-docs/",
+      "methods": ["initialize", "tools/list", "tools/call"],
+      "tools": ["*"]
+    },
+    {
+      "server": "api",
+      "methods": ["initialize", "GET", "POST", "servers", "agents", "search", "rating", "tools"],
+      "tools": []
+    }
+  ],
+  "group_mappings": ["public-mcp-users"],
+  "ui_permissions": {
+    "list_service": ["all"]
+  },
+  "create_in_idp": true
+}
