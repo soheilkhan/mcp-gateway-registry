@@ -255,6 +255,8 @@ group_mappings:
 
 ### Entra ID App Registration Requirements
 
+#### User Authentication App (OAuth Login)
+
 1. **Redirect URIs**: Add your auth server callback URLs
    - `https://your-domain.com/oauth2/callback/entra`
 
@@ -262,7 +264,7 @@ group_mappings:
    - Enable ID tokens
    - Add `groups` claim to ID token
 
-3. **API Permissions**:
+3. **API Permissions (Delegated)**:
    - `openid` (delegated)
    - `email` (delegated)
    - `profile` (delegated)
@@ -270,6 +272,26 @@ group_mappings:
 4. **Group Claims**:
    - Configure "Groups assigned to the application" or "All groups"
    - Emit groups as Object IDs (not names)
+
+#### Admin App (IAM Management - M2M Account Creation)
+
+To create M2M service accounts via the Management API, the admin app registration needs additional **Application permissions** (not delegated):
+
+1. **API Permissions (Application - requires admin consent)**:
+   - `Application.ReadWrite.All` - Create/manage app registrations
+   - `Directory.ReadWrite.All` - Create service principals and manage group memberships
+   - `Group.ReadWrite.All` - Create and manage groups
+   - `User.ReadWrite.All` - Create and manage users
+
+2. **Grant Admin Consent**:
+   - After adding permissions, click "Grant admin consent for [Tenant]"
+   - Requires Global Administrator or Privileged Role Administrator
+
+3. **Client Secret**:
+   - Create a client secret under "Certificates & secrets"
+   - Set as `ENTRA_CLIENT_SECRET` environment variable
+
+**Note**: The admin app is used by the registry backend for IAM operations. It's separate from the user-facing OAuth app (though they can be the same app registration with both delegated and application permissions).
 
 ## JWT Token Structure
 

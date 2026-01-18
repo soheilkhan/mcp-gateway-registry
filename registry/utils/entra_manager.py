@@ -6,6 +6,7 @@ via the Microsoft Graph API. It handles authentication, user/group CRUD
 operations, and integrates with the registry.
 """
 
+import asyncio
 import logging
 import os
 import re
@@ -554,19 +555,67 @@ async def create_service_principal_client(
         app_id = app_data["appId"]  # This is the client_id
         app_object_id = app_data["id"]  # Object ID for managing the app
 
-        # 2. Create Service Principal for the app
+        # 2. Create Service Principal for the app (with retry for eventual consistency)
         sp_payload = {"appId": app_id}
+        sp_max_retries = 5
+        sp_retry_delay = 2.0
+        sp_object_id = None
 
-        sp_response = await client.post(
-            f"{GRAPH_BASE_URL}/servicePrincipals",
-            headers=_auth_headers(admin_token),
-            json=sp_payload,
-        )
-        sp_response.raise_for_status()
-        sp_data = sp_response.json()
-        sp_object_id = sp_data["id"]
+        for sp_attempt in range(sp_max_retries):
+            sp_response = await client.post(
+                f"{GRAPH_BASE_URL}/servicePrincipals",
+                headers=_auth_headers(admin_token),
+                json=sp_payload,
+            )
 
-        # 3. Create client secret
+            if sp_response.status_code in (200, 201):
+                sp_data = sp_response.json()
+                sp_object_id = sp_data["id"]
+                logger.info(f"Created service principal: {sp_object_id}")
+                break
+
+            if sp_response.status_code == 400:
+                error_data = sp_response.json()
+                error_msg = error_data.get("error", {}).get("message", "")
+
+                # Check if it's an eventual consistency issue
+                if "does not reference a valid application object" in error_msg:
+                    if sp_attempt < sp_max_retries - 1:
+                        logger.warning(
+                            f"App not yet propagated for SP creation "
+                            f"(attempt {sp_attempt + 1}/{sp_max_retries}), "
+                            f"retrying in {sp_retry_delay}s..."
+                        )
+                        await asyncio.sleep(sp_retry_delay)
+                        sp_retry_delay *= 1.5
+                        continue
+
+                # Check if SP already exists
+                logger.warning(f"Service principal creation returned 400: {error_msg}")
+                find_sp_response = await client.get(
+                    f"{GRAPH_BASE_URL}/servicePrincipals",
+                    headers=_auth_headers(admin_token),
+                    params={"$filter": f"appId eq '{app_id}'"},
+                )
+                find_sp_response.raise_for_status()
+                find_sp_data = find_sp_response.json()
+                existing_sps = find_sp_data.get("value", [])
+
+                if existing_sps:
+                    sp_object_id = existing_sps[0]["id"]
+                    logger.info(f"Found existing service principal: {sp_object_id}")
+                    break
+
+                raise EntraAdminError(f"Failed to create service principal: {error_msg}")
+
+            sp_response.raise_for_status()
+
+        if not sp_object_id:
+            raise EntraAdminError(
+                f"Failed to create service principal after {sp_max_retries} retries"
+            )
+
+        # 3. Create client secret (with retry for eventual consistency)
         secret_payload = {
             "passwordCredential": {
                 "displayName": f"{client_id_name}-secret",
@@ -574,14 +623,35 @@ async def create_service_principal_client(
             }
         }
 
-        secret_response = await client.post(
-            f"{GRAPH_BASE_URL}/applications/{app_object_id}/addPassword",
-            headers=_auth_headers(admin_token),
-            json=secret_payload,
-        )
-        secret_response.raise_for_status()
-        secret_data = secret_response.json()
-        client_secret = secret_data["secretText"]
+        # Retry logic for eventual consistency in Entra ID
+        max_retries = 3
+        retry_delay = 2.0
+        client_secret = None
+
+        for attempt in range(max_retries):
+            secret_response = await client.post(
+                f"{GRAPH_BASE_URL}/applications/{app_object_id}/addPassword",
+                headers=_auth_headers(admin_token),
+                json=secret_payload,
+            )
+
+            if secret_response.status_code == 200:
+                secret_data = secret_response.json()
+                client_secret = secret_data["secretText"]
+                break
+            elif secret_response.status_code == 404 and attempt < max_retries - 1:
+                # App not yet available due to eventual consistency
+                logger.warning(
+                    f"App not ready for password creation (attempt {attempt + 1}/{max_retries}), "
+                    f"retrying in {retry_delay}s..."
+                )
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                secret_response.raise_for_status()
+
+        if not client_secret:
+            raise EntraAdminError("Failed to create client secret after retries")
 
         # 4. Add service principal to groups
         for group_name in group_names:
