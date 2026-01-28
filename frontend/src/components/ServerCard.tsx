@@ -17,6 +17,18 @@ import {
 import ServerConfigModal from './ServerConfigModal';
 import SecurityScanModal from './SecurityScanModal';
 import StarRatingWidget from './StarRatingWidget';
+import VersionBadge from './VersionBadge';
+import VersionSelectorModal from './VersionSelectorModal';
+
+interface ServerVersion {
+  version: string;
+  proxy_pass_url: string;
+  status: string;
+  is_default: boolean;
+  released?: string;
+  sunset_date?: string;
+  description?: string;
+}
 
 export interface Server {
   name: string;
@@ -33,6 +45,9 @@ export interface Server {
   num_tools?: number;
   proxy_pass_url?: string;
   mcp_endpoint?: string;
+  // Version routing fields
+  versions?: ServerVersion[];
+  default_version?: string;
 }
 
 interface ServerCardProps {
@@ -103,6 +118,7 @@ const ServerCard: React.FC<ServerCardProps> = React.memo(({ server, onToggle, on
   const [showSecurityScan, setShowSecurityScan] = useState(false);
   const [securityScanResult, setSecurityScanResult] = useState<any>(null);
   const [loadingSecurityScan, setLoadingSecurityScan] = useState(false);
+  const [showVersionSelector, setShowVersionSelector] = useState(false);
 
   // Fetch security scan status on mount to show correct icon color
   useEffect(() => {
@@ -346,10 +362,10 @@ const ServerCard: React.FC<ServerCardProps> = React.memo(({ server, onToggle, on
             {server.description || 'No description available'}
           </p>
 
-          {/* Tags */}
-          {server.tags && server.tags.length > 0 && (
+          {/* Tags and Version Badge */}
+          {(server.tags && server.tags.length > 0) || (server.versions && server.versions.length > 0) ? (
             <div className="flex flex-wrap gap-1.5 mb-4">
-              {server.tags.slice(0, 3).map((tag) => (
+              {server.tags?.slice(0, 3).map((tag) => (
                 <span
                   key={tag}
                   className="px-2 py-1 text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded"
@@ -357,13 +373,19 @@ const ServerCard: React.FC<ServerCardProps> = React.memo(({ server, onToggle, on
                   #{tag}
                 </span>
               ))}
-              {server.tags.length > 3 && (
+              {server.tags && server.tags.length > 3 && (
                 <span className="px-2 py-1 text-xs font-medium bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded">
                   +{server.tags.length - 3}
                 </span>
               )}
+              {/* Version Badge */}
+              <VersionBadge
+                versions={server.versions}
+                defaultVersion={server.default_version}
+                onClick={() => setShowVersionSelector(true)}
+              />
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Stats */}
@@ -567,6 +589,23 @@ const ServerCard: React.FC<ServerCardProps> = React.memo(({ server, onToggle, on
         onRescan={canModify ? handleRescan : undefined}
         canRescan={canModify}
         onShowToast={onShowToast}
+      />
+
+      <VersionSelectorModal
+        isOpen={showVersionSelector}
+        onClose={() => setShowVersionSelector(false)}
+        serverName={server.name}
+        serverPath={server.path}
+        versions={server.versions || []}
+        defaultVersion={server.default_version || null}
+        onVersionChange={(newDefaultVersion) => {
+          if (onServerUpdate) {
+            onServerUpdate(server.path, { default_version: newDefaultVersion });
+          }
+        }}
+        onShowToast={onShowToast}
+        authToken={authToken}
+        canModify={canModify}
       />
 
     </>

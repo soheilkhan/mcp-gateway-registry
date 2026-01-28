@@ -1476,3 +1476,415 @@ class TestEdgeCasesAndErrorHandling:
 #
 # The service layer should only test orchestration, not file I/O details.
 
+
+# =============================================================================
+# TEST: Server Version Management
+# =============================================================================
+
+
+@pytest.mark.unit
+@pytest.mark.servers
+class TestServerVersionManagement:
+    """Test server version management functionality."""
+
+    @pytest.fixture
+    def sample_server_with_versions(self) -> dict[str, Any]:
+        """Create a sample server with version data."""
+        return {
+            "path": "/versioned-server",
+            "server_name": "versioned-server",
+            "description": "A server with multiple versions",
+            "proxy_pass_url": "http://localhost:8080",
+            "versions": [
+                {
+                    "version": "v1.0.0",
+                    "proxy_pass_url": "http://localhost:8080",
+                    "status": "stable",
+                    "is_default": True,
+                },
+                {
+                    "version": "v2.0.0",
+                    "proxy_pass_url": "http://localhost:8081",
+                    "status": "beta",
+                    "is_default": False,
+                },
+            ],
+            "default_version": "v1.0.0",
+            "is_active": True,
+        }
+
+    @pytest.mark.asyncio
+    async def test_get_all_servers_filters_inactive_by_default(
+        self,
+        server_service: ServerService,
+        sample_server_dict: dict[str, Any],
+        mock_server_repository,
+    ):
+        """Test that get_all_servers filters out inactive servers by default."""
+        # Arrange - one active, one inactive server
+        active_server = sample_server_dict.copy()
+        active_server["is_active"] = True
+
+        inactive_server = {
+            "path": "/inactive-server",
+            "server_name": "inactive-server",
+            "description": "Inactive version",
+            "is_active": False,
+        }
+
+        mock_server_repository.list_all.return_value = {
+            active_server["path"]: active_server,
+            inactive_server["path"]: inactive_server,
+        }
+
+        # Act
+        result = await server_service.get_all_servers(include_federated=False)
+
+        # Assert - only active server should be returned
+        assert len(result) == 1
+        assert sample_server_dict["path"] in result
+        assert "/inactive-server" not in result
+
+    @pytest.mark.asyncio
+    async def test_get_all_servers_includes_inactive_when_requested(
+        self,
+        server_service: ServerService,
+        sample_server_dict: dict[str, Any],
+        mock_server_repository,
+    ):
+        """Test that get_all_servers includes inactive servers when requested."""
+        # Arrange - one active, one inactive server
+        active_server = sample_server_dict.copy()
+        active_server["is_active"] = True
+
+        inactive_server = {
+            "path": "/inactive-server",
+            "server_name": "inactive-server",
+            "description": "Inactive version",
+            "is_active": False,
+        }
+
+        mock_server_repository.list_all.return_value = {
+            active_server["path"]: active_server,
+            inactive_server["path"]: inactive_server,
+        }
+
+        # Act
+        result = await server_service.get_all_servers(
+            include_federated=False,
+            include_inactive=True
+        )
+
+        # Assert - both servers should be returned
+        assert len(result) == 2
+        assert sample_server_dict["path"] in result
+        assert "/inactive-server" in result
+
+    @pytest.mark.asyncio
+    async def test_get_all_servers_treats_missing_is_active_as_true(
+        self,
+        server_service: ServerService,
+        sample_server_dict: dict[str, Any],
+        mock_server_repository,
+    ):
+        """Test that servers without is_active field are treated as active."""
+        # Arrange - server without is_active field (backward compatibility)
+        legacy_server = sample_server_dict.copy()
+        # No is_active field - should default to True
+
+        mock_server_repository.list_all.return_value = {
+            legacy_server["path"]: legacy_server,
+        }
+
+        # Act
+        result = await server_service.get_all_servers(include_federated=False)
+
+        # Assert - server should be included (default is_active=True)
+        assert len(result) == 1
+        assert sample_server_dict["path"] in result
+
+    @pytest.mark.asyncio
+    async def test_get_filtered_servers_filters_inactive_by_default(
+        self,
+        server_service: ServerService,
+        sample_server_dict: dict[str, Any],
+        mock_server_repository,
+    ):
+        """Test that get_filtered_servers filters out inactive servers."""
+        # Arrange - one active, one inactive server
+        active_server = sample_server_dict.copy()
+        active_server["is_active"] = True
+
+        inactive_server = {
+            "path": "/inactive-server",
+            "server_name": "inactive-server",
+            "description": "Inactive version",
+            "is_active": False,
+        }
+
+        mock_server_repository.list_all.return_value = {
+            active_server["path"]: active_server,
+            inactive_server["path"]: inactive_server,
+        }
+
+        # Act - request both servers
+        result = await server_service.get_filtered_servers(
+            ["test-server", "inactive-server"]
+        )
+
+        # Assert - only active server should be returned
+        assert len(result) == 1
+        assert sample_server_dict["path"] in result
+        assert "/inactive-server" not in result
+
+    @pytest.mark.asyncio
+    async def test_add_server_version_creates_version_list(
+        self,
+        server_service: ServerService,
+        sample_server_dict: dict[str, Any],
+        mock_server_repository,
+    ):
+        """Test adding a version to a single-version server creates version list."""
+        # Arrange - server without versions
+        server_data = sample_server_dict.copy()
+        server_data["versions"] = None
+        server_data["proxy_pass_url"] = "http://localhost:8080"
+        mock_server_repository.get.return_value = server_data
+        mock_server_repository.update.return_value = True
+
+        # Mock nginx service
+        with patch("registry.core.nginx_service.nginx_service") as mock_nginx_service:
+            mock_server_repository.list_all.return_value = {}
+
+            # Act
+            result = await server_service.add_server_version(
+                path=sample_server_dict["path"],
+                version="v2.0.0",
+                proxy_pass_url="http://localhost:8081",
+                status="beta",
+                is_default=False
+            )
+
+        # Assert
+        assert result is True
+        mock_server_repository.update.assert_called_once()
+        # Verify the update call contains versions
+        call_args = mock_server_repository.update.call_args
+        updated_data = call_args[0][1]
+        assert "versions" in updated_data
+        assert len(updated_data["versions"]) == 2  # original + new
+
+    @pytest.mark.asyncio
+    async def test_add_server_version_nonexistent_server(
+        self,
+        server_service: ServerService,
+        mock_server_repository,
+    ):
+        """Test adding a version to nonexistent server raises ValueError."""
+        # Arrange
+        mock_server_repository.get.return_value = None
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="Server not found"):
+            await server_service.add_server_version(
+                path="/nonexistent",
+                version="v1.0.0",
+                proxy_pass_url="http://localhost:8080"
+            )
+
+        mock_server_repository.update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_set_default_version_success(
+        self,
+        server_service: ServerService,
+        mock_server_repository,
+    ):
+        """Test setting default version updates all version is_default flags."""
+        # Arrange - server with two versions
+        server_data = {
+            "path": "/versioned-server",
+            "server_name": "versioned-server",
+            "versions": [
+                {"version": "v1.0.0", "proxy_pass_url": "http://localhost:8080", "is_default": True},
+                {"version": "v2.0.0", "proxy_pass_url": "http://localhost:8081", "is_default": False},
+            ],
+            "default_version": "v1.0.0",
+        }
+        mock_server_repository.get.return_value = server_data
+        mock_server_repository.update.return_value = True
+
+        with patch("registry.core.nginx_service.nginx_service"):
+            mock_server_repository.list_all.return_value = {}
+
+            # Act
+            result = await server_service.set_default_version(
+                path="/versioned-server",
+                version="v2.0.0"
+            )
+
+        # Assert
+        assert result is True
+        call_args = mock_server_repository.update.call_args
+        updated_data = call_args[0][1]
+        assert updated_data["default_version"] == "v2.0.0"
+        # Verify is_default flags updated
+        v1 = next(v for v in updated_data["versions"] if v["version"] == "v1.0.0")
+        v2 = next(v for v in updated_data["versions"] if v["version"] == "v2.0.0")
+        assert v1["is_default"] is False
+        assert v2["is_default"] is True
+
+    @pytest.mark.asyncio
+    async def test_set_default_version_nonexistent_version(
+        self,
+        server_service: ServerService,
+        mock_server_repository,
+    ):
+        """Test setting default to nonexistent version raises ValueError."""
+        # Arrange
+        server_data = {
+            "path": "/versioned-server",
+            "server_name": "versioned-server",
+            "versions": [
+                {"version": "v1.0.0", "proxy_pass_url": "http://localhost:8080", "is_default": True},
+            ],
+            "default_version": "v1.0.0",
+        }
+        mock_server_repository.get.return_value = server_data
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="not found"):
+            await server_service.set_default_version(
+                path="/versioned-server",
+                version="v99.0.0"  # Does not exist
+            )
+
+        mock_server_repository.update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_remove_server_version_success(
+        self,
+        server_service: ServerService,
+        mock_server_repository,
+    ):
+        """Test removing a non-default version succeeds."""
+        # Arrange
+        server_data = {
+            "path": "/versioned-server",
+            "server_name": "versioned-server",
+            "versions": [
+                {"version": "v1.0.0", "proxy_pass_url": "http://localhost:8080", "is_default": True},
+                {"version": "v2.0.0", "proxy_pass_url": "http://localhost:8081", "is_default": False},
+            ],
+            "default_version": "v1.0.0",
+        }
+        mock_server_repository.get.return_value = server_data
+        mock_server_repository.update.return_value = True
+
+        with patch("registry.core.nginx_service.nginx_service"):
+            mock_server_repository.list_all.return_value = {}
+
+            # Act
+            result = await server_service.remove_server_version(
+                path="/versioned-server",
+                version="v2.0.0"
+            )
+
+        # Assert
+        assert result is True
+        call_args = mock_server_repository.update.call_args
+        updated_data = call_args[0][1]
+        assert len(updated_data["versions"]) == 1
+        assert updated_data["versions"][0]["version"] == "v1.0.0"
+
+    @pytest.mark.asyncio
+    async def test_remove_server_version_cannot_remove_default(
+        self,
+        server_service: ServerService,
+        mock_server_repository,
+    ):
+        """Test that removing default version raises ValueError."""
+        # Arrange
+        server_data = {
+            "path": "/versioned-server",
+            "server_name": "versioned-server",
+            "versions": [
+                {"version": "v1.0.0", "proxy_pass_url": "http://localhost:8080", "is_default": True},
+                {"version": "v2.0.0", "proxy_pass_url": "http://localhost:8081", "is_default": False},
+            ],
+            "default_version": "v1.0.0",
+        }
+        mock_server_repository.get.return_value = server_data
+
+        # Act & Assert - try to remove default version
+        with pytest.raises(ValueError, match="Cannot remove default version"):
+            await server_service.remove_server_version(
+                path="/versioned-server",
+                version="v1.0.0"  # This is the default
+            )
+
+        mock_server_repository.update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_server_versions_returns_versions(
+        self,
+        server_service: ServerService,
+        mock_server_repository,
+    ):
+        """Test getting versions returns version info dict."""
+        # Arrange
+        versions = [
+            {"version": "v1.0.0", "proxy_pass_url": "http://localhost:8080", "is_default": True},
+            {"version": "v2.0.0", "proxy_pass_url": "http://localhost:8081", "is_default": False},
+        ]
+        server_data = {
+            "path": "/versioned-server",
+            "server_name": "versioned-server",
+            "versions": versions,
+            "default_version": "v1.0.0",
+        }
+        mock_server_repository.get.return_value = server_data
+
+        # Act
+        result = await server_service.get_server_versions("/versioned-server")
+
+        # Assert
+        assert result["path"] == "/versioned-server"
+        assert result["default_version"] == "v1.0.0"
+        assert result["versions"] == versions
+
+    @pytest.mark.asyncio
+    async def test_get_server_versions_returns_single_version_for_legacy_server(
+        self,
+        server_service: ServerService,
+        sample_server_dict: dict[str, Any],
+        mock_server_repository,
+    ):
+        """Test getting versions for single-version server returns v1.0.0."""
+        # Arrange - server without versions field
+        mock_server_repository.get.return_value = sample_server_dict
+
+        # Act
+        result = await server_service.get_server_versions(sample_server_dict["path"])
+
+        # Assert - should return synthetic v1.0.0 version
+        assert result["path"] == sample_server_dict["path"]
+        assert result["default_version"] == "v1.0.0"
+        assert len(result["versions"]) == 1
+        assert result["versions"][0]["version"] == "v1.0.0"
+        assert result["versions"][0]["is_default"] is True
+
+    @pytest.mark.asyncio
+    async def test_get_server_versions_nonexistent_server(
+        self,
+        server_service: ServerService,
+        mock_server_repository,
+    ):
+        """Test getting versions for nonexistent server raises ValueError."""
+        # Arrange
+        mock_server_repository.get.return_value = None
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="Server not found"):
+            await server_service.get_server_versions("/nonexistent")
+

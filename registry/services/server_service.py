@@ -88,18 +88,31 @@ class ServerService:
         """Get server information by path - queries repository directly."""
         return await self._repo.get(path)
 
-    async def get_all_servers(self, include_federated: bool = True) -> Dict[str, Dict[str, Any]]:
+    async def get_all_servers(
+        self,
+        include_federated: bool = True,
+        include_inactive: bool = False
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Get all registered servers.
 
         Args:
             include_federated: If True, include servers from federated registries
+            include_inactive: If True, include inactive server versions (default False)
 
         Returns:
             Dict of all servers (local and federated if requested)
         """
         # Query repository directly instead of using cache
         all_servers = await self._repo.list_all()
+
+        # Filter out inactive servers (non-default versions) unless requested
+        if not include_inactive:
+            all_servers = {
+                path: server_info
+                for path, server_info in all_servers.items()
+                if server_info.get("is_active", True)  # Default to True for backward compatibility
+            }
 
         # Add federated servers if requested
         if include_federated:
@@ -120,12 +133,17 @@ class ServerService:
 
         return all_servers
 
-    async def get_filtered_servers(self, accessible_servers: List[str]) -> Dict[str, Dict[str, Any]]:
+    async def get_filtered_servers(
+        self,
+        accessible_servers: List[str],
+        include_inactive: bool = False
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Get servers filtered by user's accessible servers list.
 
         Args:
             accessible_servers: List of server names the user can access
+            include_inactive: If True, include inactive server versions (default False)
 
         Returns:
             Dict of servers the user is authorized to see
@@ -136,6 +154,14 @@ class ServerService:
 
         # Query repository directly instead of using cache
         all_servers = await self._repo.list_all()
+
+        # Filter out inactive servers (non-default versions) unless requested
+        if not include_inactive:
+            all_servers = {
+                path: server_info
+                for path, server_info in all_servers.items()
+                if server_info.get("is_active", True)  # Default to True for backward compatibility
+            }
 
         logger.info(f"DEBUG: get_filtered_servers called with accessible_servers: {accessible_servers}")
         logger.info(f"DEBUG: Available registered servers paths: {list(all_servers.keys())}")
