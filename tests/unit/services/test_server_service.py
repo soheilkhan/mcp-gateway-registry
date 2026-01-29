@@ -1248,33 +1248,34 @@ class TestRemoveServer:
     ):
         """Test successfully removing a server."""
         # Arrange
-        mock_server_repository.delete.return_value = True
+        mock_server_repository.delete_with_versions.return_value = 1
 
         # Act
         result = await server_service.remove_server(sample_server_dict["path"])
 
         # Assert
         assert result is True
-        mock_server_repository.delete.assert_called_once_with(sample_server_dict["path"])
+        mock_server_repository.delete_with_versions.assert_called_once_with(sample_server_dict["path"])
         mock_search_repository.remove_entity.assert_called_once_with(sample_server_dict["path"])
 
     @pytest.mark.asyncio
-    async def test_remove_server_calls_repository_delete(
+    async def test_remove_server_deletes_all_versions(
         self,
         server_service: ServerService,
         sample_server_dict: dict[str, Any],
         mock_server_repository,
         mock_search_repository,
     ):
-        """Test that remove_server calls repository delete."""
-        # Arrange
-        mock_server_repository.delete.return_value = True
+        """Test that remove_server deletes active and version documents."""
+        # Arrange - simulate active doc + 2 version docs deleted
+        mock_server_repository.delete_with_versions.return_value = 3
 
         # Act
-        await server_service.remove_server(sample_server_dict["path"])
+        result = await server_service.remove_server(sample_server_dict["path"])
 
-        # Assert - verify orchestration
-        mock_server_repository.delete.assert_called_once_with(sample_server_dict["path"])
+        # Assert
+        assert result is True
+        mock_server_repository.delete_with_versions.assert_called_once_with(sample_server_dict["path"])
 
     @pytest.mark.asyncio
     async def test_remove_server_removes_from_search(
@@ -1286,7 +1287,7 @@ class TestRemoveServer:
     ):
         """Test that removing server removes it from search index."""
         # Arrange
-        mock_server_repository.delete.return_value = True
+        mock_server_repository.delete_with_versions.return_value = 1
 
         # Act
         await server_service.remove_server(sample_server_dict["path"])
@@ -1303,14 +1304,14 @@ class TestRemoveServer:
     ):
         """Test removing nonexistent server fails."""
         # Arrange
-        mock_server_repository.delete.return_value = False
+        mock_server_repository.delete_with_versions.return_value = 0
 
         # Act
         result = await server_service.remove_server("/nonexistent")
 
         # Assert
         assert result is False
-        mock_server_repository.delete.assert_called_once_with("/nonexistent")
+        mock_server_repository.delete_with_versions.assert_called_once_with("/nonexistent")
 
     @pytest.mark.asyncio
     async def test_remove_server_with_repository_failure(
@@ -1321,15 +1322,15 @@ class TestRemoveServer:
         mock_search_repository,
     ):
         """Test removing server when repository fails."""
-        # Arrange - repository returns False (failure)
-        mock_server_repository.delete.return_value = False
+        # Arrange - repository returns 0 (nothing deleted)
+        mock_server_repository.delete_with_versions.return_value = 0
 
         # Act
         result = await server_service.remove_server(sample_server_dict["path"])
 
         # Assert
         assert result is False
-        # Search should not be called if repository fails
+        # Search should not be called if repository deletes nothing
         mock_search_repository.remove_entity.assert_not_called()
 
 
@@ -1735,10 +1736,14 @@ class TestServerVersionManagement:
         mock_server_repository.create.return_value = True
         mock_server_repository.list_all.return_value = {}
 
-        # Mock nginx service with async methods
-        with patch("registry.core.nginx_service.nginx_service") as mock_nginx_service:
+        # Mock nginx service and health service
+        with patch("registry.core.nginx_service.nginx_service") as mock_nginx_service, \
+             patch("registry.health.service.health_service") as mock_health_service:
             mock_nginx_service.generate_config_async = AsyncMock()
             mock_nginx_service.reload_nginx = MagicMock()
+            mock_health_service.perform_immediate_health_check = AsyncMock(
+                return_value=("healthy", None)
+            )
 
             # Act
             result = await server_service.set_default_version(

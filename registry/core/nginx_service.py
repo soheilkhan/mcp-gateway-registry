@@ -523,10 +523,11 @@ map "$uri:$http_x_mcp_server_version" $versioned_backend {{
             Nginx location block as string
         """
         # Check if this server has multiple versions
+        # The MongoDB document stores linked version IDs in "other_version_ids"
         has_versions = False
         if server_info:
-            versions = server_info.get("versions")
-            has_versions = versions is not None and len(versions) > 1
+            other_version_ids = server_info.get("other_version_ids", [])
+            has_versions = len(other_version_ids) > 0
 
         # Extract hostname from proxy_pass_url for external services
         parsed_url = urlparse(proxy_pass_url)

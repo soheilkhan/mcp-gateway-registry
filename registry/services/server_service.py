@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any
 
@@ -471,17 +472,27 @@ class ServerService:
         return server_info["num_stars"]
 
     async def remove_server(self, path: str) -> bool:
-        """Remove a server from the registry and file system."""
-        result = await self._repo.delete(path)
+        """Remove a server and all its version documents from the registry.
 
-        if result:
+        Deletes the active document and any inactive version documents
+        with IDs matching `{path}:{version}` (e.g., /context7:v2.0.0).
+
+        Args:
+            path: Server base path (e.g., "/context7")
+
+        Returns:
+            True if at least one document was deleted
+        """
+        deleted_count = await self._repo.delete_with_versions(path)
+
+        if deleted_count > 0:
             # Remove from search backend
             try:
                 await self._search_repo.remove_entity(path)
             except Exception as e:
                 logger.error(f"Failed to remove server {path} from search: {e}")
 
-        return result
+        return deleted_count > 0
 
     async def add_server_version(
         self,
@@ -711,6 +722,14 @@ class ServerService:
 
         await self._regenerate_nginx_config()
         logger.info(f"Swapped active version from {current_version} to {version} for {path}")
+
+        # Trigger an immediate health check for the newly active version
+        try:
+            from ..health.service import health_service
+            asyncio.create_task(health_service.perform_immediate_health_check(path))
+            logger.info(f"Triggered background health check for {path} after version swap to {version}")
+        except Exception as e:
+            logger.error(f"Failed to trigger health check after version swap for {path}: {e}")
 
         return True
 
