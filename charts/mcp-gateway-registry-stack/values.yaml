@@ -1,0 +1,159 @@
+# Global configuration - these values are passed to all subcharts
+global:
+  # Domain configuration - update this to your actual domain
+  domain: "DOMAIN"
+
+  # Security settings
+  # secretKey: If not provided, a random 64-character key is auto-generated
+  # and shared between auth-server and registry via a shared secret.
+  # The generated key persists across helm upgrades.
+  # Uncomment and set to use a specific key:
+  # secretKey: "your-secure-key-here"
+
+  # Shared secret name - automatically set for stack deployment
+  # Both auth-server and registry will use this secret for SECRET_KEY
+  sharedSecretName: "shared-secret"
+
+  # Authentication Provider Configuration
+  # Choose ONE provider: keycloak or entra
+  authProvider:
+    # Provider type: "keycloak" or "entra"
+    type: keycloak
+    entra:
+      adminGroupId: # UUID of Entra admin group
+
+  # Common ingress settings
+  ingress:
+    inboundCidrs: # optional comma separated list of allowed inbound CIDR ranges
+    className: alb
+    tls: true
+    # Routing mode: "subdomain" or "path"
+    # - subdomain: auth-server.domain.com, mcpregistry.domain.com, keycloak.domain.com
+    # - path: domain.com/auth-server, domain.com/registry, domain.com/keycloak
+    routingMode: subdomain
+    # Path configuration (only used when routingMode: path)
+    paths:
+      authServer: /auth-server
+      registry: /registry
+      keycloak: /keycloak # make sure to update keycloak.httpRelativePath (/keycloak/)
+
+mongodb-kubernetes:
+  operator:
+    enableClusterMongoDBRoles: false
+    telemetry:
+      installClusterRole: false
+
+# MongoDB configuration
+mongodb:
+  enabled: true
+  user: my-user # username for MongDB
+  password: CHANGEME # Set the password for the MongoDB user
+
+# Keycloak configuration
+# Set create: true to deploy Keycloak as part of this stack
+# Set create: false to use an external Keycloak instance
+keycloak:
+  create: true  # Deploy Keycloak in this stack (set to false to use external Keycloak)
+  image:
+    repository: bitnamilegacy/keycloak
+
+  global:
+    security:
+      allowInsecureImages: true
+
+  postgresql:
+    image:
+      repository: bitnamilegacy/postgresql
+
+  # HTTP relative path for path-based routing
+  # IMPORTANT: This must match global.ingress.paths.keycloak when routingMode is "path"
+  # For subdomain routing, set to "/"
+  # IMPORTANT: This must have a trailing "/"
+  httpRelativePath: /
+
+  extraEnvVars:
+    - name: KC_PROXY
+      value: edge
+    - name: KC_PROXY_HEADERS
+      value: xforwarded
+
+  ingress:
+    enabled: false  # We use a custom ingress template that supports global.domain
+
+  # Lifecycle hook to configure realm SSL settings
+  lifecycleHooks:
+    postStart:
+      exec:
+        command:
+          - "/bin/bash"
+          - "-c"
+          - |
+            (
+              echo "PostStart: Waiting for Keycloak to be ready..."
+              # Determine the base path - check if KC_HTTP_RELATIVE_PATH is set
+              BASE_PATH="${KC_HTTP_RELATIVE_PATH:-}"
+              BASE_URL="http://localhost:8080${BASE_PATH}"
+              echo "Using base URL: $BASE_URL"
+              for i in {1..120}; do
+                if curl -sf ${BASE_URL}/realms/$KC_SPI_ADMIN_REALM > /dev/null 2>&1; then
+                  echo "Keycloak ready after $i attempts"
+                  break
+                fi
+                sleep 5
+              done
+              sleep 10
+              echo "Configuring $KC_SPI_ADMIN_REALM realm..."
+              /opt/bitnami/keycloak/bin/kcadm.sh config credentials \
+                --config /tmp/kcadm.config \
+                --server ${BASE_URL} \
+                --realm $KC_SPI_ADMIN_REALM \
+                --user $KC_BOOTSTRAP_ADMIN_USERNAME \
+                --password $(cat $KC_BOOTSTRAP_ADMIN_PASSWORD_FILE)
+              /opt/bitnami/keycloak/bin/kcadm.sh update \
+                --config /tmp/kcadm.config \
+                realms/$KC_SPI_ADMIN_REALM \
+                -s sslRequired=NONE
+              echo "✓ $KC_SPI_ADMIN_REALM realm configured!"
+            ) > /tmp/poststart-config.log 2>&1 &
+
+# Keycloak configuration job
+# Automatically enabled when global.authProvider.type = "keycloak"
+# Set to false to skip configuration (e.g., when using pre-configured Keycloak)
+keycloak-configure:
+  enabled: true  # Set to false to skip Keycloak configuration
+  keycloak:
+    realm: mcp-gateway
+    adminUser: user
+  # authServer.externalUrl will be templated in the subchart using global.domain
+
+# Mongodb configuration job
+mongodb-configure:
+  enabled: true # Whether to run the MongoDB configuration job
+
+# Registry service configuration
+registry:
+  app:
+    replicas: 2 # set to > 1 replica for high availability
+  ingress:
+    enabled: true
+    ingressClassName: alb
+
+# Auth server configuration
+auth-server:
+  app:
+    replicas: 2 # set to > 1 replica for high availability
+
+  keycloak:
+    enabled: true
+    realm: mcp-gateway
+    # externalUrl will be templated in the subchart using global.domain
+
+  # Entra ID settings (used when global.authProvider.type = "entra")
+  entra:
+    clientId: ""
+    clientSecret: ""
+    tenantId: ""
+
+  ingress:
+    enabled: true
+    ingressClassName: alb

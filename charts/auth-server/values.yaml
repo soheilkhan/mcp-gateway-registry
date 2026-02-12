@@ -1,0 +1,70 @@
+# Global configuration
+global:
+  image:
+    repository: public.ecr.aws/p3v1o3c6/auth-server
+    tag: v1.0.13
+    pullPolicy: IfNotPresent
+
+# Application configuration
+app:
+  name: auth-server
+  replicas: 1
+  envSecretName: auth-server-secret
+
+  # External URLs
+  externalUrl: http://localhost:8888
+
+  # Security settings
+  # secretKey: If not provided, a random 64-character key is auto-generated.
+  # When deployed via mcp-gateway-registry-stack, the key is shared with registry.
+  # Uncomment to use a specific key:
+  # secretKey: "your-secure-key-here"
+  sessionCookieDomain: ""  # Auto-inferred from Host header if empty
+  sessionCookieSecure: true
+
+# Authentication Provider Configuration
+# Choose ONE provider: keycloak or entra
+authProvider:
+  # Provider type: "keycloak" or "entra"
+  type: keycloak
+
+# Keycloak integration (used when authProvider.type = "keycloak")
+keycloak:
+  externalUrl: http://localhost:8080
+  realm: mcp-gateway
+
+# Entra ID integration (used when authProvider.type = "entra")
+entra:
+  clientId: ""
+  clientSecret: ""
+  tenantId: ""
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8888
+  annotations: { }
+
+# Resource limits and requests
+resources:
+  requests:
+    cpu: 1
+    memory: 1Gi
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: alb
+  hostname: ""
+  annotations: { }
+  tls: false
+  # Routing mode: "subdomain" or "path"
+  # - subdomain: auth-server.domain.com
+  # - path: domain.com/auth-server (configurable via path setting)
+  routingMode: subdomain
+  # Path prefix when using path-based routing (default: /auth-server)
+  path: /auth-server
+

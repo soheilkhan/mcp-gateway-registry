@@ -1,0 +1,296 @@
+# Terraform Variables Example Template
+#
+# This is an EXAMPLE file showing all configurable variables.
+#
+# TO USE:
+# 1. Copy this file: cp terraform.tfvars.example terraform.tfvars
+# 2. Edit terraform.tfvars with YOUR values
+# 3. Run: terraform apply
+#
+# NOTE: terraform.tfvars is in .gitignore and will NOT be committed to git
+
+# ============================================================================
+# NETWORK CONFIGURATION - IP ADDRESSES
+# ============================================================================
+
+# Main ALB (Registry, Auth Server, Gradio) - Allowed IP addresses
+# These IPs can access:
+#   - http://mcp-gateway-alb-*.us-east-1.elb.amazonaws.com (ports 80, 443)
+#   - http://mcp-gateway-alb-*.us-east-1.elb.amazonaws.com:7860 (Registry)
+#   - http://mcp-gateway-alb-*.us-east-1.elb.amazonaws.com:8888 (Auth Server)
+# Options:
+#   - Specific IP: "YOUR.IP.ADDRESS/32" (most secure)
+#   - Public access: "0.0.0.0/0" (use with caution)
+#   - Enterprise CIDR: "10.0.0.0/8" (your organization's network)
+ingress_cidr_blocks = [
+  "YOUR.LAPTOP.IP.ADDR/32",    # Your laptop IP (find with: curl ifconfig.me)
+  "YOUR.EC2.INSTANCE.IP/32",   # Your EC2 instance or NAT Gateway IP
+]
+
+# ============================================================================
+# DOMAIN CONFIGURATION
+# ============================================================================
+
+# Option 1: Use regional domains (RECOMMENDED for multi-region deployments)
+# This automatically creates domains based on the region:
+#   - Keycloak: kc.{region}.mycorp.click (e.g., kc.us-west-2.mycorp.click)
+#   - Registry: registry.{region}.mycorp.click (e.g., registry.us-west-2.mycorp.click)
+use_regional_domains = true
+base_domain          = "mycorp.click"
+
+# Option 2: Use custom static domains (set use_regional_domains = false)
+# Uncomment these if you want fixed domains regardless of region:
+# use_regional_domains = false
+# keycloak_domain = "kc.example.com"
+# root_domain = "example.com"
+
+# ============================================================================
+# KEYCLOAK CREDENTIALS (used when entra_enabled = false)
+# ============================================================================
+
+# Keycloak admin credentials
+keycloak_admin          = "admin"
+keycloak_admin_password = "CHANGE-ME-SECURE-PASSWORD"
+
+# Keycloak database credentials
+keycloak_database_username = "keycloak"
+keycloak_database_password = "CHANGE-ME-DB-PASSWORD"
+
+# ============================================================================
+# CONTAINER IMAGE URIS (REQUIRED)
+# ============================================================================
+
+# Registry image from ECR
+registry_image_uri = "YOUR_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com/mcp-gateway-registry:latest"
+
+# Auth server image from ECR
+auth_server_image_uri = "YOUR_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com/mcp-gateway-auth-server:latest"
+
+# MCP Server images from ECR
+currenttime_image_uri         = "YOUR_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com/mcp-gateway-currenttime:latest"
+mcpgw_image_uri               = "YOUR_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com/mcp-gateway-mcpgw:latest"
+realserverfaketools_image_uri = "YOUR_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com/mcp-gateway-realserverfaketools:latest"
+
+# A2A Agent images from ECR
+flight_booking_agent_image_uri   = "YOUR_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com/mcp-gateway-flight-booking-agent:latest"
+travel_assistant_agent_image_uri = "YOUR_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com/mcp-gateway-travel-assistant-agent:latest"
+
+# ============================================================================
+# OPTIONAL: ADDITIONAL CONFIGURATION
+# ============================================================================
+
+# AWS Region
+# Can also be set via TF_VAR_aws_region environment variable
+# Default: "us-east-1"
+# aws_region = "us-west-2"
+
+# Deployment name prefix
+# Default: "mcp-gateway"
+# name = "mcp-gateway"
+
+# VPC CIDR block
+# Default: "10.0.0.0/16"
+# vpc_cidr = "10.0.0.0/16"
+
+# Enable CloudWatch monitoring
+# Default: true
+# enable_monitoring = true
+
+# Email for alarm notifications (optional)
+# alarm_email = ""
+
+# ============================================================================
+# OPTIONAL: KEYCLOAK DATABASE SCALING
+# ============================================================================
+
+# Database Aurora Serverless capacity (default values shown)
+# keycloak_database_min_acu = 0.5
+# keycloak_database_max_acu = 2
+
+# ============================================================================
+# OPTIONAL: KEYCLOAK LOGGING
+# ============================================================================
+
+# Keycloak log level
+# Default: "INFO"
+# keycloak_log_level = "INFO"
+
+# ============================================================================
+# OPTIONAL: SERVICE REPLICA COUNTS
+# ============================================================================
+
+# Service replica counts (when autoscaling is disabled)
+# Uncomment to override defaults (all default to 1)
+# currenttime_replicas              = 1
+# mcpgw_replicas                    = 1
+# realserverfaketools_replicas      = 1
+# flight_booking_agent_replicas     = 1
+# travel_assistant_agent_replicas   = 1
+
+# ============================================================================
+# SESSION COOKIE CONFIGURATION
+# ============================================================================
+
+# Session cookie secure flag (HTTPS-only transmission)
+# MUST be set to true in production deployments with HTTPS
+# Set to false only for local development over HTTP
+# Default: true
+session_cookie_secure = true
+
+# Session cookie domain (for cross-subdomain authentication)
+# Leave unset or empty for single-domain deployments (RECOMMENDED for most cases)
+# Set to domain with leading dot for cross-subdomain sharing
+#
+# Examples:
+#   Single domain deployment (registry.example.com): Leave empty or unset
+#     session_cookie_domain = ""
+#
+#   Cross-subdomain (registry.mycorp.click + kc.mycorp.click):
+#     session_cookie_domain = ".mycorp.click"
+#
+#   Multi-region with regional subdomains (registry.us-east-1.mycorp.click):
+#     session_cookie_domain = ".mycorp.click"
+#
+#   Multi-level organizational domains (registry.region-1.corp.company.internal):
+#     session_cookie_domain = ".corp.company.internal"
+#
+# Default: Empty (cookie scoped to exact host only - safest option)
+session_cookie_domain = ""
+
+# ============================================================================
+# EMBEDDINGS CONFIGURATION
+# ============================================================================
+
+# Embeddings provider and model configuration for semantic search
+#
+# Option 1: Use local sentence-transformers (DEFAULT - no API costs)
+# Default values (uncomment to use):
+# embeddings_provider         = "sentence-transformers"
+# embeddings_model_name       = "all-MiniLM-L6-v2"
+# embeddings_model_dimensions = 384
+
+# Option 2: Use OpenAI embeddings (better quality, requires API key)
+# Uncomment and set your API key:
+# embeddings_provider         = "litellm"
+# embeddings_model_name       = "openai/text-embedding-ada-002"
+# embeddings_model_dimensions = 1536
+# embeddings_api_key          = "sk-proj-YOUR-OPENAI-API-KEY"
+
+# Option 3: Use Amazon Bedrock Titan embeddings (uses IAM, no API key needed)
+# Uncomment to use Bedrock:
+# embeddings_provider         = "litellm"
+# embeddings_model_name       = "bedrock/amazon.titan-embed-text-v1"
+# embeddings_model_dimensions = 1536
+# embeddings_aws_region       = "us-east-1"
+# embeddings_api_key          = ""  # Empty for Bedrock (uses IAM)
+
+# ============================================================================
+# DOCUMENTDB ELASTIC CLUSTER CONFIGURATION
+# ============================================================================
+
+# DocumentDB Elastic Cluster credentials (REQUIRED)
+# RECOMMENDED: Set via environment variables instead of tfvars for security:
+#   export TF_VAR_documentdb_admin_username="docdbadmin"
+#   export TF_VAR_documentdb_admin_password="YourSecurePassword123!"
+#
+# Alternatively, uncomment below (less secure - credentials in file):
+# documentdb_admin_username = "docdbadmin"
+# documentdb_admin_password = "CHANGE-ME-DocumentDB-Password123!"
+
+# DocumentDB Elastic Cluster capacity configuration (OPTIONAL)
+# Uncomment to override defaults
+
+# vCPU capacity per shard
+# Options: 2, 4, 8, 16, 32, 64
+# Default: 2 (recommended for small-medium workloads)
+# For production with high load, use 4 or 8
+# documentdb_shard_capacity = 2
+
+# Number of shards (1-32)
+# Default: 1 (recommended for most deployments)
+# Increase only when scaling beyond single shard capacity
+# documentdb_shard_count = 1
+
+# ============================================================================
+# REGISTRY STATIC TOKEN AUTH (IdP-independent API access)
+# ============================================================================
+
+# Enable static token auth for Registry API endpoints (/api/*, /v0.1/*)
+# MCP Gateway endpoints still require full IdP authentication
+# Default: false
+registry_static_token_auth_enabled = true
+
+# Static API key for Registry API. Clients send: Authorization: Bearer <token>
+# Generate with: python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+# Can also be set via environment variable:
+#   export TF_VAR_registry_api_token="your-generated-token"
+registry_api_token = "<your-generated-token-from-secrets-token-urlsafe-32>"
+
+# ============================================================================
+# FEDERATION CONFIGURATION (Peer-to-Peer Registry Sync)
+# ============================================================================
+
+# Unique identifier for this registry instance in federation.
+# Used to identify the source of synced items (e.g., "my-registry", "prod-us-east-1").
+# registry_id = "my-registry"
+
+# Enable static token auth for Federation API endpoints (/api/federation/*, /api/peers/*).
+# When enabled, peer registries can authenticate using FEDERATION_STATIC_TOKEN.
+# Default: false
+# federation_static_token_auth_enabled = true
+
+# Static token for Federation API access. Peer registries use this as Bearer token.
+# Generate with: python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+# Can also be set via environment variable:
+#   export TF_VAR_federation_static_token="your-generated-token"
+# federation_static_token = "your-federation-token-here"
+
+# Fernet encryption key for storing federation tokens in MongoDB.
+# Required on importing registry (the one that syncs FROM peer registries).
+# Generate with: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Can also be set via environment variable:
+#   export TF_VAR_federation_encryption_key="your-fernet-key-here"
+# federation_encryption_key = "your-fernet-encryption-key-here"
+
+# ============================================================================
+# AUDIT LOGGING CONFIGURATION
+# ============================================================================
+
+# Enable/disable audit logging for compliance monitoring
+# When enabled, all API and MCP requests are logged to DocumentDB
+# Default: true
+# audit_log_enabled = true
+
+# Audit log retention period in days
+# Logs older than this are automatically deleted via DocumentDB TTL index
+# Common values: 7 (dev), 30 (standard), 90 (compliance)
+# Default: 7
+# audit_log_ttl_days = 7
+
+# ============================================================================
+# AUTHENTICATION PROVIDER CONFIGURATION
+# ============================================================================
+
+# Microsoft Entra ID Configuration (Alternative to Keycloak)
+# Set entra_enabled = true to use Microsoft Entra ID instead of Keycloak
+# When enabled, AUTH_PROVIDER is automatically set to "entra"
+
+# Enable Microsoft Entra ID authentication (default: false, uses Keycloak)
+# entra_enabled = true
+
+# Entra ID Tenant ID (Directory ID from Azure Portal)
+# entra_tenant_id = "your-tenant-id-guid"
+
+# Entra ID Application (client) ID
+# entra_client_id = "your-client-id-guid"
+
+# Entra ID Client Secret
+# entra_client_secret = "your-client-secret"
+
+# Entra ID Login Base URL (optional - defaults to Azure Public Cloud)
+# Change only if using a sovereign cloud:
+#   - Azure Public Cloud (default): https://login.microsoftonline.com
+#   - Azure Government: https://login.microsoftonline.us
+#   - Azure China: https://login.chinacloudapi.cn
+#   - Azure Germany: https://login.microsoftonline.de
+# entra_login_base_url = "https://login.microsoftonline.com"
