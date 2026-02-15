@@ -1,7 +1,12 @@
 {
   "id": null,
   "title": "MCP Gateway - Analytics Dashboard",
-  "tags": ["mcp", "analytics", "auth", "tools"],
+  "tags": [
+    "mcp",
+    "analytics",
+    "auth",
+    "tools"
+  ],
   "timezone": "browser",
   "refresh": "30s",
   "time": {
@@ -15,25 +20,33 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(mcp_tool_executions_total{method=\"initialize\", success=\"True\"}[1m]))",
-          "legendFormat": "Initialize Rate"
+          "legendFormat": "Initialize Rate",
+          "expr": "sum(increase(mcp_tool_executions_total{method=\"initialize\", success=\"true\"}[1m]))"
         },
         {
-          "expr": "sum(rate(mcp_tool_executions_total{method=\"tools/list\", success=\"True\"}[1m]))",
-          "legendFormat": "Tools List Rate"
+          "legendFormat": "Tools List Rate",
+          "expr": "sum(increase(mcp_tool_executions_total{method=\"tools/list\", success=\"true\"}[1m]))"
         },
         {
-          "expr": "sum(rate(mcp_tool_executions_total{method=\"tools/call\", success=\"True\"}[1m]))",
-          "legendFormat": "Tool Call Rate"
+          "legendFormat": "Tool Call Rate",
+          "expr": "sum(increase(mcp_tool_executions_total{method=\"tools/call\", success=\"true\"}[1m]))"
         },
         {
-          "expr": "sum(rate(mcp_auth_requests_total{success=\"True\"}[1m]))",
-          "legendFormat": "Auth Success Rate"
+          "legendFormat": "Auth Success Rate",
+          "expr": "sum(increase(mcp_auth_requests_total{success=\"true\"}[1m]))"
         }
       ],
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
       "options": {
-        "legend": {"displayMode": "table", "placement": "bottom"}
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -51,17 +64,25 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(mcp_auth_requests_total{success=\"True\"}[5m]))",
+          "expr": "sum(rate(mcp_auth_requests_total{success=\"true\"}[5m]))",
           "legendFormat": "Successful Auth"
         },
         {
-          "expr": "sum(rate(mcp_auth_requests_total{success=\"False\"}[5m]))",
+          "expr": "sum(rate(mcp_auth_requests_total{success=\"false\"}[5m]))",
           "legendFormat": "Failed Auth"
         }
       ],
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
       "options": {
-        "legend": {"displayMode": "table", "placement": "bottom"}
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -79,11 +100,16 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(mcp_auth_requests_total{success=\"True\"}) / sum(mcp_auth_requests_total) * 100",
+          "expr": "sum(mcp_auth_requests_total{success=\"true\"}) / sum(mcp_auth_requests_total) * 100",
           "legendFormat": "Success Rate %"
         }
       ],
-      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 8
+      },
       "options": {
         "colorMode": "background",
         "graphMode": "area"
@@ -93,9 +119,18 @@
           "unit": "percent",
           "thresholds": {
             "steps": [
-              {"color": "red", "value": 0},
-              {"color": "orange", "value": 85},
-              {"color": "green", "value": 95}
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 85
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
             ]
           }
         }
@@ -111,20 +146,36 @@
           "legendFormat": "Active Servers"
         }
       ],
-      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 8
+      },
       "options": {
         "colorMode": "background",
         "graphMode": "area"
       },
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
+          "color": {
+            "mode": "thresholds"
+          },
           "unit": "short",
           "thresholds": {
             "steps": [
-              {"color": "blue", "value": 0},
-              {"color": "green", "value": 3},
-              {"color": "green", "value": 10}
+              {
+                "color": "blue",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 3
+              },
+              {
+                "color": "green",
+                "value": 10
+              }
             ]
           }
         }
@@ -140,20 +191,36 @@
           "legendFormat": "Tools/Hour"
         }
       ],
-      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      },
       "options": {
         "colorMode": "background",
         "graphMode": "area"
       },
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
+          "color": {
+            "mode": "thresholds"
+          },
           "unit": "short",
           "thresholds": {
             "steps": [
-              {"color": "blue", "value": 0},
-              {"color": "blue", "value": 50},
-              {"color": "blue", "value": 100}
+              {
+                "color": "blue",
+                "value": 0
+              },
+              {
+                "color": "blue",
+                "value": 50
+              },
+              {
+                "color": "blue",
+                "value": 100
+              }
             ]
           }
         }
@@ -169,17 +236,27 @@
           "legendFormat": "{{tool_name}}"
         }
       ],
-      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8},
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      },
       "options": {
         "colorMode": "background",
         "textMode": "name"
       },
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "steps": [
-              {"color": "purple", "value": 0}
+              {
+                "color": "purple",
+                "value": 0
+              }
             ]
           }
         }
@@ -187,29 +264,29 @@
     },
     {
       "id": 7,
-      "title": "Protocol Latency Analysis (P95/P99)",
+      "title": "MCP Latency P95 (by Server & Method)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(mcp_auth_request_duration_seconds_bucket[5m]))",
-          "legendFormat": "Auth P95 Latency"
+          "expr": "histogram_quantile(0.95, sum by (le, server_name)(rate(mcp_tool_execution_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{server_name}} P95"
         },
         {
-          "expr": "histogram_quantile(0.99, rate(mcp_auth_request_duration_seconds_bucket[5m]))",
-          "legendFormat": "Auth P99 Latency"
-        },
-        {
-          "expr": "histogram_quantile(0.95, rate(mcp_tool_execution_duration_seconds_bucket[5m]))",
-          "legendFormat": "Tool Exec P95 Latency"
-        },
-        {
-          "expr": "histogram_quantile(0.99, rate(mcp_tool_execution_duration_seconds_bucket[5m]))",
-          "legendFormat": "Tool Exec P99 Latency"
+          "expr": "histogram_quantile(0.95, sum by (le, method)(rate(mcp_tool_execution_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{method}} P95"
         }
       ],
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
       "options": {
-        "legend": {"displayMode": "table", "placement": "bottom"}
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -231,9 +308,17 @@
           "legendFormat": "{{method}}"
         }
       ],
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
       "options": {
-        "legend": {"displayMode": "table", "placement": "bottom"}
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -251,17 +336,25 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(mcp_auth_requests_total{success=\"False\"}[5m])) / sum(rate(mcp_auth_requests_total[5m])) * 100",
-          "legendFormat": "Auth Error Rate"
+          "legendFormat": "Auth Error Rate",
+          "expr": "sum(increase(mcp_auth_requests_total{success=\"false\"}[5m])) / sum(increase(mcp_auth_requests_total[5m])) * 100"
         },
         {
-          "expr": "sum(rate(mcp_tool_executions_total{success=\"False\"}[5m])) / sum(rate(mcp_tool_executions_total[5m])) * 100",
-          "legendFormat": "Tool Execution Error Rate"
+          "legendFormat": "Tool Execution Error Rate",
+          "expr": "sum(increase(mcp_tool_executions_total{success=\"false\"}[5m])) / sum(increase(mcp_tool_executions_total[5m])) * 100"
         }
       ],
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
       "options": {
-        "legend": {"displayMode": "table", "placement": "bottom"}
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -272,9 +365,18 @@
           "unit": "percent",
           "thresholds": {
             "steps": [
-              {"color": "green", "value": 0},
-              {"color": "yellow", "value": 1},
-              {"color": "red", "value": 5}
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
             ]
           }
         }
@@ -294,9 +396,17 @@
           "legendFormat": "Tool Exec Avg Response Time"
         }
       ],
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
       "options": {
-        "legend": {"displayMode": "table", "placement": "bottom"}
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -332,7 +442,12 @@
           "instant": true
         }
       ],
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
       "transformations": [
         {
           "id": "merge",
@@ -341,7 +456,9 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": {"Time": true},
+            "excludeByName": {
+              "Time": true
+            },
             "renameByName": {
               "server_name": "Server",
               "Value #A": "Total Calls",
@@ -370,7 +487,12 @@
           "instant": true
         }
       ],
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
       "transformations": [
         {
           "id": "merge",
@@ -379,7 +501,9 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": {"Time": true},
+            "excludeByName": {
+              "Time": true
+            },
             "renameByName": {
               "tool_name": "Tool Name",
               "Value #A": "Total Calls",
@@ -407,14 +531,21 @@
           "legendFormat": "{{method}}"
         }
       ],
-      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 36},
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 36
+      },
       "options": {
         "orientation": "horizontal",
         "displayMode": "gradient"
       },
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "palette-classic"},
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisLabel": "Request Count"
           },
@@ -434,7 +565,12 @@
           "format": "table"
         }
       ],
-      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 36},
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 36
+      },
       "options": {
         "orientation": "vertical",
         "xTickLabelRotation": -45,
@@ -444,7 +580,9 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "palette-classic"},
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisLabel": "Tool Call Count",
             "axisPlacement": "left"
@@ -463,14 +601,21 @@
           "legendFormat": "{{client_name}}"
         }
       ],
-      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 36},
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 36
+      },
       "options": {
         "orientation": "horizontal",
         "displayMode": "gradient"
       },
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "palette-classic"},
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisLabel": "Total Executions"
           },
@@ -502,7 +647,12 @@
           "instant": true
         }
       ],
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 44},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
       "transformations": [
         {
           "id": "merge",
@@ -511,7 +661,9 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": {"Time": true},
+            "excludeByName": {
+              "Time": true
+            },
             "renameByName": {
               "client_name": "Client",
               "Value #A": "Initialize",
@@ -532,14 +684,21 @@
           "legendFormat": "{{method}}"
         }
       ],
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 44},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
       "options": {
         "orientation": "horizontal",
         "displayMode": "gradient"
       },
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "palette-classic"},
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisLabel": "Request Count"
           },
@@ -549,33 +708,52 @@
     },
     {
       "id": 18,
-      "title": "Request Size Distribution",
+      "title": "Tool Execution Success Rate",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, rate(mcp_tool_executions_total[5m]))",
-          "legendFormat": "P50 Request Size"
-        },
-        {
-          "expr": "histogram_quantile(0.95, rate(mcp_tool_executions_total[5m]))",
-          "legendFormat": "P95 Request Size"
-        },
-        {
-          "expr": "histogram_quantile(0.99, rate(mcp_tool_executions_total[5m]))",
-          "legendFormat": "P99 Request Size"
+          "legendFormat": "Success Rate",
+          "expr": "sum(increase(mcp_tool_executions_total{success=\"true\"}[5m])) / sum(increase(mcp_tool_executions_total[5m])) * 100"
         }
       ],
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 52},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 52
+      },
       "options": {
-        "legend": {"displayMode": "table", "placement": "bottom"}
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
       },
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "axisLabel": "Request Size (bytes)",
+            "axisLabel": "Success Rate (%)",
             "axisPlacement": "left"
           },
-          "unit": "bytes"
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": 0,
+                "color": "red"
+              },
+              {
+                "value": 90,
+                "color": "yellow"
+              },
+              {
+                "value": 95,
+                "color": "green"
+              }
+            ]
+          }
         }
       }
     },
@@ -589,14 +767,21 @@
           "legendFormat": "{{client_name}}"
         }
       ],
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 52},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 52
+      },
       "options": {
         "orientation": "horizontal",
         "displayMode": "gradient"
       },
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "continuous-GrYlRd"},
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
           "custom": {
             "axisLabel": "Activity Rate (req/s)"
           },
