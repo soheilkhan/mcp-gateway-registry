@@ -1,6 +1,6 @@
 ---
 name: new-feature-design
-description: Design and document new features with GitHub issue, low-level design (LLD), and expert review. Creates structured documentation in .scratchpad/ with issue spec, technical design with diagrams and pseudo-code, and multi-persona expert review. Supports starting from a user description OR an existing GitHub issue URL. Folder naming: issue-{number}/ for existing issues, {feature-name}/ for new features.
+description: "Design and document new features with GitHub issue, low-level design (LLD), and expert review. Creates structured documentation in .scratchpad/ with issue spec, technical design with diagrams and pseudo-code, and multi-persona expert review. Supports starting from a user description OR an existing GitHub issue URL. Folder naming: issue-{number}/ for existing issues, {feature-name}/ for new features."
 metadata:
   author: mcp-gateway-registry
   version: "1.4"
