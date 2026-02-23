@@ -166,7 +166,11 @@ async def _create_standard_indexes(
         await collection.create_index([("identity.username", ASCENDING), ("timestamp", ASCENDING)])
         await collection.create_index([("action.operation", ASCENDING), ("timestamp", ASCENDING)])
         await collection.create_index([("action.resource_type", ASCENDING), ("timestamp", ASCENDING)])
-        await collection.create_index([("request_id", ASCENDING)], unique=True)
+        await collection.create_index(
+            [("request_id", ASCENDING), ("log_type", ASCENDING)],
+            name="request_id_log_type_idx",
+            unique=True,
+        )
 
         # TTL index for automatic expiration (Requirements 6.3)
         # This also serves as the timestamp index for sorting
