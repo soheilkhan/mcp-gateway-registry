@@ -149,13 +149,22 @@ def _build_query(
         escaped_username = re.escape(username)
         query["identity.username"] = {"$regex": escaped_username, "$options": "i"}
     
-    # Action filters
-    if operation:
-        query["action.operation"] = operation
-    if resource_type:
-        query["action.resource_type"] = resource_type
-    if resource_id:
-        query["action.resource_id"] = resource_id
+    # Action filters - different fields per stream
+    if stream == "mcp_access":
+        # MCP records use mcp_request.method and mcp_server.name
+        if operation:
+            query["mcp_request.method"] = operation
+        if resource_type:
+            escaped_resource = re.escape(resource_type)
+            query["mcp_server.name"] = {"$regex": escaped_resource, "$options": "i"}
+    else:
+        # Registry API records use action.* fields
+        if operation:
+            query["action.operation"] = operation
+        if resource_type:
+            query["action.resource_type"] = resource_type
+        if resource_id:
+            query["action.resource_id"] = resource_id
     
     # Response status filter
     # For registry_api: use numeric response.status_code
