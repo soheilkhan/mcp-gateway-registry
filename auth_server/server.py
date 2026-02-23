@@ -2112,8 +2112,8 @@ def parse_arguments():
     parser.add_argument(
         "--host",
         type=str,
-        default="0.0.0.0",
-        help="Host for the server to listen on (default: 0.0.0.0)",
+        default=os.getenv("AUTH_SERVER_HOST", "127.0.0.1"),  # nosec B104
+        help="Host for the server to listen on (default: 127.0.0.1, override with AUTH_SERVER_HOST env var)",
     )
 
     parser.add_argument(

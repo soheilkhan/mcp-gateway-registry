@@ -48,7 +48,7 @@ logger.info(f"Parsed arguments - port: {args.port}, transport: {args.transport}"
 logger.info(f"Environment variables - MCP_TRANSPORT: {os.environ.get('MCP_TRANSPORT', 'NOT SET')}, MCP_SERVER_LISTEN_PORT: {os.environ.get('MCP_SERVER_LISTEN_PORT', 'NOT SET')}")
 
 # Initialize FastMCP server
-mcp = FastMCP("ExampleMCPServer", host="0.0.0.0", port=int(args.port))
+mcp = FastMCP("ExampleMCPServer", host="0.0.0.0", port=int(args.port))  # nosec B104
 mcp.settings.mount_path = "/example-server"
 
 

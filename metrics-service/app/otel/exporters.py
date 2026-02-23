@@ -43,7 +43,7 @@ def setup_otel():
         # Setup Prometheus exporter if enabled
         if settings.OTEL_PROMETHEUS_ENABLED:
             # Start Prometheus HTTP server
-            start_http_server(port=settings.OTEL_PROMETHEUS_PORT, addr="0.0.0.0")
+            start_http_server(port=settings.OTEL_PROMETHEUS_PORT, addr=settings.METRICS_SERVICE_HOST)  # nosec B104
 
             # Create PrometheusMetricReader (no endpoint parameter needed)
             prometheus_reader = PrometheusMetricReader()

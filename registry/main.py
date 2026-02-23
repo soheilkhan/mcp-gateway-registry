@@ -662,7 +662,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "registry.main:app", 
-        host="0.0.0.0", 
+        host=os.getenv("REGISTRY_HOST", "127.0.0.1"),  # nosec B104
         port=7860, 
         reload=True,
         log_level="info",
