@@ -47,8 +47,6 @@ class ServiceRegistration(BaseModel):
     proxy_pass_url: str = Field(..., description="Proxy pass URL")
     tags: Optional[str] = Field(None, description="Comma-separated tags")
     num_tools: Optional[int] = Field(None, description="Number of tools")
-    num_stars: Optional[int] = Field(None, description="Number of stars")
-    is_python: Optional[bool] = Field(None, description="Is Python server")
     license: Optional[str] = Field(None, description="License type")
 
 
@@ -62,7 +60,7 @@ class InternalServiceRegistration(BaseModel):
     version: Optional[str] = Field(None, description="Server version (e.g., v1.0.0, v2.0.0)")
     status: Optional[str] = Field(None, description="Version status (stable, beta, deprecated)")
     auth_provider: Optional[str] = Field(None, description="Authentication provider")
-    auth_type: Optional[str] = Field(None, description="Authentication type")
+    auth_scheme: Optional[str] = Field(None, description="Authentication scheme (e.g., 'bearer', 'api_key', 'none')")
     supported_transports: Optional[List[str]] = Field(None, description="Supported transports")
     headers: Optional[Dict[str, str]] = Field(None, description="Custom headers")
     tool_list_json: Optional[str] = Field(None, description="Tool list as JSON string")
@@ -1144,6 +1142,7 @@ class RegistryClient:
             endpoint.startswith("/api/skills") or
             endpoint.startswith("/api/virtual-servers") or
             endpoint == "/api/servers/groups/import" or
+            "/auth-credential" in endpoint or
             "/versions" in endpoint):
             # Send as JSON for agent, management, search, federation, and import endpoints
             response = requests.request(
@@ -1263,6 +1262,48 @@ class RegistryClient:
 
         result = ToggleResponse(**response.json())
         logger.info(f"Service toggled: {service_path} -> enabled={result.is_enabled}")
+        return result
+
+
+    def update_server_credential(
+        self,
+        service_path: str,
+        auth_scheme: str,
+        auth_credential: str = None,
+        auth_header_name: str = None
+    ) -> Dict[str, Any]:
+        """
+        Update authentication credentials for a server.
+
+        Args:
+            service_path: Path of server to update (e.g., /my-server)
+            auth_scheme: Authentication scheme (none, bearer, api_key)
+            auth_credential: New credential (required if auth_scheme is not 'none')
+            auth_header_name: Custom header name (optional, for api_key)
+
+        Returns:
+            Response dict with message and updated auth details
+
+        Raises:
+            requests.HTTPError: If update fails
+        """
+        logger.info(f"Updating auth credential for: {service_path}")
+
+        # Build payload
+        payload = {"auth_scheme": auth_scheme}
+        if auth_credential:
+            payload["auth_credential"] = auth_credential
+        if auth_header_name:
+            payload["auth_header_name"] = auth_header_name
+
+        response = self._make_request(
+            method="PATCH",
+            endpoint=f"/api/servers{service_path}/auth-credential",
+            data=payload
+        )
+
+        result = response.json()
+        logger.info(f"Credential updated for {service_path}: scheme={result.get('auth_scheme')}")
         return result
 
     def list_services(self) -> ServerListResponse:

@@ -589,7 +589,7 @@ def cmd_register(args: argparse.Namespace) -> int:
             version=config.get("version"),
             status=config.get("status"),
             auth_provider=config.get("auth_provider"),
-            auth_type=config.get("auth_type"),
+            auth_scheme=config.get("auth_scheme", config.get("auth_type")),
             supported_transports=config.get("supported_transports"),
             headers=config.get("headers"),
             tool_list_json=config.get("tool_list_json"),
@@ -1245,6 +1245,48 @@ def cmd_rescan(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_server_update_credential(args: argparse.Namespace) -> int:
+    """
+    Update authentication credentials for a server.
+
+    Args:
+        args: Command arguments with path, auth-scheme, credential, etc.
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        # Validate that credential is provided when auth_scheme is not 'none'
+        if args.auth_scheme != "none" and not args.credential:
+            logger.error("--credential is required when --auth-scheme is not 'none'")
+            return 1
+
+        client = _create_client(args)
+        response = client.update_server_credential(
+            service_path=args.path,
+            auth_scheme=args.auth_scheme,
+            auth_credential=args.credential,
+            auth_header_name=args.auth_header_name
+        )
+
+        if args.json:
+            # Output raw JSON
+            print(json.dumps(response, indent=2, default=str))
+        else:
+            # Pretty print results
+            logger.info(f"\nAuth credential updated successfully for '{args.path}':")
+            logger.info(f"  Auth scheme: {response.get('auth_scheme')}")
+            if response.get('auth_header_name'):
+                logger.info(f"  Header name: {response.get('auth_header_name')}")
+            logger.info(f"  Message: {response.get('message')}")
+
+        return 0
+
+    except Exception as e:
+        logger.error(f"Failed to update server credential: {e}")
+        return 1
+
+
 def cmd_server_search(args: argparse.Namespace) -> int:
     """
     Perform semantic search across all entity types.
@@ -1309,14 +1351,16 @@ def cmd_server_search(args: argparse.Namespace) -> int:
         if response.agents:
             print(f"\n--- A2A Agents ({len(response.agents)}) ---")
             for agent in response.agents:
-                print(f"  {agent.agent_name} ({agent.path})")
+                agent_name = agent.agent_card.get("name", "Unknown")
+                agent_desc = agent.agent_card.get("description", "")
+                agent_skills = agent.agent_card.get("skills", [])
+                print(f"  {agent_name} ({agent.path})")
                 print(f"    Relevance: {agent.relevance_score:.2%}")
-                if agent.tags:
-                    print(f"    Tags: {', '.join(agent.tags[:5])}")
-                if agent.skills:
-                    print(f"    Skills: {', '.join(agent.skills[:5])}")
-                if agent.description:
-                    desc = agent.description[:100] + "..." if len(agent.description) > 100 else agent.description
+                if agent_skills:
+                    skill_names = [s.get("name", "") if isinstance(s, dict) else str(s) for s in agent_skills[:5]]
+                    print(f"    Skills: {', '.join(skill_names)}")
+                if agent_desc:
+                    desc = agent_desc[:100] + "..." if len(agent_desc) > 100 else agent_desc
                     print(f"    {desc}")
                 print()
 
@@ -4142,6 +4186,36 @@ Examples:
         help="Output raw JSON"
     )
 
+    # Server credential update command
+    server_update_cred_parser = subparsers.add_parser(
+        "server-update-credential",
+        help="Update authentication credentials for a server"
+    )
+    server_update_cred_parser.add_argument(
+        "--path",
+        required=True,
+        help="Server path (e.g., /cloudflare-api)"
+    )
+    server_update_cred_parser.add_argument(
+        "--auth-scheme",
+        required=True,
+        choices=["none", "bearer", "api_key"],
+        help="Authentication scheme"
+    )
+    server_update_cred_parser.add_argument(
+        "--credential",
+        help="New credential value (required if auth-scheme is not 'none')"
+    )
+    server_update_cred_parser.add_argument(
+        "--auth-header-name",
+        help="Custom header name (optional, for api_key scheme)"
+    )
+    server_update_cred_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output raw JSON"
+    )
+
     # Server search command
     server_search_parser = subparsers.add_parser(
         "server-search",
@@ -5215,6 +5289,7 @@ Examples:
         "server-rating": cmd_server_rating,
         "security-scan": cmd_security_scan,
         "rescan": cmd_rescan,
+        "server-update-credential": cmd_server_update_credential,
         "server-search": cmd_server_search,
         "list-versions": cmd_list_versions,
         "remove-version": cmd_remove_version,
