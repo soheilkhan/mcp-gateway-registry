@@ -93,6 +93,9 @@ const UptimeDisplay: React.FC = () => {
   const dbStatusColor = stats.database_status.status.toLowerCase() === 'healthy'
     ? 'text-green-600 dark:text-green-400'
     : 'text-red-600 dark:text-red-400';
+  const authStatusColor = stats.auth_status.status.toLowerCase() === 'healthy'
+    ? 'text-green-600 dark:text-green-400'
+    : 'text-red-600 dark:text-red-400';
 
 
   return (
@@ -176,7 +179,7 @@ const UptimeDisplay: React.FC = () => {
           </div>
 
           {/* Database Status */}
-          <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="mb-3 pt-3 border-t border-gray-200 dark:border-gray-700">
             <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
               Database
             </h4>
@@ -200,6 +203,36 @@ const UptimeDisplay: React.FC = () => {
                   title={stats.database_status.host}
                 >
                   {stats.database_status.host}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Auth Server Status */}
+          <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+            <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Auth Server
+            </h4>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between gap-2">
+                <span className="text-gray-500 dark:text-gray-400 flex-shrink-0">Provider:</span>
+                <span className="text-gray-900 dark:text-gray-100 truncate text-right">
+                  {stats.auth_status.provider}
+                </span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-gray-500 dark:text-gray-400 flex-shrink-0">Status:</span>
+                <span className={`font-medium ${authStatusColor} truncate text-right`}>
+                  {stats.auth_status.status}
+                </span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-gray-500 dark:text-gray-400 flex-shrink-0">URL:</span>
+                <span
+                  className="text-gray-900 dark:text-gray-100 font-mono text-xs truncate text-right"
+                  title={stats.auth_status.url}
+                >
+                  {stats.auth_status.url}
                 </span>
               </div>
             </div>

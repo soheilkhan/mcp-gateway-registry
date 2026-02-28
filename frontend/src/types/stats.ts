@@ -16,6 +16,16 @@ export interface DatabaseStatus {
 
 
 /**
+ * Authentication server health status.
+ */
+export interface AuthStatus {
+  provider: string;   // "cognito" | "keycloak" | "entra" | "github"
+  status: string;     // "Healthy" | "Unhealthy"
+  url: string;        // Auth server URL
+}
+
+
+/**
  * Registry resource counts.
  */
 export interface RegistryStatsData {
@@ -36,4 +46,5 @@ export interface SystemStats {
   deployment_mode: string;      // "with-gateway" | "registry-only"
   registry_stats: RegistryStatsData;
   database_status: DatabaseStatus;
+  auth_status: AuthStatus;
 }

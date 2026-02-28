@@ -106,6 +106,55 @@ async def _get_registry_stats() -> dict:
         }
 
 
+async def _get_auth_status() -> dict:
+    """Check authentication server health and connection status.
+
+    Returns:
+        Dictionary with provider, status, and URL information
+    """
+    provider = settings.auth_provider
+    auth_url = settings.auth_server_url
+
+    # Try to ping the auth server health endpoint
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            # Try common health check endpoints
+            health_endpoints = [
+                f"{auth_url}/health",
+                f"{auth_url}/healthcheck",
+                f"{auth_url}/.well-known/openid-configuration",
+            ]
+
+            for endpoint in health_endpoints:
+                try:
+                    response = await client.get(endpoint)
+                    if response.status_code < 500:  # 2xx, 3xx, 4xx are all "reachable"
+                        return {
+                            "provider": provider,
+                            "status": "Healthy",
+                            "url": auth_url,
+                        }
+                except Exception:
+                    continue
+
+            # If all endpoints failed, auth server is unhealthy
+            return {
+                "provider": provider,
+                "status": "Unhealthy",
+                "url": auth_url,
+            }
+
+    except Exception as e:
+        logger.error(f"Auth server health check failed: {e}")
+        return {
+            "provider": provider,
+            "status": "Unhealthy",
+            "url": auth_url,
+        }
+
+
 async def _get_database_status() -> dict:
     """Check database health and connection status.
 
@@ -172,6 +221,7 @@ async def _get_cached_stats() -> dict:
     # Compute fresh stats
     registry_stats = await _get_registry_stats()
     database_status = await _get_database_status()
+    auth_status = await _get_auth_status()
 
     # Calculate uptime
     if _server_start_time:
@@ -190,6 +240,7 @@ async def _get_cached_stats() -> dict:
         "deployment_mode": settings.deployment_mode.value,
         "registry_stats": registry_stats,
         "database_status": database_status,
+        "auth_status": auth_status,
     }
 
     # Update cache
@@ -230,6 +281,7 @@ async def get_system_stats():
         - deployment_mode: with-gateway/registry-only
         - registry_stats: Object with servers, agents, skills counts
         - database_status: Object with backend, status, host
+        - auth_status: Object with provider, status, url
     """
     try:
         stats = await _get_cached_stats()
