@@ -3088,6 +3088,40 @@ class RegistryClient:
         return result
 
 
+    def update_peer_token(
+        self,
+        peer_id: str,
+        federation_token: str
+    ) -> Dict[str, Any]:
+        """
+        Update only the federation token for a peer registry.
+
+        This is useful for recovering from token loss (issue #561) or
+        rotating tokens without triggering a full peer update.
+
+        Args:
+            peer_id: Peer registry identifier
+            federation_token: New federation token value
+
+        Returns:
+            Success message with peer ID
+
+        Raises:
+            requests.HTTPError: If peer not found (404) or request fails
+        """
+        logger.info(f"Updating federation token for peer: {peer_id}")
+
+        response = self._make_request(
+            method="PATCH",
+            endpoint=f"/api/peers/{peer_id}/token",
+            data={"federation_token": federation_token}
+        )
+
+        result = response.json()
+        logger.info(f"Federation token updated successfully for peer: {peer_id}")
+        return result
+
+
     def remove_peer(
         self,
         peer_id: str
