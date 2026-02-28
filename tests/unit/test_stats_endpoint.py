@@ -134,7 +134,7 @@ class TestDetectDeploymentType:
 
     def test_detect_kubernetes(self):
         """Test detection of Kubernetes environment."""
-        from registry.main import _detect_deployment_type
+        from registry.api.system_routes import _detect_deployment_type
 
         with patch.dict("os.environ", {"KUBERNETES_SERVICE_HOST": "10.0.0.1"}):
             result = _detect_deployment_type()
@@ -142,7 +142,7 @@ class TestDetectDeploymentType:
 
     def test_detect_ecs(self):
         """Test detection of ECS environment."""
-        from registry.main import _detect_deployment_type
+        from registry.api.system_routes import _detect_deployment_type
 
         with patch.dict(
             "os.environ",
@@ -154,7 +154,7 @@ class TestDetectDeploymentType:
 
     def test_detect_ecs_v4(self):
         """Test detection of ECS environment with v4 metadata."""
-        from registry.main import _detect_deployment_type
+        from registry.api.system_routes import _detect_deployment_type
 
         with patch.dict(
             "os.environ",
@@ -166,7 +166,7 @@ class TestDetectDeploymentType:
 
     def test_detect_ec2(self):
         """Test detection of EC2 environment."""
-        from registry.main import _detect_deployment_type
+        from registry.api.system_routes import _detect_deployment_type
 
         with patch.dict("os.environ", {"AWS_EXECUTION_ENV": "AWS_ECS_EC2"}, clear=True):
             result = _detect_deployment_type()
@@ -174,7 +174,7 @@ class TestDetectDeploymentType:
 
     def test_detect_local(self):
         """Test detection of local environment."""
-        from registry.main import _detect_deployment_type
+        from registry.api.system_routes import _detect_deployment_type
 
         with patch.dict("os.environ", {}, clear=True):
             result = _detect_deployment_type()
@@ -188,7 +188,7 @@ class TestGetRegistryStats:
     @pytest.mark.asyncio
     async def test_get_registry_stats_success(self, mock_repositories):
         """Test successful stats collection."""
-        from registry.main import _get_registry_stats
+        from registry.api.system_routes import _get_registry_stats
 
         with patch(
             "registry.repositories.factory.get_server_repository",
@@ -213,7 +213,7 @@ class TestGetRegistryStats:
     @pytest.mark.asyncio
     async def test_get_registry_stats_error_handling(self):
         """Test error handling in stats collection."""
-        from registry.main import _get_registry_stats
+        from registry.api.system_routes import _get_registry_stats
 
         with patch(
             "registry.repositories.factory.get_server_repository", side_effect=Exception("DB error")
@@ -234,9 +234,9 @@ class TestGetDatabaseStatus:
     @pytest.mark.asyncio
     async def test_database_status_file_backend(self):
         """Test database status with file backend."""
-        from registry.main import _get_database_status
+        from registry.api.system_routes import _get_database_status
 
-        with patch("registry.main.settings") as mock_settings:
+        with patch("registry.api.system_routes.settings") as mock_settings:
             mock_settings.storage_backend = "file"
 
             # Act
@@ -245,14 +245,14 @@ class TestGetDatabaseStatus:
             # Assert
             assert status["backend"] == "file"
             assert status["status"] == "N/A"
-            assert status["host"] is None
+            assert status["host"] == "N/A"
 
     @pytest.mark.asyncio
     async def test_database_status_documentdb_healthy(self, mock_documentdb_client):
         """Test database status with healthy DocumentDB."""
-        from registry.main import _get_database_status
+        from registry.api.system_routes import _get_database_status
 
-        with patch("registry.main.settings") as mock_settings:
+        with patch("registry.api.system_routes.settings") as mock_settings:
             mock_settings.storage_backend = "documentdb"
             mock_settings.documentdb_host = "localhost"
             mock_settings.documentdb_port = 27017
@@ -273,9 +273,9 @@ class TestGetDatabaseStatus:
     @pytest.mark.asyncio
     async def test_database_status_documentdb_unhealthy(self):
         """Test database status with unhealthy DocumentDB."""
-        from registry.main import _get_database_status
+        from registry.api.system_routes import _get_database_status
 
-        with patch("registry.main.settings") as mock_settings:
+        with patch("registry.api.system_routes.settings") as mock_settings:
             mock_settings.storage_backend = "documentdb"
             mock_settings.documentdb_host = "localhost"
             mock_settings.documentdb_port = 27017
@@ -301,12 +301,12 @@ class TestGetCachedStats:
     @pytest.mark.asyncio
     async def test_cached_stats_cache_miss(self, mock_repositories):
         """Test stats collection on cache miss."""
-        import registry.main
+        import registry.api.system_routes
 
         # Reset cache
-        registry.main._stats_cache = None
-        registry.main._stats_cache_time = None
-        registry.main._server_start_time = datetime.now(timezone.utc)
+        registry.api.system_routes._stats_cache = None
+        registry.api.system_routes._stats_cache_time = None
+        registry.api.system_routes._server_start_time = datetime.now(timezone.utc)
 
         with patch(
             "registry.repositories.factory.get_server_repository",
@@ -320,12 +320,12 @@ class TestGetCachedStats:
                     "registry.repositories.factory.get_skill_repository",
                     return_value=mock_repositories["skill"],
                 ):
-                    with patch("registry.main.settings") as mock_settings:
+                    with patch("registry.api.system_routes.settings") as mock_settings:
                         mock_settings.storage_backend = "file"
                         mock_settings.deployment_mode.value = "standalone"
 
                         # Act
-                        stats = await registry.main._get_cached_stats()
+                        stats = await registry.api.system_routes._get_cached_stats()
 
                         # Assert
                         assert "uptime_seconds" in stats
@@ -351,12 +351,12 @@ class TestStatsEndpoint:
     @pytest.mark.asyncio
     async def test_stats_endpoint_success(self, mock_repositories):
         """Test successful stats endpoint call."""
-        import registry.main
+        import registry.api.system_routes
 
         # Reset cache
-        registry.main._stats_cache = None
-        registry.main._stats_cache_time = None
-        registry.main._server_start_time = datetime.now(timezone.utc)
+        registry.api.system_routes._stats_cache = None
+        registry.api.system_routes._stats_cache_time = None
+        registry.api.system_routes._server_start_time = datetime.now(timezone.utc)
 
         with patch(
             "registry.repositories.factory.get_server_repository",
@@ -370,7 +370,7 @@ class TestStatsEndpoint:
                     "registry.repositories.factory.get_skill_repository",
                     return_value=mock_repositories["skill"],
                 ):
-                    with patch("registry.main.settings") as mock_settings:
+                    with patch("registry.api.system_routes.settings") as mock_settings:
                         mock_settings.storage_backend = "file"
                         mock_settings.deployment_mode.value = "standalone"
 
