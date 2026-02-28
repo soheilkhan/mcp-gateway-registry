@@ -64,6 +64,7 @@ from datetime import (
     datetime,
     timezone,
 )
+from pathlib import Path
 from typing import (
     Any,
     Dict,
@@ -76,6 +77,12 @@ from urllib.parse import (
     urljoin,
 )
 
+# Ensure agents directory is prioritized in sys.path for registry_client import
+# This fixes pytest-cov import resolution when api/registry_client.py also exists
+_AGENTS_DIR = str(Path(__file__).resolve().parent)
+if _AGENTS_DIR not in sys.path:
+    sys.path.insert(0, _AGENTS_DIR)
+
 import httpx
 import mcp
 from langchain_anthropic import ChatAnthropic
@@ -85,7 +92,7 @@ from langgraph.prebuilt import create_react_agent
 from mcp.client.sse import sse_client
 from mcp.client.streamable_http import streamable_http_client
 
-from registry_client import (
+from registry_client import (  # noqa: E402 - import after sys.path manipulation
     RegistryClient,
     _format_tool_result,
 )
