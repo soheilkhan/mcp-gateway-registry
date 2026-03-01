@@ -146,7 +146,7 @@ def _run_generic_oauth_flow_for_config(
 
     try:
         # Run the generic OAuth flow
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 - internal script path, args from validated env vars
             cmd,
             capture_output=True,
             text=True,
@@ -209,7 +209,7 @@ def _run_generic_oauth_flow(
 
     try:
         # Run the generic OAuth flow
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 - internal script path, args from validated env vars
             cmd,
             capture_output=True,
             text=True,

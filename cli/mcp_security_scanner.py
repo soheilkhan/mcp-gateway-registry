@@ -136,7 +136,9 @@ def _run_mcp_scanner(
 
     # Run scanner
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, env=env)
+        result = subprocess.run(  # nosec B603 - mcp-scanner tool with validated args
+            cmd, capture_output=True, text=True, check=True, env=env
+        )
 
         # Log raw output for debugging
         logger.debug(f"Raw scanner stdout:\n{result.stdout[:500]}")
@@ -318,7 +320,9 @@ def _disable_unsafe_server(server_path: str) -> bool:
         # Call service_mgmt.sh to disable the server
         cmd = [str(PROJECT_ROOT / "cli" / "service_mgmt.sh"), "disable", server_path]
 
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(  # nosec B603 - hardcoded internal script, server_path from URL parsing
+            cmd, capture_output=True, text=True, check=True
+        )
 
         logger.info(f"Server {server_path} disabled successfully")
         logger.debug(f"Output: {result.stdout}")

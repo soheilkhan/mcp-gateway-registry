@@ -374,7 +374,7 @@ class SecurityScannerService:
 
         # Run scanner with timeout
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 - args are hardcoded flags passed to mcp-scanner tool
                 cmd,
                 capture_output=True,
                 text=True,

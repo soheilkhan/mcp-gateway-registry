@@ -292,7 +292,9 @@ def _refresh_agentcore_token(token_data: dict, filename: str) -> bool:
         logger.debug(f"Running AgentCore refresh command: {' '.join(cmd)}")
         logger.debug(f"Working directory: {PROJECT_ROOT.absolute()}")
 
-        result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(  # nosec B603 - internal script path via uv run, no user input
+            cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=30
+        )
 
         if result.returncode == 0:
             logger.info(f"Successfully refreshed AgentCore token: {filename}")
@@ -358,7 +360,7 @@ def _refresh_oauth_token(token_data: dict, filename: str) -> bool:
         elif "refresh_token" in token_data:
             logger.info("Refresh token available, script will handle refresh flow")
 
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 - internal script path via uv run, no user input
             cmd,
             cwd=PROJECT_ROOT,
             capture_output=True,

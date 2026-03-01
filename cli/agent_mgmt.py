@@ -163,7 +163,7 @@ def _regenerate_token(token_file: str) -> bool:
             token_script = os.path.join(project_root, "keycloak/setup/generate-agent-token.sh")
             keycloak_setup_dir = os.path.join(project_root, "keycloak/setup")
             logger.info(f"Running: {token_script} {agent_name}")
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 - hardcoded internal script path
                 [token_script, agent_name],
                 cwd=keycloak_setup_dir,  # Run from keycloak/setup so ../../.oauth-tokens works
                 capture_output=True,
@@ -174,7 +174,7 @@ def _regenerate_token(token_file: str) -> bool:
             # Use generate_creds.sh for ingress token
             creds_script = os.path.join(project_root, "credentials-provider/generate_creds.sh")
             logger.info(f"Running: {creds_script} --ingress-only")
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 - hardcoded internal script path and flags
                 [creds_script, "--ingress-only"],
                 cwd=project_root,
                 capture_output=True,

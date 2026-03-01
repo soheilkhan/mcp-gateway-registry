@@ -45,10 +45,7 @@ DEFAULT_ANALYZERS = "yara"
 
 
 def _run_security_scan(
-    server_url: str,
-    analyzers: str,
-    api_key: str | None = None,
-    access_token: str | None = None,
+    server_url: str, analyzers: str, api_key: str | None = None, access_token: str | None = None
 ) -> dict[str, Any]:
     """Run security scan on a server using mcp_security_scanner.py directly.
 
@@ -113,7 +110,7 @@ def _run_security_scan(
     logger.info(f"Running: {' '.join(cmd_for_log)}")
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 - internal script invoked via uv run with validated args
             cmd, capture_output=True, text=True, check=False, cwd=str(PROJECT_ROOT)
         )
 
@@ -362,10 +359,7 @@ def _generate_markdown_report(
 
 
 def _scan_all_servers(
-    base_url: str,
-    token_file: Path,
-    analyzers: str = DEFAULT_ANALYZERS,
-    api_key: str | None = None,
+    base_url: str, token_file: Path, analyzers: str = DEFAULT_ANALYZERS, api_key: str | None = None
 ) -> dict[str, Any]:
     """Scan all enabled servers.
 

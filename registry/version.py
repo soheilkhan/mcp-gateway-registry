@@ -29,7 +29,7 @@ def _get_git_version() -> str:
         repo_root = Path(__file__).parent.parent
 
         # Run git describe to get version
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607 - hardcoded git command with static args
             ["git", "describe", "--tags", "--always"],
             cwd=repo_root,
             capture_output=True,

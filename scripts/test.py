@@ -148,7 +148,7 @@ def _run_pytest(args: list[str], description: str, workers: str | None = None) -
 
     # Run pytest
     start_time = time.time()
-    result = subprocess.run(cmd, cwd=Path.cwd())
+    result = subprocess.run(cmd, cwd=Path.cwd())  # nosec B603 - pytest with args from argparse, development tool
     elapsed_time = time.time() - start_time
 
     # Display elapsed time

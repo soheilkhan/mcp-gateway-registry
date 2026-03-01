@@ -203,7 +203,7 @@ class AgentScannerService:
 
             # Run scanner with timeout
             try:
-                result = subprocess.run(
+                result = subprocess.run(  # nosec B603 - args are hardcoded flags and validated config values
                     cmd,
                     capture_output=True,
                     text=True,
