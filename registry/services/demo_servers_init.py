@@ -18,7 +18,7 @@ def _load_server_config(config_path: str) -> dict[str, Any]:
     """Load server configuration from JSON file.
 
     Args:
-        config_path: Relative path to config file from project root
+        config_path: Relative path to config file from project root (/app in container)
 
     Returns:
         Server configuration dictionary
@@ -27,9 +27,11 @@ def _load_server_config(config_path: str) -> dict[str, Any]:
         FileNotFoundError: If config file doesn't exist
         json.JSONDecodeError: If config file is invalid JSON
     """
-    # Get project root (3 levels up from this file)
+    # Get project root (3 levels up from this file: registry/services -> registry -> app)
     project_root = Path(__file__).parent.parent.parent
     full_path = project_root / config_path
+
+    logger.debug(f"Loading server config from: {full_path}")
 
     if not full_path.exists():
         raise FileNotFoundError(f"Server config not found: {full_path}")
