@@ -243,21 +243,32 @@ _register_server() {
         return 0
     fi
 
-    # Use registry_management.py for registration
-    local cmd=(
-        uv run python
-        "$PROJECT_ROOT/api/registry_management.py"
-        --registry-url "$REGISTRY_URL"
-        register
-        --config "$config_file"
-        --overwrite
-    )
+    # Create temporary token file if we have token directly
+    local token_file_arg=""
+    local temp_token_file=""
 
-    # Pass token via environment variable for security
-    if ADMIN_TOKEN="$ADMIN_TOKEN" "${cmd[@]}" 2>&1 | grep -v "^20[0-9][0-9]-"; then
+    if [[ -n "$ADMIN_TOKEN_FILE" ]]; then
+        # Use existing token file
+        token_file_arg="--token-file $ADMIN_TOKEN_FILE"
+    elif [[ -n "$ADMIN_TOKEN" ]]; then
+        # Create temporary token file from bearer token
+        temp_token_file=$(mktemp)
+        echo "{\"access_token\": \"$ADMIN_TOKEN\"}" > "$temp_token_file"
+        token_file_arg="--token-file $temp_token_file"
+    fi
+
+    # Use registry_management.py for registration
+    local cmd="uv run python $PROJECT_ROOT/api/registry_management.py --registry-url $REGISTRY_URL $token_file_arg register --config $config_file --overwrite"
+
+    # Run registration
+    if eval "$cmd" 2>&1 | grep -v "^20[0-9][0-9]-"; then
+        # Clean up temp file if created
+        [[ -n "$temp_token_file" ]] && rm -f "$temp_token_file"
         log_success "Registered: $server_name"
         return 0
     else
+        # Clean up temp file if created
+        [[ -n "$temp_token_file" ]] && rm -f "$temp_token_file"
         log_error "Failed to register: $server_name"
         return 1
     fi
