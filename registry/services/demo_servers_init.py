@@ -5,6 +5,7 @@ database during registry startup, eliminating the need for external registration
 scripts and authentication tokens.
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -98,6 +99,26 @@ async def initialize_airegistry_server() -> bool:
             else:
                 logger.error(f"Failed to create AI Registry Tools server at {path}")
                 return False
+
+        # Trigger immediate health check and security scan for the registered server
+        logger.info(f"Triggering health check and security scan for {path}...")
+        from registry.health.service import health_service
+        from registry.services.security_scanner import security_scanner_service
+
+        # Trigger health check asynchronously
+        asyncio.create_task(health_service.perform_immediate_health_check(path))
+
+        # Trigger security scan asynchronously
+        proxy_pass_url = config.get("proxy_pass_url")
+        if proxy_pass_url:
+            asyncio.create_task(
+                security_scanner_service.scan_server(
+                    server_url=proxy_pass_url, server_path=path
+                )
+            )
+            logger.info(f"Security scan scheduled for {path}")
+        else:
+            logger.warning(f"No proxy_pass_url found for {path}, skipping security scan")
 
         return True
 
