@@ -648,49 +648,8 @@ _restart_services() {
 }
 
 
-_register_demo_servers() {
-    log_step "8" "Registering Demo MCP Servers"
-    STEPS_TOTAL=$((STEPS_TOTAL + 1))
-
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_info "[DRY RUN] Would register demo servers"
-        STEPS_SKIPPED=$((STEPS_SKIPPED + 1))
-        return 0
-    fi
-
-    log_info "Registering AI Registry Tools and Current Time API servers..."
-
-    # Get M2M admin token
-    local token_file="$SCRIPT_DIR/../../../.oauth-tokens/registry-admin-m2m-bot.json"
-
-    # Try to generate token if it doesn't exist or is expired
-    if [[ ! -f "$token_file" ]]; then
-        log_info "Generating admin M2M token..."
-        # This would need to be implemented based on your M2M token generation script
-        log_warning "Token file not found: $token_file"
-        log_warning "Skipping server registration. Run manually:"
-        log_warning "  $SCRIPT_DIR/../../../scripts/register-demo-servers.sh --registry-url $REGISTRY_URL"
-        STEPS_SKIPPED=$((STEPS_SKIPPED + 1))
-        return 0
-    fi
-
-    # Run registration script
-    if "$SCRIPT_DIR/../../../scripts/register-demo-servers.sh" \
-        --registry-url "$REGISTRY_URL" \
-        --token-file "$token_file"; then
-        log_success "Demo servers registered successfully!"
-        STEPS_PASSED=$((STEPS_PASSED + 1))
-    else
-        log_warning "Demo server registration failed (non-fatal)."
-        log_warning "You can register manually later:"
-        log_warning "  $SCRIPT_DIR/../../../scripts/register-demo-servers.sh --registry-url $REGISTRY_URL"
-        STEPS_PASSED=$((STEPS_PASSED + 1))
-    fi
-}
-
-
 _verify_endpoints() {
-    log_step "9" "Verifying Application Endpoints"
+    log_step "8" "Verifying Application Endpoints"
     STEPS_TOTAL=$((STEPS_TOTAL + 1))
 
     if [[ "$DRY_RUN" == "true" ]]; then
@@ -804,10 +763,7 @@ main() {
     # Step 7: Restart services
     _restart_services || true
 
-    # Step 8: Register demo servers
-    _register_demo_servers || true
-
-    # Step 9: Verify endpoints
+    # Step 8: Verify endpoints
     _verify_endpoints || true
 
     # Print summary
