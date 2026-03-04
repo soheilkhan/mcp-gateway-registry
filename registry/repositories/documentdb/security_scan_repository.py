@@ -2,13 +2,12 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from ..interfaces import SecurityScanRepositoryBase
 from .client import get_collection_name, get_documentdb_client
-
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +16,8 @@ class DocumentDBSecurityScanRepository(SecurityScanRepositoryBase):
     """DocumentDB implementation of security scan repository."""
 
     def __init__(self):
-        self._collection: Optional[AsyncIOMotorCollection] = None
+        self._collection: AsyncIOMotorCollection | None = None
         self._collection_name = get_collection_name("mcp_security_scans")
-
 
     async def _get_collection(self) -> AsyncIOMotorCollection:
         """Get DocumentDB collection."""
@@ -27,7 +25,6 @@ class DocumentDBSecurityScanRepository(SecurityScanRepositoryBase):
             db = await get_documentdb_client()
             self._collection = db[self._collection_name]
         return self._collection
-
 
     async def load_all(self) -> None:
         """Load all security scan results from DocumentDB."""
@@ -40,16 +37,14 @@ class DocumentDBSecurityScanRepository(SecurityScanRepositoryBase):
         except Exception as e:
             logger.error(f"Error loading security scans from DocumentDB: {e}", exc_info=True)
 
-
     async def get(
         self,
         server_path: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get latest security scan result for a server."""
         return await self.get_latest(server_path)
 
-
-    async def list_all(self) -> List[Dict[str, Any]]:
+    async def list_all(self) -> list[dict[str, Any]]:
         """List all security scan results."""
         collection = await self._get_collection()
 
@@ -64,10 +59,9 @@ class DocumentDBSecurityScanRepository(SecurityScanRepositoryBase):
             logger.error(f"Error listing security scans from DocumentDB: {e}", exc_info=True)
             return []
 
-
     async def create(
         self,
-        scan_result: Dict[str, Any],
+        scan_result: dict[str, Any],
     ) -> bool:
         """Create/update a security scan result."""
         try:
@@ -84,7 +78,9 @@ class DocumentDBSecurityScanRepository(SecurityScanRepositoryBase):
             if "scan_timestamp" not in scan_result:
                 scan_result["scan_timestamp"] = datetime.utcnow().isoformat()
 
-            if "vulnerabilities" in scan_result and isinstance(scan_result["vulnerabilities"], list):
+            if "vulnerabilities" in scan_result and isinstance(
+                scan_result["vulnerabilities"], list
+            ):
                 vuln_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
                 for vuln in scan_result["vulnerabilities"]:
                     severity = vuln.get("severity", "").lower()
@@ -105,18 +101,29 @@ class DocumentDBSecurityScanRepository(SecurityScanRepositoryBase):
             logger.error(f"Failed to index security scan in DocumentDB: {e}", exc_info=True)
             return False
 
-
     async def get_latest(
         self,
         server_path: str,
-    ) -> Optional[Dict[str, Any]]:
-        """Get latest scan result for a server."""
+    ) -> dict[str, Any] | None:
+        """Get latest scan result for a server.
+
+        Normalizes paths to match both with and without trailing slashes.
+        """
         try:
             collection = await self._get_collection()
 
+            # Normalize path - try both with and without trailing slash
+            path_without_slash = server_path.rstrip("/")
+            path_with_slash = path_without_slash + "/"
+
             scan_doc = await collection.find_one(
-                {"server_path": server_path},
-                sort=[("scan_timestamp", -1)]
+                {
+                    "$or": [
+                        {"server_path": path_without_slash},
+                        {"server_path": path_with_slash},
+                    ]
+                },
+                sort=[("scan_timestamp", -1)],
             )
 
             if scan_doc:
@@ -128,18 +135,15 @@ class DocumentDBSecurityScanRepository(SecurityScanRepositoryBase):
             logger.error(f"Failed to get latest scan from DocumentDB: {e}", exc_info=True)
             return None
 
-
     async def query_by_status(
         self,
         status: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Query scan results by status."""
         try:
             collection = await self._get_collection()
 
-            cursor = collection.find(
-                {"scan_status": status}
-            ).sort("scan_timestamp", -1)
+            cursor = collection.find({"scan_status": status}).sort("scan_timestamp", -1)
 
             scans = []
             async for doc in cursor:

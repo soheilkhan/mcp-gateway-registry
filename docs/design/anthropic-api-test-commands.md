@@ -319,7 +319,7 @@ curl -X GET "http://localhost/v0.1/servers" \
 
 ```bash
 curl -X GET "http://localhost/v0.1/servers" \
-  -H "Authorization: Bearer <invalid-token-example>" \
+  -H "Authorization: Bearer invalid_token_here" \
   -H "Content-Type: application/json" | jq
 ```
 

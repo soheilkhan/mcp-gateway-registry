@@ -18,7 +18,7 @@ This document provides detailed API reference for the MCP Metrics Collection Ser
 All API endpoints require authentication using the `X-API-Key` header.
 
 ```http
-X-API-Key: &lt;your-api-key&gt;-here
+X-API-Key: your-api-key-here
 ```
 
 #### API Key Properties
@@ -89,7 +89,7 @@ Check current rate limit status:
 
 ```http
 GET /rate-limit
-X-API-Key: &lt;your-api-key&gt;-here
+X-API-Key: your-api-key-here
 ```
 
 Response:
@@ -115,7 +115,7 @@ Submit metrics data for collection and processing.
 ```http
 POST /metrics
 Content-Type: application/json
-X-API-Key: &lt;your-api-key&gt;-here
+X-API-Key: your-api-key-here
 
 {
   "service": "auth-server",
@@ -193,7 +193,7 @@ Force flush buffered metrics to storage.
 
 ```http
 POST /flush
-X-API-Key: &lt;your-api-key&gt;-here
+X-API-Key: your-api-key-here
 ```
 
 #### Response
@@ -213,7 +213,7 @@ Get current rate limit status for the authenticated API key.
 
 ```http
 GET /rate-limit
-X-API-Key: &lt;your-api-key&gt;-here
+X-API-Key: your-api-key-here
 ```
 
 #### Response
@@ -614,7 +614,7 @@ Error message format: `{field_path}: {error_description}`
 ```bash
 curl -X POST http://localhost:8890/metrics \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: &lt;your-api-key&gt;" \
+  -H "X-API-Key: your-api-key" \
   -d '{
     "service": "auth-server",
     "version": "1.2.0",
@@ -646,7 +646,7 @@ curl -X POST http://localhost:8890/metrics \
 ```bash
 curl -X POST http://localhost:8890/metrics \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: &lt;your-api-key&gt;" \
+  -H "X-API-Key: your-api-key" \
   -d '{
     "service": "registry-service",
     "version": "2.1.0",
@@ -676,7 +676,7 @@ curl -X POST http://localhost:8890/metrics \
 ```bash
 curl -X POST http://localhost:8890/metrics \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: &lt;your-api-key&gt;" \
+  -H "X-API-Key: your-api-key" \
   -d '{
     "service": "mcpgw-server",
     "version": "1.0.0",
@@ -708,7 +708,7 @@ curl -X POST http://localhost:8890/metrics \
 ```bash
 curl -X POST http://localhost:8890/metrics \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: &lt;your-api-key&gt;" \
+  -H "X-API-Key: your-api-key" \
   -d '{
     "service": "multi-service",
     "version": "1.0.0",
@@ -751,7 +751,7 @@ Request with validation errors:
 ```bash
 curl -X POST http://localhost:8890/metrics \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: &lt;your-api-key&gt;" \
+  -H "X-API-Key: your-api-key" \
   -d '{
     "service": "invalid service name",
     "metrics": [
@@ -785,7 +785,7 @@ Response:
 
 ```bash
 # Check rate limit status
-curl -H "X-API-Key: &lt;your-api-key&gt;" http://localhost:8890/rate-limit
+curl -H "X-API-Key: your-api-key" http://localhost:8890/rate-limit
 
 # Response
 {

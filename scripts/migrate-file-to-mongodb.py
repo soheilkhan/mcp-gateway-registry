@@ -22,12 +22,11 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorClient
-
 
 # Configure logging
 logging.basicConfig(
@@ -38,8 +37,8 @@ logger = logging.getLogger(__name__)
 
 
 def _get_config_from_env(
-    host_override: Optional[str] = None,
-    port_override: Optional[int] = None,
+    host_override: str | None = None,
+    port_override: int | None = None,
 ) -> dict:
     """Get MongoDB configuration from environment variables or overrides.
 
@@ -75,9 +74,7 @@ async def _get_mongodb_client(
             f"authMechanism=SCRAM-SHA-256&authSource=admin"
         )
     else:
-        connection_string = (
-            f"mongodb://{config['host']}:{config['port']}/{config['database']}"
-        )
+        connection_string = f"mongodb://{config['host']}:{config['port']}/{config['database']}"
         logger.info("Using no-auth connection for MongoDB")
 
     # Add directConnection for single-node replica set
@@ -98,10 +95,10 @@ async def _get_mongodb_client(
     return client
 
 
-def _load_server_json(filepath: Path) -> Optional[Dict[str, Any]]:
+def _load_server_json(filepath: Path) -> dict[str, Any] | None:
     """Load and transform a server JSON file."""
     try:
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             data = json.load(f)
 
         # Skip non-server files
@@ -126,7 +123,7 @@ def _load_server_json(filepath: Path) -> Optional[Dict[str, Any]]:
         data["path"] = path
 
         # Add default fields if missing
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         data.setdefault("is_enabled", True)
         data.setdefault("registered_at", now)
         data.setdefault("updated_at", now)
@@ -142,10 +139,10 @@ def _load_server_json(filepath: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _load_agent_json(filepath: Path) -> Optional[Dict[str, Any]]:
+def _load_agent_json(filepath: Path) -> dict[str, Any] | None:
     """Load and transform an agent JSON file."""
     try:
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             data = json.load(f)
 
         # Check for agent card structure
@@ -156,8 +153,8 @@ def _load_agent_json(filepath: Path) -> Optional[Dict[str, Any]]:
                 "card": card,
                 "path": data.get("path") or f"/agents/{card.get('name', filepath.stem)}",
                 "is_enabled": data.get("is_enabled", True),
-                "registered_at": data.get("registered_at", datetime.now(timezone.utc).isoformat()),
-                "updated_at": data.get("updated_at", datetime.now(timezone.utc).isoformat()),
+                "registered_at": data.get("registered_at", datetime.now(UTC).isoformat()),
+                "updated_at": data.get("updated_at", datetime.now(UTC).isoformat()),
             }
         elif "name" in data:
             # Flat agent structure
@@ -166,8 +163,8 @@ def _load_agent_json(filepath: Path) -> Optional[Dict[str, Any]]:
                 "card": data,
                 "path": f"/agents/{agent_name}",
                 "is_enabled": data.get("is_enabled", True),
-                "registered_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "registered_at": datetime.now(UTC).isoformat(),
+                "updated_at": datetime.now(UTC).isoformat(),
             }
         else:
             logger.debug(f"Skipping {filepath.name} - not an agent config")
@@ -179,7 +176,9 @@ def _load_agent_json(filepath: Path) -> Optional[Dict[str, Any]]:
             path = f"/{path}"
         agent_data["path"] = path
 
-        logger.info(f"Loaded agent: {agent_data.get('card', {}).get('name', 'unknown')} at {agent_data['path']}")
+        logger.info(
+            f"Loaded agent: {agent_data.get('card', {}).get('name', 'unknown')} at {agent_data['path']}"
+        )
         return agent_data
 
     except json.JSONDecodeError as e:
@@ -203,7 +202,8 @@ async def _migrate_servers(
     # Find all JSON files (exclude non-server files)
     exclude_files = {"server_state.json", "service_index_metadata.json"}
     json_files = [
-        f for f in servers_dir.glob("*.json")
+        f
+        for f in servers_dir.glob("*.json")
         if f.name not in exclude_files and not f.name.endswith(".faiss")
     ]
 
@@ -225,7 +225,9 @@ async def _migrate_servers(
         path = server_data["path"]
 
         if dry_run:
-            logger.info(f"[DRY RUN] Would import server: {server_data.get('server_name')} at {path}")
+            logger.info(
+                f"[DRY RUN] Would import server: {server_data.get('server_name')} at {path}"
+            )
             imported += 1
             continue
 
@@ -236,7 +238,7 @@ async def _migrate_servers(
             # Update existing document
             doc = {**server_data}
             doc.pop("path", None)
-            doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+            doc["updated_at"] = datetime.now(UTC).isoformat()
             await collection.update_one({"_id": path}, {"$set": doc})
         else:
             # Create new document
@@ -291,7 +293,7 @@ async def _migrate_agents(
             logger.info(f"Agent already exists at {path}, updating...")
             doc = {**agent_data}
             doc.pop("path", None)
-            doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+            doc["updated_at"] = datetime.now(UTC).isoformat()
             await collection.update_one({"_id": path}, {"$set": doc})
         else:
             # Create new document

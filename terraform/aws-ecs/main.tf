@@ -55,7 +55,7 @@ module "mcp_gateway" {
   # Keycloak configuration
   # Mode 1: CloudFront-only - use CloudFront domain
   # Mode 2 & 3: Custom domain (Route53 enabled) - use custom domain
-  keycloak_domain = var.enable_route53_dns ? local.keycloak_domain : (  # gitleaks:allow
+  keycloak_domain = var.enable_route53_dns ? local.keycloak_domain : ( #gitleaks:allow
     var.enable_cloudfront ? aws_cloudfront_distribution.keycloak[0].domain_name : local.keycloak_domain
   )
 
@@ -127,9 +127,13 @@ module "mcp_gateway" {
   entra_client_id     = var.entra_client_id
   entra_client_secret = var.entra_client_secret
 
+  # OAuth token storage
+  oauth_store_tokens_in_session = var.oauth_store_tokens_in_session
+
   # Registry static token auth
   registry_static_token_auth_enabled = var.registry_static_token_auth_enabled
   registry_api_token                 = var.registry_api_token
+  max_tokens_per_user_per_hour       = var.max_tokens_per_user_per_hour
 
   # Federation configuration (peer-to-peer registry sync)
   registry_id                          = var.registry_id
@@ -140,6 +144,16 @@ module "mcp_gateway" {
   # Audit logging configuration
   audit_log_enabled  = var.audit_log_enabled
   audit_log_ttl_days = var.audit_log_ttl_days
+
+  # Deployment mode configuration
+  deployment_mode = var.deployment_mode
+  registry_mode   = var.registry_mode
+
+  # Observability configuration
+  enable_observability      = var.enable_observability
+  metrics_service_image_uri = var.metrics_service_image_uri
+  grafana_image_uri         = var.grafana_image_uri
+  grafana_admin_password    = var.grafana_admin_password
 }
 
 # =============================================================================

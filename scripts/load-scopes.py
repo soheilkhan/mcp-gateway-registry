@@ -13,11 +13,9 @@ import argparse
 import asyncio
 import logging
 import os
+
 import yaml
-from typing import Optional
-
 from motor.motor_asyncio import AsyncIOMotorClient
-
 
 # Configure logging with basicConfig
 logging.basicConfig(
@@ -31,11 +29,11 @@ async def _get_documentdb_connection_string(
     host: str,
     port: int,
     database: str,
-    username: Optional[str],
-    password: Optional[str],
+    username: str | None,
+    password: str | None,
     use_iam: bool,
     use_tls: bool,
-    tls_ca_file: Optional[str],
+    tls_ca_file: str | None,
     storage_backend: str = "documentdb",
 ) -> str:
     """Build DocumentDB connection string with appropriate auth mechanism.
@@ -89,17 +87,12 @@ async def _get_documentdb_connection_string(
                 f"{storage_backend} (host: {host})"
             )
         else:
-            connection_string = (
-                f"mongodb://{host}:{port}/{database}?"
-                f"tls={str(use_tls).lower()}"
-            )
+            connection_string = f"mongodb://{host}:{port}/{database}?tls={str(use_tls).lower()}"
 
             if use_tls and tls_ca_file:
                 connection_string += f"&tlsCAFile={tls_ca_file}"
 
-            logger.info(
-                f"Using no authentication for DocumentDB (host: {host})"
-            )
+            logger.info(f"Using no authentication for DocumentDB (host: {host})")
 
     return connection_string
 
@@ -115,16 +108,17 @@ async def load_scopes_from_yaml(
 
     # Debug: Check if file exists
     import os
+
     logger.info(f"DEBUG: Current working directory: {os.getcwd()}")
     logger.info(f"DEBUG: File exists check: {os.path.exists(scopes_file)}")
     logger.info(f"DEBUG: File is absolute path: {os.path.isabs(scopes_file)}")
     if os.path.exists("/app/auth_server"):
         logger.info(f"DEBUG: /app/auth_server exists, contents: {os.listdir('/app/auth_server')}")
     else:
-        logger.info(f"DEBUG: /app/auth_server does NOT exist")
+        logger.info("DEBUG: /app/auth_server does NOT exist")
 
     # Read YAML file
-    with open(scopes_file, "r") as f:
+    with open(scopes_file) as f:
         scopes_data = yaml.safe_load(f)
 
     if not scopes_data:
@@ -182,9 +176,7 @@ async def load_scopes_from_yaml(
             try:
                 # Use update_one with upsert to avoid duplicate key errors
                 result = await collection.update_one(
-                    {"_id": scope_doc["_id"]},
-                    {"$set": scope_doc},
-                    upsert=True
+                    {"_id": scope_doc["_id"]}, {"$set": scope_doc}, upsert=True
                 )
 
                 if result.upserted_id:
@@ -321,9 +313,7 @@ Example usage:
         db = client[args.database]
 
         server_info = await client.server_info()
-        logger.info(
-            f"Connected to DocumentDB/MongoDB {server_info.get('version', 'unknown')}"
-        )
+        logger.info(f"Connected to DocumentDB/MongoDB {server_info.get('version', 'unknown')}")
 
         await load_scopes_from_yaml(
             scopes_file=args.scopes_file,

@@ -3,7 +3,7 @@
   "info": {
     "title": "MCP Gateway Registry",
     "description": "A registry and management system for Model Context Protocol (MCP) servers",
-    "version": "v1.0.13"
+    "version": "v1.0.16"
   },
   "paths": {
     "/api/auth/login": {
@@ -583,7 +583,7 @@
           "Server Management"
         ],
         "summary": "Internal Register Service",
-        "description": "Internal service registration endpoint for mcpgw-server (requires HTTP Basic Authentication with admin credentials).",
+        "description": "Internal service registration endpoint for mcpgw-server (requires admin authentication).",
         "operationId": "internal_register_service_api_internal_register_post",
         "requestBody": {
           "content": {
@@ -628,7 +628,7 @@
           "Server Management"
         ],
         "summary": "Internal Remove Service",
-        "description": "Internal service removal endpoint for mcpgw-server (requires HTTP Basic Authentication with admin credentials).",
+        "description": "Internal service removal endpoint for mcpgw-server (requires admin authentication).",
         "operationId": "internal_remove_service_api_internal_remove_post",
         "requestBody": {
           "content": {
@@ -673,7 +673,7 @@
           "Server Management"
         ],
         "summary": "Internal Toggle Service",
-        "description": "Internal service toggle endpoint for mcpgw-server (requires HTTP Basic Authentication with admin credentials).",
+        "description": "Internal service toggle endpoint for mcpgw-server (requires admin authentication).",
         "operationId": "internal_toggle_service_api_internal_toggle_post",
         "requestBody": {
           "content": {
@@ -718,7 +718,7 @@
           "Server Management"
         ],
         "summary": "Internal Healthcheck",
-        "description": "Internal health check endpoint for mcpgw-server (requires HTTP Basic Authentication with admin credentials).",
+        "description": "Internal health check endpoint for mcpgw-server (requires admin authentication).",
         "operationId": "internal_healthcheck_api_internal_healthcheck_post",
         "responses": {
           "200": {
@@ -1118,7 +1118,7 @@
           "Server Management"
         ],
         "summary": "Internal Add Server To Groups",
-        "description": "Internal endpoint to add a server to specific scopes groups (requires HTTP Basic Authentication with admin credentials).",
+        "description": "Internal endpoint to add a server to specific scopes groups (requires admin authentication).",
         "operationId": "internal_add_server_to_groups_api_internal_add_to_groups_post",
         "requestBody": {
           "content": {
@@ -1163,7 +1163,7 @@
           "Server Management"
         ],
         "summary": "Internal Remove Server From Groups",
-        "description": "Internal endpoint to remove a server from specific scopes groups (requires HTTP Basic Authentication with admin credentials).",
+        "description": "Internal endpoint to remove a server from specific scopes groups (requires admin authentication).",
         "operationId": "internal_remove_server_from_groups_api_internal_remove_from_groups_post",
         "requestBody": {
           "content": {
@@ -1208,7 +1208,7 @@
           "Server Management"
         ],
         "summary": "Internal List Services",
-        "description": "Internal service listing endpoint for mcpgw-server (requires HTTP Basic Authentication with admin credentials).",
+        "description": "Internal service listing endpoint for mcpgw-server (requires admin authentication).",
         "operationId": "internal_list_services_api_internal_list_get",
         "responses": {
           "200": {
@@ -1233,7 +1233,7 @@
           "Server Management"
         ],
         "summary": "Internal Create Group",
-        "description": "Internal endpoint to create a new group in both IdP and scopes.yml (requires HTTP Basic Authentication with admin credentials).",
+        "description": "Internal endpoint to create a new group in both IdP and scopes.yml (requires admin authentication).",
         "operationId": "internal_create_group_api_internal_create_group_post",
         "requestBody": {
           "content": {
@@ -1278,7 +1278,7 @@
           "Server Management"
         ],
         "summary": "Internal Delete Group",
-        "description": "Internal endpoint to delete a group from both Keycloak and scopes (requires HTTP Basic Authentication with admin credentials).",
+        "description": "Internal endpoint to delete a group from both Keycloak and scopes (requires admin authentication).",
         "operationId": "internal_delete_group_api_internal_delete_group_post",
         "requestBody": {
           "content": {
@@ -1323,7 +1323,7 @@
           "Server Management"
         ],
         "summary": "Internal List Groups",
-        "description": "Internal endpoint to list groups from Keycloak and/or scopes (requires HTTP Basic Authentication with admin credentials).",
+        "description": "Internal endpoint to list groups from Keycloak and/or scopes (requires admin authentication).",
         "operationId": "internal_list_groups_api_internal_list_groups_get",
         "parameters": [
           {
@@ -1427,32 +1427,24 @@
         ]
       }
     },
-    "/api/admin/tokens": {
-      "get": {
+    "/api/servers/register": {
+      "post": {
         "tags": [
           "Server Management"
         ],
-        "summary": "Get Admin Tokens",
-        "description": "Admin-only endpoint to retrieve JWT tokens from Keycloak.\n\nReturns both access token and refresh token for admin users.\n\nReturns:\n    JSON object containing access_token, refresh_token, expires_in, etc.\n\nRaises:\n    HTTPException: If user is not admin or token retrieval fails",
-        "operationId": "get_admin_tokens_api_admin_tokens_get",
-        "parameters": [
-          {
-            "name": "mcp_gateway_session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Mcp Gateway Session"
+        "summary": "Register Service Api",
+        "description": "Register a service via JWT Bearer Token authentication (External API).\n\nThis endpoint provides the same functionality as POST /api/internal/register\nbut uses modern JWT Bearer token authentication via nginx headers, making it\nsuitable for external service-to-service communication.\n\n**Authentication:** JWT Bearer token (via nginx X-User header)\n**Authorization:** Requires valid JWT token from auth system\n\n**Request body (form data):**\n- `name` (required): Service name\n- `description` (required): Service description\n- `path` (required): Service path (e.g., /myservice)\n- `proxy_pass_url` (required): Proxy URL (e.g., http://localhost:8000)\n- `tags` (optional): Comma-separated tags\n- `num_tools` (optional): Number of tools\n- `license` (optional): License name\n- `overwrite` (optional): Overwrite if exists (boolean, default true)\n- `auth_provider` (optional): Auth provider name\n- `auth_scheme` (optional): Auth scheme (none, bearer, api_key)\n- `auth_credential` (optional): Plaintext credential (encrypted before storage)\n- `auth_header_name` (optional): Custom header name for API key auth\n- `supported_transports` (optional): JSON array of transports\n- `headers` (optional): JSON object of headers\n- `tool_list_json` (optional): JSON array of tool definitions\n- `mcp_endpoint` (optional): Full URL for custom MCP endpoint (overrides /mcp suffix)\n- `sse_endpoint` (optional): Full URL for custom SSE endpoint (overrides /sse suffix)\n- `version` (optional): Server version (e.g., v1.0.0, v2.0.0)\n- `status` (optional): Version status (stable, beta, deprecated)\n\n**Response:**\n- `201 Created`: Service registered successfully\n- `400 Bad Request`: Invalid input data\n- `401 Unauthorized`: Missing or invalid JWT token\n- `409 Conflict`: Service already exists with same version (different version auto-creates new version)\n- `500 Internal Server Error`: Server error\n\n**Example:**\n```bash\ncurl -X POST https://registry.example.com/api/servers/register \\\n  -H \"Authorization: Bearer $JWT_TOKEN\" \\\n  -F \"name=My Service\" \\\n  -F \"description=My MCP Service\" \\\n  -F \"path=/myservice\" \\\n  -F \"proxy_pass_url=http://localhost:8000\"\n```",
+        "operationId": "register_service_api_api_servers_register_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_register_service_api_api_servers_register_post"
+              }
             }
-          }
-        ],
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1480,23 +1472,34 @@
         ]
       }
     },
-    "/api/servers/register": {
-      "post": {
+    "/api/servers/{server_path}/auth-credential": {
+      "patch": {
         "tags": [
           "Server Management"
         ],
-        "summary": "Register Service Api",
-        "description": "Register a service via JWT Bearer Token authentication (External API).\n\nThis endpoint provides the same functionality as POST /api/internal/register\nbut uses modern JWT Bearer token authentication via nginx headers, making it\nsuitable for external service-to-service communication.\n\n**Authentication:** JWT Bearer token (via nginx X-User header)\n**Authorization:** Requires valid JWT token from auth system\n\n**Request body (form data):**\n- `name` (required): Service name\n- `description` (required): Service description\n- `path` (required): Service path (e.g., /myservice)\n- `proxy_pass_url` (required): Proxy URL (e.g., http://localhost:8000)\n- `tags` (optional): Comma-separated tags\n- `num_tools` (optional): Number of tools\n- `num_stars` (optional): Star rating\n- `is_python` (optional): Is Python server (boolean)\n- `license` (optional): License name\n- `overwrite` (optional): Overwrite if exists (boolean, default true)\n- `auth_provider` (optional): Auth provider name\n- `auth_type` (optional): Auth type (e.g., oauth, basic)\n- `supported_transports` (optional): JSON array of transports\n- `headers` (optional): JSON object of headers\n- `tool_list_json` (optional): JSON array of tool definitions\n- `mcp_endpoint` (optional): Full URL for custom MCP endpoint (overrides /mcp suffix)\n- `sse_endpoint` (optional): Full URL for custom SSE endpoint (overrides /sse suffix)\n- `version` (optional): Server version (e.g., v1.0.0, v2.0.0)\n- `status` (optional): Version status (stable, beta, deprecated)\n\n**Response:**\n- `201 Created`: Service registered successfully\n- `400 Bad Request`: Invalid input data\n- `401 Unauthorized`: Missing or invalid JWT token\n- `409 Conflict`: Service already exists with same version (different version auto-creates new version)\n- `500 Internal Server Error`: Server error\n\n**Example:**\n```bash\ncurl -X POST https://registry.example.com/api/servers/register \\\n  -H \"Authorization: Bearer $JWT_TOKEN\" \\\n  -F \"name=My Service\" \\\n  -F \"description=My MCP Service\" \\\n  -F \"path=/myservice\" \\\n  -F \"proxy_pass_url=http://localhost:8000\"\n```",
-        "operationId": "register_service_api_api_servers_register_post",
+        "summary": "Update Server Auth Credential",
+        "description": "Update the authentication credential for a registered server.\n\nAllows updating the auth scheme, credential, and custom header name\nfor a backend MCP server without re-registering the entire server.\n\n**Authentication:** JWT Bearer token (via nginx X-User header)\n\n**Path parameter:**\n- `server_path`: Server path (e.g., /my-server)\n\n**Request body (JSON):**\n- `auth_scheme` (required): Authentication scheme (none, bearer, api_key)\n- `auth_credential` (optional): New credential. Required if auth_scheme is not 'none'.\n- `auth_header_name` (optional): Custom header name. Default: X-API-Key for api_key.",
+        "operationId": "update_server_auth_credential_api_servers__server_path__auth_credential_patch",
+        "parameters": [
+          {
+            "name": "server_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Server Path"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
-            "application/x-www-form-urlencoded": {
+            "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Body_register_service_api_api_servers_register_post"
+                "$ref": "#/components/schemas/AuthCredentialUpdateRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -3254,6 +3257,64 @@
         ]
       }
     },
+    "/api/management/iam/users/{username}/groups": {
+      "patch": {
+        "tags": [
+          "Management API"
+        ],
+        "summary": "Management Update User Groups",
+        "description": "Update a user's group memberships (admin only).\n\nThis endpoint calculates the diff between current and desired groups,\nthen adds or removes group memberships as needed.",
+        "operationId": "management_update_user_groups_api_management_iam_users__username__groups_patch",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Username"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserGroupsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateUserGroupsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/api/management/iam/groups": {
       "get": {
         "tags": [
@@ -3362,6 +3423,108 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GroupDeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Management API"
+        ],
+        "summary": "Management Get Group",
+        "description": "Get detailed information about a group (admin only).\n\nReturns both identity provider data and MongoDB scope data.",
+        "operationId": "management_get_group_api_management_iam_groups__group_name__get",
+        "parameters": [
+          {
+            "name": "group_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Management API"
+        ],
+        "summary": "Management Update Group",
+        "description": "Update a group's properties and scope configuration (admin only).\n\nThis updates the group in both:\n1. The configured identity provider (Keycloak or Entra ID)\n2. MongoDB scopes collection for authorization",
+        "operationId": "management_update_group_api_management_iam_groups__group_name__patch",
+        "parameters": [
+          {
+            "name": "group_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupDetailResponse"
                 }
               }
             }
@@ -4575,6 +4738,112 @@
         ]
       }
     },
+    "/api/skills/{skill_path}/security-scan": {
+      "get": {
+        "tags": [
+          "skills",
+          "skills"
+        ],
+        "summary": "Get skill security scan results",
+        "description": "Get the latest security scan results for a skill.",
+        "operationId": "get_skill_security_scan_api_skills__skill_path__security_scan_get",
+        "parameters": [
+          {
+            "name": "skill_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Skill path",
+              "title": "Skill Path"
+            },
+            "description": "Skill path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Skill Security Scan Api Skills  Skill Path  Security Scan Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/skills/{skill_path}/rescan": {
+      "post": {
+        "tags": [
+          "skills",
+          "skills"
+        ],
+        "summary": "Trigger manual security scan",
+        "description": "Trigger a manual security scan for a skill. Admin only.",
+        "operationId": "rescan_skill_api_skills__skill_path__rescan_post",
+        "parameters": [
+          {
+            "name": "skill_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Skill path",
+              "title": "Skill Path"
+            },
+            "description": "Skill path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Rescan Skill Api Skills  Skill Path  Rescan Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/api/skills/{skill_path}": {
       "get": {
         "tags": [
@@ -4832,6 +5101,912 @@
                   "additionalProperties": true,
                   "title": "Response Rate Skill Api Skills  Skill Path  Rate Post"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/config/full": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Get full registry configuration",
+        "description": "Returns all configuration parameters grouped by category. Admin only.",
+        "operationId": "get_full_config_api_config_full_get",
+        "parameters": [
+          {
+            "name": "mcp_gateway_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mcp Gateway Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Full Config Api Config Full Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Get registry configuration",
+        "description": "Returns the current deployment mode, registry mode, and enabled features",
+        "operationId": "get_config_api_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Config Api Config Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/config/export": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Export registry configuration",
+        "description": "Export configuration in various formats. Admin only.",
+        "operationId": "export_config_api_config_export_get",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ExportFormat",
+              "description": "Export format: env, json, tfvars, yaml",
+              "default": "env"
+            },
+            "description": "Export format: env, json, tfvars, yaml"
+          },
+          {
+            "name": "include_sensitive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include sensitive values (use with caution)",
+              "default": false,
+              "title": "Include Sensitive"
+            },
+            "description": "Include sensitive values (use with caution)"
+          },
+          {
+            "name": "mcp_gateway_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mcp Gateway Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/virtual-servers": {
+      "get": {
+        "tags": [
+          "virtual-servers"
+        ],
+        "summary": "List all virtual servers",
+        "description": "List all virtual servers with summary information.",
+        "operationId": "list_virtual_servers_api_virtual_servers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response List Virtual Servers Api Virtual Servers Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "virtual-servers"
+        ],
+        "summary": "Create a virtual server",
+        "description": "Create a new virtual MCP server.\n\nRequires admin or server-modify permissions.",
+        "operationId": "create_virtual_server_api_virtual_servers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVirtualServerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VirtualServerConfig"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/virtual-servers/{vs_path}/tools": {
+      "get": {
+        "tags": [
+          "virtual-servers"
+        ],
+        "summary": "List resolved tools for a virtual server",
+        "description": "Get the resolved tool list for a virtual server.\n\nReturns all tools with their final names, sources, and metadata.",
+        "operationId": "get_virtual_server_tools_api_virtual_servers__vs_path__tools_get",
+        "parameters": [
+          {
+            "name": "vs_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Virtual server path",
+              "title": "Vs Path"
+            },
+            "description": "Virtual server path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Virtual Server Tools Api Virtual Servers  Vs Path  Tools Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/virtual-servers/{vs_path}/rate": {
+      "post": {
+        "tags": [
+          "virtual-servers"
+        ],
+        "summary": "Rate a virtual server",
+        "description": "Submit or update a rating for a virtual server.\n\nRequires authentication. Each user can have one rating per server.",
+        "operationId": "rate_virtual_server_api_virtual_servers__vs_path__rate_post",
+        "parameters": [
+          {
+            "name": "vs_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Virtual server path",
+              "title": "Vs Path"
+            },
+            "description": "Virtual server path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/registry__api__virtual_server_routes__RatingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Rate Virtual Server Api Virtual Servers  Vs Path  Rate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/virtual-servers/{vs_path}/rating": {
+      "get": {
+        "tags": [
+          "virtual-servers"
+        ],
+        "summary": "Get virtual server rating",
+        "description": "Get rating information for a virtual server.",
+        "operationId": "get_virtual_server_rating_api_virtual_servers__vs_path__rating_get",
+        "parameters": [
+          {
+            "name": "vs_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Virtual server path",
+              "title": "Vs Path"
+            },
+            "description": "Virtual server path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Virtual Server Rating Api Virtual Servers  Vs Path  Rating Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/virtual-servers/{vs_path}": {
+      "get": {
+        "tags": [
+          "virtual-servers"
+        ],
+        "summary": "Get a virtual server by path",
+        "description": "Get detailed configuration for a virtual server.",
+        "operationId": "get_virtual_server_api_virtual_servers__vs_path__get",
+        "parameters": [
+          {
+            "name": "vs_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Virtual server path",
+              "title": "Vs Path"
+            },
+            "description": "Virtual server path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VirtualServerConfig"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "virtual-servers"
+        ],
+        "summary": "Update a virtual server",
+        "description": "Update an existing virtual MCP server.\n\nRequires admin or server-modify permissions.",
+        "operationId": "update_virtual_server_api_virtual_servers__vs_path__put",
+        "parameters": [
+          {
+            "name": "vs_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Virtual server path",
+              "title": "Vs Path"
+            },
+            "description": "Virtual server path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVirtualServerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VirtualServerConfig"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "virtual-servers"
+        ],
+        "summary": "Delete a virtual server",
+        "description": "Delete a virtual MCP server.\n\nRequires admin or server-modify permissions.",
+        "operationId": "delete_virtual_server_api_virtual_servers__vs_path__delete",
+        "parameters": [
+          {
+            "name": "vs_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Virtual server path",
+              "title": "Vs Path"
+            },
+            "description": "Virtual server path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/virtual-servers/{vs_path}/toggle": {
+      "post": {
+        "tags": [
+          "virtual-servers"
+        ],
+        "summary": "Toggle virtual server enabled state",
+        "description": "Enable or disable a virtual MCP server.\n\nRequires admin or server-modify permissions.\nEnabling triggers nginx configuration regeneration.",
+        "operationId": "toggle_virtual_server_api_virtual_servers__vs_path__toggle_post",
+        "parameters": [
+          {
+            "name": "vs_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Virtual server path",
+              "title": "Vs Path"
+            },
+            "description": "Virtual server path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToggleVirtualServerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Toggle Virtual Server Api Virtual Servers  Vs Path  Toggle Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/tool-catalog": {
+      "get": {
+        "tags": [
+          "virtual-servers"
+        ],
+        "summary": "Browse all available tools across servers",
+        "description": "Get the global tool catalog from all enabled MCP servers.\n\nReturns tools the authenticated user has access to, filtered by\ntheir scopes. Includes source server, description, input schema,\nand available versions.",
+        "operationId": "get_tool_catalog_api_tool_catalog_get",
+        "parameters": [
+          {
+            "name": "server_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by server path",
+              "title": "Server Path"
+            },
+            "description": "Filter by server path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Tool Catalog Api Tool Catalog Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/internal/sessions/client": {
+      "post": {
+        "summary": "Create Client Session",
+        "description": "Create a new client session and return the generated session ID.\n\nCalled by Lua router on MCP 'initialize' requests.\nGenerates a vs-<uuid4> client session ID, stores it in MongoDB,\nand returns it to be set as the Mcp-Session-Id response header.",
+        "operationId": "create_client_session_api_internal_sessions_client_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClientSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateClientSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/internal/sessions/client/{client_session_id}": {
+      "get": {
+        "summary": "Validate Client Session",
+        "description": "Validate that a client session exists.\n\nReturns 200 if valid, 404 if not found or expired.\nAlso bumps last_used_at to keep the session alive.",
+        "operationId": "validate_client_session_api_internal_sessions_client__client_session_id__get",
+        "parameters": [
+          {
+            "name": "client_session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Client Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/api/internal/sessions/backend/{session_key}": {
+      "get": {
+        "summary": "Get Backend Session",
+        "description": "Look up a backend session by compound key.\n\nThe session_key is '<client_session_id>:<backend_key>'.\nReturns the backend_session_id if found, 404 otherwise.\nAlso bumps last_used_at atomically.",
+        "operationId": "get_backend_session_api_internal_sessions_backend__session_key__get",
+        "parameters": [
+          {
+            "name": "session_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetBackendSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Store Backend Session",
+        "description": "Store or update a backend session.\n\nThe session_key is '<client_session_id>:<backend_key>'.\nUpserts the session document in MongoDB.",
+        "operationId": "store_backend_session_api_internal_sessions_backend__session_key__put",
+        "parameters": [
+          {
+            "name": "session_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoreSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete Backend Session",
+        "description": "Delete a stale backend session.\n\nCalled by Lua router when a backend rejects a cached session ID\n(e.g., after backend restart). The router will then re-initialize.",
+        "operationId": "delete_backend_session_api_internal_sessions_backend__session_key__delete",
+        "parameters": [
+          {
+            "name": "session_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -5585,6 +6760,68 @@
         ]
       }
     },
+    "/api/peers/{peer_id}/token": {
+      "patch": {
+        "tags": [
+          "peer-management"
+        ],
+        "summary": "Update Peer Token",
+        "description": "Update federation token for a peer without triggering full update.\n\nThis endpoint specifically updates only the federation token, bypassing\nthe regular update_peer() flow. This is useful for recovering from\nissue #561 where tokens were lost during peer updates, or for rotating\ntokens without modifying other peer configuration.\n\nArgs:\n    peer_id: Peer identifier\n    federation_token: New federation token value\n    user_context: Authenticated user context\n\nReturns:\n    Success message with peer ID\n\nRaises:\n    HTTPException: 404 if peer not found\n    HTTPException: 400 if token update fails\n\nExample:\n    PATCH /api/peers/central-registry/token\n    {\n        \"federation_token\": \"new-token-value-here\"\n    }",
+        "operationId": "update_peer_token_api_peers__peer_id__token_patch",
+        "parameters": [
+          {
+            "name": "peer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Peer Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_update_peer_token_api_peers__peer_id__token_patch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Update Peer Token Api Peers  Peer Id  Token Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/api/peers/{peer_id}/sync": {
       "post": {
         "tags": [
@@ -6196,7 +7433,7 @@
           "Audit Logs"
         ],
         "summary": "Get Audit Event",
-        "description": "Get a single audit event by request_id.\n\nReturns the complete audit event record including all fields.\n\nRequires admin access.",
+        "description": "Get audit events by request_id.\n\nReturns all audit event records matching the request_id,\noptionally filtered by log_type. A single request may have\nmultiple audit events (e.g., MCP server access + registry API access).\n\nRequires admin access.",
         "operationId": "get_audit_event_api_audit_events__request_id__get",
         "parameters": [
           {
@@ -6207,6 +7444,24 @@
               "type": "string",
               "title": "Request Id"
             }
+          },
+          {
+            "name": "log_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by log type: registry_api_access or mcp_server_access",
+              "title": "Log Type"
+            },
+            "description": "Filter by log type: registry_api_access or mcp_server_access"
           },
           {
             "name": "mcp_gateway_session",
@@ -6777,24 +8032,6 @@
         "summary": "Get Current User",
         "description": "Get current user information for React auth context",
         "operationId": "get_current_user_api_auth_me_get",
-        "parameters": [
-          {
-            "name": "mcp_gateway_session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Mcp Gateway Session"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7046,63 +8283,8 @@
         "properties": {
           "path": {
             "type": "string",
-            "title": "Path"
-          },
-          "agent_name": {
-            "type": "string",
-            "title": "Agent Name"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Tags"
-          },
-          "skills": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Skills"
-          },
-          "trust_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trust Level"
-          },
-          "visibility": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Visibility"
-          },
-          "is_enabled": {
-            "type": "boolean",
-            "title": "Is Enabled",
-            "default": false
+            "title": "Path",
+            "description": "Agent path for identification"
           },
           "relevance_score": {
             "type": "number",
@@ -7121,24 +8303,21 @@
             ],
             "title": "Match Context"
           },
-          "sync_metadata": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SyncMetadata"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "agent_card": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Agent Card",
+            "description": "Full agent card with all details"
           }
         },
         "type": "object",
         "required": [
           "path",
-          "agent_name",
-          "relevance_score"
+          "relevance_score",
+          "agent_card"
         ],
-        "title": "AgentSearchResult"
+        "title": "AgentSearchResult",
+        "description": "Agent search result with minimal top-level fields to avoid duplication.\n\nOnly search-specific fields are at the top level. All agent details\n(name, description, url, skills, etc.) are in the agent_card."
       },
       "AnthropicFederationConfig": {
         "properties": {
@@ -7274,6 +8453,45 @@
         "title": "AuditEventsResponse",
         "description": "Response model for paginated audit events."
       },
+      "AuthCredentialUpdateRequest": {
+        "properties": {
+          "auth_scheme": {
+            "type": "string",
+            "title": "Auth Scheme",
+            "description": "Authentication scheme: none, bearer, api_key"
+          },
+          "auth_credential": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Credential",
+            "description": "New credential (required if auth_scheme is not 'none')"
+          },
+          "auth_header_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Header Name",
+            "description": "Custom header name. Default: X-API-Key for api_key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "auth_scheme"
+        ],
+        "title": "AuthCredentialUpdateRequest",
+        "description": "Request model for updating server auth credentials via PATCH."
+      },
       "Body_add_server_to_groups_api_api_servers_groups_add_post": {
         "properties": {
           "server_name": {
@@ -7393,23 +8611,6 @@
             "title": "Num Tools",
             "default": 0
           },
-          "num_stars": {
-            "type": "integer",
-            "title": "Num Stars",
-            "default": 0
-          },
-          "is_python": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Python",
-            "default": false
-          },
           "license": {
             "type": "string",
             "title": "License",
@@ -7452,6 +8653,33 @@
               }
             ],
             "title": "Allowed Groups"
+          },
+          "auth_scheme": {
+            "type": "string",
+            "title": "Auth Scheme",
+            "default": "none"
+          },
+          "auth_credential": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Credential"
+          },
+          "auth_header_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Header Name"
           }
         },
         "type": "object",
@@ -7553,16 +8781,6 @@
             "title": "Num Tools",
             "default": 0
           },
-          "num_stars": {
-            "type": "integer",
-            "title": "Num Stars",
-            "default": 0
-          },
-          "is_python": {
-            "type": "boolean",
-            "title": "Is Python",
-            "default": false
-          },
           "license": {
             "type": "string",
             "title": "License",
@@ -7584,7 +8802,12 @@
             ],
             "title": "Auth Provider"
           },
-          "auth_type": {
+          "auth_scheme": {
+            "type": "string",
+            "title": "Auth Scheme",
+            "default": "none"
+          },
+          "auth_credential": {
             "anyOf": [
               {
                 "type": "string"
@@ -7593,7 +8816,18 @@
                 "type": "null"
               }
             ],
-            "title": "Auth Type"
+            "title": "Auth Credential"
+          },
+          "auth_header_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Header Name"
           },
           "supported_transports": {
             "anyOf": [
@@ -7744,16 +8978,6 @@
             "title": "Num Tools",
             "default": 0
           },
-          "num_stars": {
-            "type": "integer",
-            "title": "Num Stars",
-            "default": 0
-          },
-          "is_python": {
-            "type": "boolean",
-            "title": "Is Python",
-            "default": false
-          },
           "license": {
             "type": "string",
             "title": "License",
@@ -7775,7 +8999,12 @@
             ],
             "title": "Auth Provider"
           },
-          "auth_type": {
+          "auth_scheme": {
+            "type": "string",
+            "title": "Auth Scheme",
+            "default": "none"
+          },
+          "auth_credential": {
             "anyOf": [
               {
                 "type": "string"
@@ -7784,7 +9013,18 @@
                 "type": "null"
               }
             ],
-            "title": "Auth Type"
+            "title": "Auth Credential"
+          },
+          "auth_header_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Header Name"
           },
           "supported_transports": {
             "anyOf": [
@@ -7912,16 +9152,6 @@
             "title": "Num Tools",
             "default": 0
           },
-          "num_stars": {
-            "type": "integer",
-            "title": "Num Stars",
-            "default": 0
-          },
-          "is_python": {
-            "type": "boolean",
-            "title": "Is Python",
-            "default": false
-          },
           "license": {
             "type": "string",
             "title": "License",
@@ -7975,6 +9205,33 @@
               }
             ],
             "title": "Allowed Groups"
+          },
+          "auth_scheme": {
+            "type": "string",
+            "title": "Auth Scheme",
+            "default": "none"
+          },
+          "auth_credential": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Credential"
+          },
+          "auth_header_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Header Name"
           }
         },
         "type": "object",
@@ -8052,6 +9309,19 @@
         "type": "object",
         "title": "Body_toggle_service_route_api_toggle__service_path__post"
       },
+      "Body_update_peer_token_api_peers__peer_id__token_patch": {
+        "properties": {
+          "federation_token": {
+            "type": "string",
+            "title": "Federation Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "federation_token"
+        ],
+        "title": "Body_update_peer_token_api_peers__peer_id__token_patch"
+      },
       "CompatibilityRequirement": {
         "properties": {
           "type": {
@@ -8107,6 +9377,118 @@
         "title": "CompatibilityRequirement",
         "description": "Machine-readable compatibility constraint."
       },
+      "CreateClientSessionRequest": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id",
+            "description": "User identity from auth context",
+            "default": "anonymous"
+          },
+          "virtual_server_path": {
+            "type": "string",
+            "title": "Virtual Server Path",
+            "description": "Virtual server path this session is for",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "CreateClientSessionRequest",
+        "description": "Request body for creating a client session via internal API."
+      },
+      "CreateClientSessionResponse": {
+        "properties": {
+          "client_session_id": {
+            "type": "string",
+            "title": "Client Session Id",
+            "description": "Generated client session ID"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_session_id"
+        ],
+        "title": "CreateClientSessionResponse",
+        "description": "Response body after creating a client session."
+      },
+      "CreateVirtualServerRequest": {
+        "properties": {
+          "server_name": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Server Name",
+            "description": "Human-readable name"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path",
+            "description": "Custom path (auto-generated from name if not provided)"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Description",
+            "description": "Description of the virtual server",
+            "default": ""
+          },
+          "tool_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/ToolMapping"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Tool Mappings",
+            "description": "Tools to map from backend servers (max 500)"
+          },
+          "required_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Required Scopes",
+            "description": "Scopes required for access"
+          },
+          "tool_scope_overrides": {
+            "items": {
+              "$ref": "#/components/schemas/ToolScopeOverride"
+            },
+            "type": "array",
+            "title": "Tool Scope Overrides",
+            "description": "Per-tool scope overrides"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Tags",
+            "description": "Tags for categorization (max 50)"
+          },
+          "supported_transports": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Transports",
+            "description": "Supported transport types"
+          }
+        },
+        "type": "object",
+        "required": [
+          "server_name"
+        ],
+        "title": "CreateVirtualServerRequest",
+        "description": "Request model for creating a virtual server."
+      },
       "DiscoveryResponse": {
         "properties": {
           "skills": {
@@ -8153,6 +9535,17 @@
         ],
         "title": "ErrorResponse",
         "description": "Standard error response."
+      },
+      "ExportFormat": {
+        "type": "string",
+        "enum": [
+          "env",
+          "json",
+          "tfvars",
+          "yaml"
+        ],
+        "title": "ExportFormat",
+        "description": "Supported configuration export formats."
       },
       "FederationConfig": {
         "properties": {
@@ -8298,6 +9691,21 @@
           "total_count": 42
         }
       },
+      "GetBackendSessionResponse": {
+        "properties": {
+          "backend_session_id": {
+            "type": "string",
+            "title": "Backend Session Id",
+            "description": "Backend MCP session ID"
+          }
+        },
+        "type": "object",
+        "required": [
+          "backend_session_id"
+        ],
+        "title": "GetBackendSessionResponse",
+        "description": "Response body for backend session lookup."
+      },
       "GroupCreateRequest": {
         "properties": {
           "name": {
@@ -8315,6 +9723,19 @@
               }
             ],
             "title": "Description"
+          },
+          "scope_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Config",
+            "description": "Scope configuration (accepted but not yet applied server-side)"
           }
         },
         "type": "object",
@@ -8322,7 +9743,7 @@
           "name"
         ],
         "title": "GroupCreateRequest",
-        "description": "Payload for creating a Keycloak group."
+        "description": "Payload for creating a group.\n\nNote: The backend currently only processes name and description.\nThe scope_config field is accepted but not yet wired to\nscope_service.import_group(). Future work should pass\nserver_access, group_mappings, and ui_permissions through\nto the scope service when creating a group."
       },
       "GroupDeleteResponse": {
         "properties": {
@@ -8342,6 +9763,95 @@
         ],
         "title": "GroupDeleteResponse",
         "description": "Response when a Keycloak group is deleted."
+      },
+      "GroupDetailResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "server_access": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Access"
+          },
+          "group_mappings": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Mappings"
+          },
+          "ui_permissions": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ui Permissions"
+          },
+          "agent_access": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Access"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "GroupDetailResponse",
+        "description": "Detailed group information."
       },
       "GroupListResponse": {
         "properties": {
@@ -8399,6 +9909,37 @@
         ],
         "title": "GroupSummary",
         "description": "Group information."
+      },
+      "GroupUpdateRequest": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "scope_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Config",
+            "description": "Scope configuration (server_access, ui_permissions, etc.)"
+          }
+        },
+        "type": "object",
+        "title": "GroupUpdateRequest",
+        "description": "Request to update a group."
       },
       "HTTPValidationError": {
         "properties": {
@@ -8536,6 +10077,19 @@
               }
             ],
             "title": "Match Context"
+          },
+          "inputSchema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inputschema",
+            "description": "JSON Schema for tool input parameters"
           }
         },
         "type": "object",
@@ -8543,7 +10097,7 @@
           "tool_name"
         ],
         "title": "MatchingToolResult",
-        "description": "Tool matching result - basic info for display.\n\nNote: inputSchema is NOT included here to avoid duplication.\nFull tool details including inputSchema are in the tools[] array."
+        "description": "Tool matching result with optional schema for display."
       },
       "Package": {
         "properties": {
@@ -9031,7 +10585,8 @@
                     "mcp_server",
                     "tool",
                     "a2a_agent",
-                    "skill"
+                    "skill",
+                    "virtual_server"
                   ]
                 },
                 "type": "array"
@@ -9098,6 +10653,13 @@
             "type": "array",
             "title": "Skills"
           },
+          "virtual_servers": {
+            "items": {
+              "$ref": "#/components/schemas/VirtualServerSearchResult"
+            },
+            "type": "array",
+            "title": "Virtual Servers"
+          },
           "total_servers": {
             "type": "integer",
             "title": "Total Servers",
@@ -9116,6 +10678,11 @@
           "total_skills": {
             "type": "integer",
             "title": "Total Skills",
+            "default": 0
+          },
+          "total_virtual_servers": {
+            "type": "integer",
+            "title": "Total Virtual Servers",
             "default": 0
           }
         },
@@ -9342,6 +10909,62 @@
                 "type": "null"
               }
             ]
+          },
+          "endpoint_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint Url",
+            "description": "URL for agents to connect to this MCP server"
+          },
+          "proxy_pass_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proxy Pass Url",
+            "description": "Base URL for the MCP server backend (internal)"
+          },
+          "mcp_endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mcp Endpoint",
+            "description": "Explicit streamable-http endpoint URL (if set)"
+          },
+          "sse_endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sse Endpoint",
+            "description": "Explicit SSE endpoint URL (if set)"
+          },
+          "supported_transports": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Transports",
+            "description": "Supported transport types (e.g., streamable-http, sse)"
           }
         },
         "type": "object",
@@ -9883,6 +11506,27 @@
             "title": "Is Enabled",
             "default": false
           },
+          "health_status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "unhealthy",
+              "unknown"
+            ],
+            "title": "Health Status",
+            "default": "unknown"
+          },
+          "last_checked_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checked Time"
+          },
           "relevance_score": {
             "type": "number",
             "maximum": 1.0,
@@ -9974,6 +11618,39 @@
         ],
         "title": "SkillTier1_Metadata",
         "description": "Tier 1: Always available, ~100 tokens."
+      },
+      "StoreSessionRequest": {
+        "properties": {
+          "backend_session_id": {
+            "type": "string",
+            "title": "Backend Session Id",
+            "description": "Session ID from the backend MCP server"
+          },
+          "client_session_id": {
+            "type": "string",
+            "title": "Client Session Id",
+            "description": "Client-facing session ID"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id",
+            "description": "User identity from auth context",
+            "default": "anonymous"
+          },
+          "virtual_server_path": {
+            "type": "string",
+            "title": "Virtual Server Path",
+            "description": "Virtual server path",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "backend_session_id",
+          "client_session_id"
+        ],
+        "title": "StoreSessionRequest",
+        "description": "Request body for storing a backend session via internal API."
       },
       "SyncHistoryEntry": {
         "properties": {
@@ -10237,6 +11914,81 @@
         "title": "ToggleStateRequest",
         "description": "Request model for toggling skill state."
       },
+      "ToggleVirtualServerRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "New enabled state"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "ToggleVirtualServerRequest",
+        "description": "Request model for toggling virtual server enabled state."
+      },
+      "ToolMapping": {
+        "properties": {
+          "tool_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Tool Name",
+            "description": "Original tool name on the backend server"
+          },
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias",
+            "description": "Renamed tool name in virtual server (for conflict resolution)"
+          },
+          "backend_server_path": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Backend Server Path",
+            "description": "Backend server path (e.g., '/github')"
+          },
+          "backend_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backend Version",
+            "description": "Pinned version (None = active version, e.g., 'v1.5.0' = pinned)"
+          },
+          "description_override": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description Override",
+            "description": "Override the tool's description in this virtual server"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool_name",
+          "backend_server_path"
+        ],
+        "title": "ToolMapping",
+        "description": "Maps a tool from a backend server into a virtual server.\n\nEach mapping selects a specific tool from a backend MCP server,\noptionally renaming it (alias) and pinning it to a specific version."
+      },
       "ToolReference": {
         "properties": {
           "tool_name": {
@@ -10282,6 +12034,32 @@
         ],
         "title": "ToolReference",
         "description": "Reference to a tool with optional filtering."
+      },
+      "ToolScopeOverride": {
+        "properties": {
+          "tool_alias": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Tool Alias",
+            "description": "Tool alias or original tool_name"
+          },
+          "required_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Required Scopes",
+            "description": "Scopes needed to see/call this tool"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool_alias",
+          "required_scopes"
+        ],
+        "title": "ToolScopeOverride",
+        "description": "Per-tool scope override for fine-grained access control.\n\nAllows requiring additional scopes to see or call specific tools\nbeyond the virtual server's base required_scopes."
       },
       "ToolSearchResult": {
         "properties": {
@@ -10337,6 +12115,18 @@
               }
             ],
             "title": "Match Context"
+          },
+          "endpoint_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint Url",
+            "description": "URL for agents to connect to the parent MCP server"
           }
         },
         "type": "object",
@@ -10382,6 +12172,168 @@
         ],
         "title": "ToolValidationResult",
         "description": "Result of tool availability validation."
+      },
+      "UpdateUserGroupsRequest": {
+        "properties": {
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Groups",
+            "description": "List of group names to assign"
+          }
+        },
+        "type": "object",
+        "required": [
+          "groups"
+        ],
+        "title": "UpdateUserGroupsRequest",
+        "description": "Payload for updating a user's group memberships."
+      },
+      "UpdateUserGroupsResponse": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "added": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Added"
+          },
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Removed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username"
+        ],
+        "title": "UpdateUserGroupsResponse",
+        "description": "Response after updating user's group memberships."
+      },
+      "UpdateVirtualServerRequest": {
+        "properties": {
+          "server_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Name",
+            "description": "Updated name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Updated description"
+          },
+          "tool_mappings": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ToolMapping"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Mappings",
+            "description": "Updated tool mappings"
+          },
+          "required_scopes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Scopes",
+            "description": "Updated required scopes"
+          },
+          "tool_scope_overrides": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ToolScopeOverride"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Scope Overrides",
+            "description": "Updated per-tool scope overrides"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags",
+            "description": "Updated tags"
+          },
+          "supported_transports": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supported Transports",
+            "description": "Updated transport types"
+          }
+        },
+        "type": "object",
+        "title": "UpdateVirtualServerRequest",
+        "description": "Request model for updating a virtual server."
       },
       "UserDeleteResponse": {
         "properties": {
@@ -10527,6 +12479,220 @@
         ],
         "title": "ValidationError"
       },
+      "VirtualServerConfig": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "Unique path and MongoDB _id (e.g., '/virtual/dev-essentials')"
+          },
+          "server_name": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Server Name",
+            "description": "Human-readable name for the virtual server"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Description",
+            "description": "Description of the virtual server's purpose",
+            "default": ""
+          },
+          "tool_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/ToolMapping"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Tool Mappings",
+            "description": "List of tools mapped from backend servers (max 500)"
+          },
+          "required_scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Required Scopes",
+            "description": "Scopes required to access any tool on this virtual server"
+          },
+          "tool_scope_overrides": {
+            "items": {
+              "$ref": "#/components/schemas/ToolScopeOverride"
+            },
+            "type": "array",
+            "title": "Tool Scope Overrides",
+            "description": "Per-tool scope overrides for fine-grained access"
+          },
+          "is_enabled": {
+            "type": "boolean",
+            "title": "Is Enabled",
+            "description": "Whether the virtual server is enabled and routable",
+            "default": false
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Tags",
+            "description": "Tags for categorization and filtering (max 50)"
+          },
+          "supported_transports": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Transports",
+            "description": "Supported MCP transport types"
+          },
+          "num_stars": {
+            "type": "number",
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Num Stars",
+            "description": "Average star rating (0-5)",
+            "default": 0.0
+          },
+          "rating_details": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Rating Details",
+            "description": "List of individual ratings with user and rating"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By",
+            "description": "Username of the creator"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "Creation timestamp"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At",
+            "description": "Last update timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "server_name"
+        ],
+        "title": "VirtualServerConfig",
+        "description": "Full virtual MCP server configuration.\n\nA virtual server aggregates tools from multiple backend MCP servers\ninto a single endpoint. It supports tool aliasing, version pinning,\nand scope-based access control."
+      },
+      "VirtualServerSearchResult": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "server_name": {
+            "type": "string",
+            "title": "Server Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "num_tools": {
+            "type": "integer",
+            "title": "Num Tools",
+            "default": 0
+          },
+          "backend_count": {
+            "type": "integer",
+            "title": "Backend Count",
+            "default": 0
+          },
+          "backend_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Backend Paths"
+          },
+          "is_enabled": {
+            "type": "boolean",
+            "title": "Is Enabled",
+            "default": false
+          },
+          "relevance_score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Relevance Score"
+          },
+          "match_context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Context"
+          },
+          "matching_tools": {
+            "items": {
+              "$ref": "#/components/schemas/MatchingToolResult"
+            },
+            "type": "array",
+            "title": "Matching Tools"
+          },
+          "endpoint_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint Url",
+            "description": "URL for agents to connect to this virtual MCP server"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "server_name",
+          "relevance_score"
+        ],
+        "title": "VirtualServerSearchResult"
+      },
       "VisibilityEnum": {
         "type": "string",
         "enum": [
@@ -10576,6 +12742,20 @@
         ],
         "title": "RatingRequest",
         "description": "Request model for rating a skill."
+      },
+      "registry__api__virtual_server_routes__RatingRequest": {
+        "properties": {
+          "rating": {
+            "type": "integer",
+            "title": "Rating"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rating"
+        ],
+        "title": "RatingRequest",
+        "description": "Request model for rating a virtual server."
       }
     },
     "securitySchemes": {

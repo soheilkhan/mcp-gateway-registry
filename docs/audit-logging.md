@@ -30,7 +30,7 @@ The following sensitive data is explicitly excluded from audit logs:
 
 When credential hints are logged for debugging purposes, they are automatically masked:
 
-- Full token: `eyJ...` (example) becomes `***`
+- Full token: `eyJhbGciOiJSUzI1NiIsInR5...` becomes `***zI1Ni` <!-- gitleaks:allow -->
 - Tokens shorter than 6 characters become `***`
 
 Query parameters with sensitive names (token, password, key, secret, api_key, etc.) are automatically masked.

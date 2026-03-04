@@ -1,0 +1,109 @@
+# --- Publish: create multi-arch manifests in preprod ECR ---
+
+publish registry image:
+  extends: .build-docker-image
+  stage: publish
+  variables:
+    IMAGE_NAME: mcp-gateway-registry
+    IMAGE_PREFIX: "$REGISTRY_IMAGE_PREFIX/$IMAGE_NAME"
+    REGISTRY_IMAGE: "$AWS_PREPROD_ECR_URL/$IMAGE_PREFIX"
+    REGISTRY_PROD_IMAGE: "$AWS_PROD_ECR_URL/$IMAGE_PREFIX"
+  script:
+    - VERSION=$(echo $CI_COMMIT_TAG | sed 's#rel/\(.*\)$#\1#')
+    - REGISTRY_IMAGE_TAG="$REGISTRY_IMAGE:$VERSION"
+    - REGISTRY_PROD_IMAGE_TAG="$REGISTRY_PROD_IMAGE:$VERSION"
+    - docker manifest create $REGISTRY_IMAGE_TAG --amend $REGISTRY_IMAGE_TAG-amd64 --amend $REGISTRY_IMAGE_TAG-arm64
+    - docker manifest push $REGISTRY_IMAGE_TAG
+    - echo PROMOTE_FROM=$REGISTRY_IMAGE_TAG > promote-registry.env
+    - echo PROMOTE_TO=$REGISTRY_PROD_IMAGE_TAG >> promote-registry.env
+    - echo "*** registry image *************************************************************"
+    - echo "$REGISTRY_IMAGE_TAG"
+    - echo "********************************************************************************"
+  artifacts:
+    paths:
+      - promote-registry.env
+  only:
+    - /^rel\//
+  needs:
+    - build registry image amd64
+    - build registry image arm64
+    - job: scan_registry_image
+      optional: true
+  tags:
+    - crm-preprod-runner
+
+publish auth-server image:
+  extends: .build-docker-image
+  stage: publish
+  variables:
+    IMAGE_NAME: mcp-gateway-auth-server
+    IMAGE_PREFIX: "$REGISTRY_IMAGE_PREFIX/$IMAGE_NAME"
+    REGISTRY_IMAGE: "$AWS_PREPROD_ECR_URL/$IMAGE_PREFIX"
+    REGISTRY_PROD_IMAGE: "$AWS_PROD_ECR_URL/$IMAGE_PREFIX"
+  script:
+    - VERSION=$(echo $CI_COMMIT_TAG | sed 's#rel/\(.*\)$#\1#')
+    - REGISTRY_IMAGE_TAG="$REGISTRY_IMAGE:$VERSION"
+    - REGISTRY_PROD_IMAGE_TAG="$REGISTRY_PROD_IMAGE:$VERSION"
+    - docker manifest create $REGISTRY_IMAGE_TAG --amend $REGISTRY_IMAGE_TAG-amd64 --amend $REGISTRY_IMAGE_TAG-arm64
+    - docker manifest push $REGISTRY_IMAGE_TAG
+    - echo PROMOTE_FROM=$REGISTRY_IMAGE_TAG > promote-auth-server.env
+    - echo PROMOTE_TO=$REGISTRY_PROD_IMAGE_TAG >> promote-auth-server.env
+    - echo "*** auth-server image **********************************************************"
+    - echo "$REGISTRY_IMAGE_TAG"
+    - echo "********************************************************************************"
+  artifacts:
+    paths:
+      - promote-auth-server.env
+  only:
+    - /^rel\//
+  needs:
+    - build auth-server image amd64
+    - build auth-server image arm64
+    - job: scan_auth_server_image
+      optional: true
+  tags:
+    - crm-preprod-runner
+
+# --- Promote: copy from preprod ECR to prod ECR (manual gate) ---
+
+promote registry image:
+  extends: .build-docker-image
+  stage: promote
+  script:
+    - curl -L https://github.com/regclient/regclient/releases/download/v0.5.3/regctl-linux-amd64 -o regctl
+    - chmod a+x regctl
+    - source promote-registry.env
+    - ./regctl image copy -v debug $PROMOTE_FROM $PROMOTE_TO
+    - echo "*** registry image promoted ****************************************************"
+    - echo "FROM $PROMOTE_FROM"
+    - echo "  TO $PROMOTE_TO"
+    - echo "********************************************************************************"
+  when: manual
+  only:
+    - /^rel\//
+  needs:
+    - job: publish registry image
+      artifacts: true
+  tags:
+    - infra-ops-gitlab-runner
+
+promote auth-server image:
+  extends: .build-docker-image
+  stage: promote
+  script:
+    - curl -L https://github.com/regclient/regclient/releases/download/v0.5.3/regctl-linux-amd64 -o regctl
+    - chmod a+x regctl
+    - source promote-auth-server.env
+    - ./regctl image copy -v debug $PROMOTE_FROM $PROMOTE_TO
+    - echo "*** auth-server image promoted *************************************************"
+    - echo "FROM $PROMOTE_FROM"
+    - echo "  TO $PROMOTE_TO"
+    - echo "********************************************************************************"
+  when: manual
+  only:
+    - /^rel\//
+  needs:
+    - job: publish auth-server image
+      artifacts: true
+  tags:
+    - infra-ops-gitlab-runner

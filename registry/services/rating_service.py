@@ -6,8 +6,7 @@ between server_service.py and agent_service.py.
 """
 
 import logging
-from typing import List, Dict, Tuple, Any
-
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +41,10 @@ def validate_rating(rating: int) -> None:
 
 
 def update_rating_details(
-    rating_details: List[Dict[str, Any]],
+    rating_details: list[dict[str, Any]],
     username: str,
     rating: int,
-) -> Tuple[List[Dict[str, Any]], bool]:
+) -> tuple[list[dict[str, Any]], bool]:
     """
     Update rating details list with new or updated user rating.
 
@@ -78,10 +77,12 @@ def update_rating_details(
 
     # If no existing rating from this user, append a new one
     if not user_found:
-        rating_details.append({
-            "user": username,
-            "rating": rating,
-        })
+        rating_details.append(
+            {
+                "user": username,
+                "rating": rating,
+            }
+        )
         logger.info(f"Added new rating for user {username}: {rating}")
 
         # Maintain a rotating buffer of MAX_RATINGS_PER_RESOURCE entries
@@ -95,7 +96,7 @@ def update_rating_details(
     return rating_details, not user_found
 
 
-def calculate_average_rating(rating_details: List[Dict[str, Any]]) -> float:
+def calculate_average_rating(rating_details: list[dict[str, Any]]) -> float:
     """
     Calculate average rating from rating details.
 
@@ -114,8 +115,6 @@ def calculate_average_rating(rating_details: List[Dict[str, Any]]) -> float:
     all_ratings = [entry["rating"] for entry in rating_details]
     average = float(sum(all_ratings) / len(all_ratings))
 
-    logger.debug(
-        f"Calculated average rating: {average:.2f} from {len(all_ratings)} ratings"
-    )
+    logger.debug(f"Calculated average rating: {average:.2f} from {len(all_ratings)} ratings")
 
     return average

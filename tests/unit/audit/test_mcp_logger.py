@@ -5,11 +5,10 @@ Validates: Requirements 9.3, 9.5
 """
 
 import json
-import os
-import tempfile
 
 import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from registry.audit.mcp_logger import MCPLogger
 from registry.audit.models import Identity, MCPServer
@@ -26,12 +25,14 @@ class TestJSONRPCParsing:
     @settings(max_examples=50)
     def test_tools_call_extracts_tool_name(self, tool_name: str, jsonrpc_id):
         """For tools/call requests, parse_jsonrpc_body extracts the tool_name."""
-        body = json.dumps({
-            "jsonrpc": "2.0",
-            "method": "tools/call",
-            "params": {"name": tool_name},
-            "id": jsonrpc_id,
-        })
+        body = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {"name": tool_name},
+                "id": jsonrpc_id,
+            }
+        )
         result = MCPLogger(None).parse_jsonrpc_body(body)
         assert result["method"] == "tools/call"
         assert result["tool_name"] == tool_name
@@ -42,12 +43,14 @@ class TestJSONRPCParsing:
     @settings(max_examples=50)
     def test_resources_read_extracts_uri(self, resource_uri: str):
         """For resources/read requests, parse_jsonrpc_body extracts the resource_uri."""
-        body = json.dumps({
-            "jsonrpc": "2.0",
-            "method": "resources/read",
-            "params": {"uri": resource_uri},
-            "id": 1,
-        })
+        body = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "resources/read",
+                "params": {"uri": resource_uri},
+                "id": 1,
+            }
+        )
         result = MCPLogger(None).parse_jsonrpc_body(body)
         assert result["method"] == "resources/read"
         assert result["resource_uri"] == resource_uri
@@ -93,7 +96,7 @@ class TestLogMCPAccess:
             username="test-user",
             auth_method="oauth2",
             credential_type="bearer_token",
-            credential_hint="abc123xyz789",  # gitleaks:allow
+            credential_hint="abc123xyz789",
         )
         mcp_server = MCPServer(
             name="weather-server",

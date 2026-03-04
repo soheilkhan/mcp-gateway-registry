@@ -61,7 +61,7 @@ export TF_VAR_registry_api_token="your-generated-token"
 Clients send the static API key as a Bearer token in the Authorization header:
 
 ```bash
-curl -H "Authorization: Bearer <your-generated-token>" \
+curl -H "Authorization: Bearer your-generated-token" \
   http://localhost:7860/api/services/list
 ```
 

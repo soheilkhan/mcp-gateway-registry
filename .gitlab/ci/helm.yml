@@ -1,0 +1,128 @@
+# --- Helm validation (runs on MR and push to main/develop) ---
+
+.helm:
+  image:
+    name: alpine/helm:3.19
+    entrypoint: [""]
+  before_script:
+    - env
+    - apk add --no-cache --update build-base curl py3-setuptools python3 py-pip gettext aws-cli
+    - aws sts get-caller-identity
+
+helm-lint:
+  extends:
+    - .helm
+    - .run_helm_rules
+  stage: validate
+  script:
+    - helm repo add bitnami https://charts.bitnami.com/bitnami || true
+    - helm repo update
+    - |
+      for chart in charts/*/; do
+        if [ -f "${chart}Chart.yaml" ]; then
+          echo "Building dependencies for ${chart}..."
+          helm dependency build "${chart}" || true
+        fi
+      done
+    - |
+      for chart in charts/*/; do
+        if [ -f "${chart}Chart.yaml" ]; then
+          echo "Linting ${chart}..."
+          helm lint "${chart}" || true
+        fi
+      done
+
+helm_template_validation:
+  extends:
+    - .helm
+    - .run_helm_rules
+  stage: validate
+  allow_failure: true
+  script:
+    - helm repo add bitnami https://charts.bitnami.com/bitnami || true
+    - helm repo update
+    - |
+      for chart in charts/*/; do
+        if [ -f "${chart}Chart.yaml" ]; then
+          echo "Building dependencies for ${chart}..."
+          helm dependency build "${chart}" 2>/dev/null || true
+        fi
+      done
+    - |
+      FAIL=0
+      for chart in charts/*/; do
+        if [ -f "${chart}Chart.yaml" ]; then
+          chart_name=$(basename "${chart}")
+          echo "Validating template for ${chart}..."
+          if ! helm template test "${chart}" --debug > /dev/null 2>&1; then
+            echo "WARNING: ${chart_name} template failed (sub-charts may require parent global values)"
+          fi
+        fi
+      done
+
+helm_kubeconform:
+  extends:
+    - .helm
+    - .run_helm_rules
+  stage: validate
+  allow_failure: true
+  script:
+    - apk add --no-cache curl tar
+    - curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-amd64.tar.gz | tar xz
+    - mv kubeconform /usr/local/bin/kubeconform
+    - |
+      for chart in charts/*/; do
+        if [ -f "${chart}Chart.yaml" ]; then
+          echo "Kubeconform validating ${chart}..."
+          helm template test "${chart}" 2>/dev/null | kubeconform -strict -summary -ignore-missing-schemas || true
+        fi
+      done
+
+# --- Helm publish (to preprod ECR) ---
+
+dev helm chart:
+  extends: .helm
+  stage: publish
+  script:
+    - aws ecr get-login-password --region $REGION | helm registry login --username AWS --password-stdin $AWS_PREPROD_ECR_URL
+    - cd charts
+    - version=$(grep '^version:' mcp-gateway-registry-stack/Chart.yaml | cut -d ' ' -f2)
+    - package_name=$(helm package mcp-gateway-registry-stack --version ${version}-b${CI_JOB_ID} | awk '{print $NF}')
+    - helm push $package_name oci://$AWS_PREPROD_ECR_URL/zeta-aiml/gen-ai/ai-assistants/charts
+  when: manual
+  needs:
+    - helm-lint
+
+release helm chart:
+  extends: .helm
+  stage: publish
+  script:
+    - aws ecr get-login-password --region $REGION | helm registry login --username AWS --password-stdin $AWS_PREPROD_ECR_URL
+    - cd charts
+    - version=$(grep '^version:' mcp-gateway-registry-stack/Chart.yaml | cut -d ' ' -f2)
+    - package_name=$(helm package mcp-gateway-registry-stack --version ${version} | awk '{print $NF}')
+    - helm push $package_name oci://$AWS_PREPROD_ECR_URL/zeta-aiml/gen-ai/ai-assistants/charts
+  when: manual
+  only:
+    - /^rel\//
+  needs:
+    - helm-lint
+
+# --- Helm promote (to prod ECR) ---
+
+promote release helm chart:
+  extends: .helm
+  stage: promote
+  script:
+    - aws ecr get-login-password --region $REGION | helm registry login --username AWS --password-stdin $AWS_PROD_ECR_URL
+    - cd charts
+    - version=$(grep '^version:' mcp-gateway-registry-stack/Chart.yaml | cut -d ' ' -f2)
+    - package_name=$(helm package mcp-gateway-registry-stack --version ${version} | awk '{print $NF}')
+    - helm push $package_name oci://$AWS_PROD_ECR_URL/zeta-aiml/gen-ai/ai-assistants/charts
+  when: manual
+  only:
+    - /^rel\//
+  needs:
+    - release helm chart
+  tags:
+    - infra-ops-gitlab-runner

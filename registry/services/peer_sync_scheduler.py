@@ -4,15 +4,13 @@ Background scheduler for periodic peer federation sync.
 Uses asyncio to periodically check enabled peers and trigger sync
 when their configured interval has elapsed.
 """
+
 import asyncio
 import logging
-from datetime import datetime
-from datetime import timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from registry.repositories.factory import get_peer_federation_repository
 from registry.services.peer_federation_service import PeerFederationService
-
 
 # Configure logging
 logging.basicConfig(
@@ -35,9 +33,8 @@ class PeerSyncScheduler:
     """
 
     def __init__(self):
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._running: bool = False
-
 
     async def start(self) -> None:
         """Start the background scheduler."""
@@ -48,7 +45,6 @@ class PeerSyncScheduler:
         self._running = True
         self._task = asyncio.create_task(self._scheduler_loop())
         logger.info("Peer sync scheduler started")
-
 
     async def stop(self) -> None:
         """Stop the background scheduler."""
@@ -61,7 +57,6 @@ class PeerSyncScheduler:
                 pass
             self._task = None
         logger.info("Peer sync scheduler stopped")
-
 
     async def _scheduler_loop(self) -> None:
         """Main scheduler loop that checks peers and triggers sync."""
@@ -78,7 +73,6 @@ class PeerSyncScheduler:
             # Wait before next check
             await asyncio.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)
 
-
     async def _check_and_sync_peers(self) -> None:
         """Check all peers and sync those that need it."""
         try:
@@ -89,7 +83,7 @@ class PeerSyncScheduler:
                 return
 
             federation_service = PeerFederationService()
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
 
             for peer in peers:
                 # Skip disabled peers
@@ -102,9 +96,7 @@ class PeerSyncScheduler:
 
                 # Check if sync is needed
                 should_sync = await self._should_sync_peer(
-                    peer.peer_id,
-                    peer.sync_interval_minutes,
-                    now
+                    peer.peer_id, peer.sync_interval_minutes, now
                 )
 
                 if should_sync:
@@ -125,20 +117,12 @@ class PeerSyncScheduler:
                                 f"{result.error_message}"
                             )
                     except Exception as e:
-                        logger.error(
-                            f"Error during scheduled sync for peer '{peer.peer_id}': {e}"
-                        )
+                        logger.error(f"Error during scheduled sync for peer '{peer.peer_id}': {e}")
 
         except Exception as e:
             logger.error(f"Error checking peers for scheduled sync: {e}", exc_info=True)
 
-
-    async def _should_sync_peer(
-        self,
-        peer_id: str,
-        interval_minutes: int,
-        now: datetime
-    ) -> bool:
+    async def _should_sync_peer(self, peer_id: str, interval_minutes: int, now: datetime) -> bool:
         """
         Determine if a peer should be synced based on last sync time.
 
@@ -169,7 +153,7 @@ class PeerSyncScheduler:
 
             # Ensure last_sync is timezone-aware
             if last_sync.tzinfo is None:
-                last_sync = last_sync.replace(tzinfo=timezone.utc)
+                last_sync = last_sync.replace(tzinfo=UTC)
 
             # Calculate time since last sync
             elapsed_minutes = (now - last_sync).total_seconds() / 60
@@ -182,7 +166,7 @@ class PeerSyncScheduler:
 
 
 # Global scheduler instance
-_scheduler: Optional[PeerSyncScheduler] = None
+_scheduler: PeerSyncScheduler | None = None
 
 
 def get_peer_sync_scheduler() -> PeerSyncScheduler:

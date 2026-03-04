@@ -115,6 +115,18 @@ class IAMManager(Protocol):
         """
         ...
 
+    async def group_exists(self, group_name: str) -> bool:
+        """
+        Check if a group exists in the identity provider.
+
+        Args:
+            group_name: Name of the group to check
+
+        Returns:
+            True if group exists, False otherwise
+        """
+        ...
+
     async def create_service_account(
         self, client_id: str, groups: list[str], description: str | None = None
     ) -> dict[str, Any]:
@@ -128,6 +140,36 @@ class IAMManager(Protocol):
 
         Returns:
             Dictionary with client_id, client_secret, and groups
+        """
+        ...
+
+    async def update_user_groups(self, username: str, groups: list[str]) -> dict[str, Any]:
+        """
+        Update group memberships for a user or service account.
+
+        Args:
+            username: Username or client ID of the user/service account
+            groups: List of group names the user should belong to
+
+        Returns:
+            Dictionary with username, groups, added, and removed lists
+        """
+        ...
+
+    async def update_group(
+        self,
+        group_name: str,
+        description: str = "",
+    ) -> dict[str, Any]:
+        """
+        Update a group's properties in the identity provider.
+
+        Args:
+            group_name: Name of the group to update
+            description: New description for the group
+
+        Returns:
+            Dictionary with updated group details (id, name, path, attributes)
         """
         ...
 
@@ -190,6 +232,12 @@ class KeycloakIAMManager:
 
         return await delete_keycloak_group(group_name=group_name)
 
+    async def group_exists(self, group_name: str) -> bool:
+        """Check if a group exists in Keycloak."""
+        from .keycloak_manager import group_exists_in_keycloak
+
+        return await group_exists_in_keycloak(group_name)
+
     async def create_service_account(
         self, client_id: str, groups: list[str], description: str | None = None
     ) -> dict[str, Any]:
@@ -199,6 +247,22 @@ class KeycloakIAMManager:
         return await create_service_account_client(
             client_id=client_id, group_names=groups, description=description
         )
+
+    async def update_user_groups(self, username: str, groups: list[str]) -> dict[str, Any]:
+        """Update group memberships for a Keycloak user or service account."""
+        from .keycloak_manager import update_keycloak_user_groups
+
+        return await update_keycloak_user_groups(username=username, groups=groups)
+
+    async def update_group(
+        self,
+        group_name: str,
+        description: str = "",
+    ) -> dict[str, Any]:
+        """Update a group's properties in Keycloak."""
+        from .keycloak_manager import update_keycloak_group
+
+        return await update_keycloak_group(group_name=group_name, description=description)
 
 
 class EntraIAMManager:
@@ -259,6 +323,16 @@ class EntraIAMManager:
 
         return await delete_entra_group(group_name_or_id=group_name)
 
+    async def group_exists(self, group_name: str) -> bool:
+        """Check if a group exists in Entra ID."""
+        from .entra_manager import list_entra_groups
+
+        try:
+            groups = await list_entra_groups()
+            return any(g.get("name", "").lower() == group_name.lower() for g in groups)
+        except Exception:
+            return False
+
     async def create_service_account(
         self, client_id: str, groups: list[str], description: str | None = None
     ) -> dict[str, Any]:
@@ -268,6 +342,22 @@ class EntraIAMManager:
         return await create_service_principal_client(
             client_id_name=client_id, group_names=groups, description=description
         )
+
+    async def update_user_groups(self, username: str, groups: list[str]) -> dict[str, Any]:
+        """Update group memberships for an Entra ID user or service principal."""
+        from .entra_manager import update_entra_user_groups
+
+        return await update_entra_user_groups(username_or_id=username, groups=groups)
+
+    async def update_group(
+        self,
+        group_name: str,
+        description: str = "",
+    ) -> dict[str, Any]:
+        """Update a group's properties in Entra ID."""
+        from .entra_manager import update_entra_group
+
+        return await update_entra_group(group_name_or_id=group_name, description=description)
 
 
 def get_iam_manager() -> IAMManager:

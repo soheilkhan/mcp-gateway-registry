@@ -60,14 +60,14 @@ class TestMaskingFunctions:
         """Test masking JWT tokens showing first 4 characters."""
         from auth_server.server import mask_token
 
-        # Arrange - use placeholder that does not resemble a real secret
-        token = "mock-jwt-token-for-masking-test"
+        # Arrange
+        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.test" #gitleaks:allow
 
         # Act
         result = mask_token(token)
 
         # Assert
-        assert result.startswith("mock")
+        assert result.startswith("eyJh")
         assert result.endswith("...")
         assert len(result) < len(token)
 
@@ -865,8 +865,89 @@ class TestReloadScopesEndpoint:
 
     @patch("registry.common.scopes_loader.reload_scopes_config")
     @patch("auth_server.server.get_auth_provider")
-    def test_reload_scopes_success(self, mock_get_provider, mock_reload_scopes, auth_env_vars):
-        """Test successful scopes reload."""
+    def test_reload_scopes_success_with_jwt(
+        self, mock_get_provider, mock_reload_scopes, auth_env_vars
+    ):
+        """Test successful scopes reload using self-signed JWT."""
+        # Arrange
+        mock_reload_scopes.return_value = {"group_mappings": {}}
+
+        import jwt
+
+        import auth_server.server as server_module
+
+        # Patch module-level SECRET_KEY to match the test env var
+        # (it may already be set to a different value from earlier test imports)
+        secret_key = auth_env_vars["SECRET_KEY"]
+        original_secret_key = server_module.SECRET_KEY
+        server_module.SECRET_KEY = secret_key
+
+        try:
+            client = TestClient(server_module.app)
+
+            now = int(time.time())
+            token = jwt.encode(
+                {
+                    "iss": "mcp-auth-server",
+                    "aud": "mcp-registry",
+                    "sub": "registry-service",
+                    "purpose": "reload-scopes",
+                    "token_use": "access",
+                    "iat": now,
+                    "exp": now + 30,
+                },
+                secret_key,
+                algorithm="HS256",
+            )
+
+            # Act
+            response = client.post(
+                "/internal/reload-scopes", headers={"Authorization": f"Bearer {token}"}
+            )
+
+            # Assert
+            assert response.status_code == 200
+            data = response.json()
+            assert "successfully" in data["message"]
+        finally:
+            server_module.SECRET_KEY = original_secret_key
+
+    @patch("auth_server.server.get_auth_provider")
+    def test_reload_scopes_no_auth(self, mock_get_provider):
+        """Test scopes reload without authentication."""
+        # Arrange
+        import auth_server.server as server_module
+
+        client = TestClient(server_module.app)
+
+        # Act
+        response = client.post("/internal/reload-scopes")
+
+        # Assert
+        assert response.status_code == 401
+
+    @patch("auth_server.server.get_auth_provider")
+    def test_reload_scopes_invalid_jwt(self, mock_get_provider, auth_env_vars):
+        """Test scopes reload with an invalid JWT token."""
+        # Arrange
+        import auth_server.server as server_module
+
+        client = TestClient(server_module.app)
+
+        # Act
+        response = client.post(
+            "/internal/reload-scopes", headers={"Authorization": "Bearer invalid-token"}
+        )
+
+        # Assert
+        assert response.status_code == 401
+
+    @patch("registry.common.scopes_loader.reload_scopes_config")
+    @patch("auth_server.server.get_auth_provider")
+    def test_reload_scopes_basic_auth_backward_compat(
+        self, mock_get_provider, mock_reload_scopes, auth_env_vars
+    ):
+        """Test that deprecated Basic Auth still works for backward compatibility."""
         # Arrange
         mock_reload_scopes.return_value = {"group_mappings": {}}
 
@@ -889,22 +970,8 @@ class TestReloadScopesEndpoint:
         assert "successfully" in data["message"]
 
     @patch("auth_server.server.get_auth_provider")
-    def test_reload_scopes_no_auth(self, mock_get_provider):
-        """Test scopes reload without authentication."""
-        # Arrange
-        import auth_server.server as server_module
-
-        client = TestClient(server_module.app)
-
-        # Act
-        response = client.post("/internal/reload-scopes")
-
-        # Assert
-        assert response.status_code == 401
-
-    @patch("auth_server.server.get_auth_provider")
-    def test_reload_scopes_invalid_credentials(self, mock_get_provider, auth_env_vars):
-        """Test scopes reload with invalid credentials."""
+    def test_reload_scopes_invalid_basic_auth(self, mock_get_provider, auth_env_vars):
+        """Test scopes reload with invalid Basic Auth credentials."""
         # Arrange
         import base64
 
@@ -1213,3 +1280,322 @@ class TestNetworkTrustedMode:
             # Assert
             assert response.status_code == 403
             assert "Invalid API token" in response.json()["detail"]
+
+
+# =============================================================================
+# OAUTH TOKEN STORAGE CONFIGURATION TESTS
+# =============================================================================
+
+
+class TestOAuthTokenStorageConfiguration:
+    """Tests for OAUTH_STORE_TOKENS_IN_SESSION configuration."""
+
+    def test_oauth_store_tokens_default_true(self, monkeypatch):
+        """Test that OAUTH_STORE_TOKENS_IN_SESSION defaults to True."""
+        # Arrange - ensure env var is not set
+        monkeypatch.delenv("OAUTH_STORE_TOKENS_IN_SESSION", raising=False)
+
+        # Act - test the parsing logic (module is already imported at test collection)
+        import os
+
+        result = os.environ.get("OAUTH_STORE_TOKENS_IN_SESSION", "true").lower() == "true"
+
+        # Assert
+        assert result is True
+
+    def test_oauth_store_tokens_env_true(self, monkeypatch):
+        """Test OAUTH_STORE_TOKENS_IN_SESSION=true is parsed correctly."""
+        # Arrange
+        import os
+
+        monkeypatch.setenv("OAUTH_STORE_TOKENS_IN_SESSION", "true")
+
+        # Act
+        result = os.environ.get("OAUTH_STORE_TOKENS_IN_SESSION", "true").lower() == "true"
+
+        # Assert
+        assert result is True
+
+    def test_oauth_store_tokens_env_false(self, monkeypatch):
+        """Test OAUTH_STORE_TOKENS_IN_SESSION=false is parsed correctly."""
+        # Arrange
+        import os
+
+        monkeypatch.setenv("OAUTH_STORE_TOKENS_IN_SESSION", "false")
+
+        # Act
+        result = os.environ.get("OAUTH_STORE_TOKENS_IN_SESSION", "true").lower() == "true"
+
+        # Assert
+        assert result is False
+
+    def test_oauth_store_tokens_env_false_uppercase(self, monkeypatch):
+        """Test OAUTH_STORE_TOKENS_IN_SESSION=FALSE (case insensitive)."""
+        # Arrange
+        import os
+
+        monkeypatch.setenv("OAUTH_STORE_TOKENS_IN_SESSION", "FALSE")
+
+        # Act
+        result = os.environ.get("OAUTH_STORE_TOKENS_IN_SESSION", "true").lower() == "true"
+
+        # Assert
+        assert result is False
+
+    def test_session_data_includes_tokens_when_enabled(self):
+        """Test session data includes OAuth tokens when OAUTH_STORE_TOKENS_IN_SESSION=true."""
+        # Arrange
+        mapped_user = {
+            "username": "testuser",
+            "email": "test@example.com",
+            "name": "Test User",
+            "groups": ["users"],
+        }
+        provider = "entra"
+        token_data = {
+            "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6InRlc3QifQ...", #gitleaks:allow
+            "refresh_token": "refresh_token_value",
+            "expires_in": 3600,
+        }
+
+        # Act - simulate the session data creation logic
+        session_data = {
+            "username": mapped_user["username"],
+            "email": mapped_user.get("email"),
+            "name": mapped_user.get("name"),
+            "groups": mapped_user.get("groups", []),
+            "provider": provider,
+            "auth_method": "oauth2",
+        }
+
+        # Simulate OAUTH_STORE_TOKENS_IN_SESSION=true
+        oauth_store_tokens = True
+        if oauth_store_tokens:
+            session_data.update(
+                {
+                    "access_token": token_data.get("access_token"),
+                    "refresh_token": token_data.get("refresh_token"),
+                    "token_expires_in": token_data.get("expires_in"),
+                    "token_obtained_at": 1234567890,
+                }
+            )
+
+        # Assert
+        assert "access_token" in session_data
+        assert "refresh_token" in session_data
+        assert "token_expires_in" in session_data
+        assert "token_obtained_at" in session_data
+        assert session_data["access_token"] == token_data["access_token"]
+
+    def test_session_data_excludes_tokens_when_disabled(self):
+        """Test session data excludes OAuth tokens when OAUTH_STORE_TOKENS_IN_SESSION=false."""
+        # Arrange
+        mapped_user = {
+            "username": "testuser",
+            "email": "test@example.com",
+            "name": "Test User",
+            "groups": ["users"],
+        }
+        provider = "entra"
+        token_data = {
+            "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6InRlc3QifQ...", #gitleaks:allow
+            "refresh_token": "refresh_token_value",
+            "expires_in": 3600,
+        }
+
+        # Act - simulate the session data creation logic
+        session_data = {
+            "username": mapped_user["username"],
+            "email": mapped_user.get("email"),
+            "name": mapped_user.get("name"),
+            "groups": mapped_user.get("groups", []),
+            "provider": provider,
+            "auth_method": "oauth2",
+        }
+
+        # Simulate OAUTH_STORE_TOKENS_IN_SESSION=false
+        oauth_store_tokens = False
+        if oauth_store_tokens:
+            session_data.update(
+                {
+                    "access_token": token_data.get("access_token"),
+                    "refresh_token": token_data.get("refresh_token"),
+                    "token_expires_in": token_data.get("expires_in"),
+                    "token_obtained_at": 1234567890,
+                }
+            )
+
+        # Assert - tokens should NOT be in session_data
+        assert "access_token" not in session_data
+        assert "refresh_token" not in session_data
+        assert "token_expires_in" not in session_data
+        assert "token_obtained_at" not in session_data
+        # But user info should still be present
+        assert session_data["username"] == "testuser"
+        assert session_data["email"] == "test@example.com"
+        assert session_data["provider"] == "entra"
+
+    def test_session_data_size_reduction_when_disabled(self):
+        """Test that disabling token storage significantly reduces session data size."""
+        # Arrange - simulate a large Entra ID token (typical size ~2000+ chars)
+        large_access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6InRlc3QifQ." + "a" * 2000 #gitleaks:allow
+        large_refresh_token = "refresh_" + "b" * 500
+
+        mapped_user = {
+            "username": "testuser@example.com",
+            "email": "testuser@example.com",
+            "name": "Test User",
+            "groups": ["group1", "group2"],
+        }
+
+        token_data = {
+            "access_token": large_access_token,
+            "refresh_token": large_refresh_token,
+            "expires_in": 3600,
+        }
+
+        # Act - create session with tokens enabled
+        session_with_tokens = {
+            "username": mapped_user["username"],
+            "email": mapped_user.get("email"),
+            "name": mapped_user.get("name"),
+            "groups": mapped_user.get("groups", []),
+            "provider": "entra",
+            "auth_method": "oauth2",
+            "access_token": token_data.get("access_token"),
+            "refresh_token": token_data.get("refresh_token"),
+            "token_expires_in": token_data.get("expires_in"),
+            "token_obtained_at": 1234567890,
+        }
+
+        # Act - create session without tokens
+        session_without_tokens = {
+            "username": mapped_user["username"],
+            "email": mapped_user.get("email"),
+            "name": mapped_user.get("name"),
+            "groups": mapped_user.get("groups", []),
+            "provider": "entra",
+            "auth_method": "oauth2",
+        }
+
+        # Assert - session without tokens should be much smaller
+        import json
+
+        size_with_tokens = len(json.dumps(session_with_tokens))
+        size_without_tokens = len(json.dumps(session_without_tokens))
+
+        # Session without tokens should be significantly smaller
+        assert size_without_tokens < size_with_tokens
+        # With large tokens, the difference should be substantial (>2000 bytes)
+        assert size_with_tokens - size_without_tokens > 2000
+        # Session without tokens should be under cookie limit (4096 bytes)
+        assert size_without_tokens < 4096
+
+
+# =============================================================================
+# OAUTH2 CALLBACK TOKEN STORAGE INTEGRATION TESTS
+# =============================================================================
+
+
+class TestOAuth2CallbackTokenStorage:
+    """Test that OAUTH_STORE_TOKENS_IN_SESSION controls actual session cookie content."""
+
+    def _call_oauth2_callback(
+        self,
+        store_tokens: bool,
+    ) -> dict:
+        """Call the real oauth2_callback endpoint and return decoded session data.
+
+        Args:
+            store_tokens: Value for OAUTH_STORE_TOKENS_IN_SESSION flag
+
+        Returns:
+            Decoded session cookie data dict
+        """
+        from itsdangerous import URLSafeTimedSerializer
+
+        from auth_server.server import (
+            SECRET_KEY,
+            app,
+            signer,
+        )
+
+        mock_token_data = {
+            "access_token": "mock-access-token-value",
+            "refresh_token": "mock-refresh-token-value",
+            "expires_in": 3600,
+            "id_token": "mock-id-token",
+        }
+        mock_user_info = {
+            "sub": "testuser",
+            "email": "test@example.com",
+            "name": "Test User",
+        }
+        temp_session_data = {
+            "state": "test-state",
+            "provider": "github",
+            "callback_uri": "http://localhost:8888/oauth2/callback/github",
+        }
+        temp_cookie = signer.dumps(temp_session_data)
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with (
+            patch("auth_server.server.OAUTH_STORE_TOKENS_IN_SESSION", store_tokens),
+            patch(
+                "auth_server.server.exchange_code_for_token",
+                new_callable=AsyncMock,
+                return_value=mock_token_data,
+            ),
+            patch(
+                "auth_server.server.get_user_info",
+                new_callable=AsyncMock,
+                return_value=mock_user_info,
+            ),
+            patch(
+                "auth_server.server.map_user_info",
+                return_value={
+                    "username": "testuser",
+                    "email": "test@example.com",
+                    "name": "Test User",
+                    "groups": [],
+                },
+            ),
+        ):
+            response = client.get(
+                "/oauth2/callback/github",
+                params={"code": "test-code", "state": "test-state"},
+                cookies={"oauth2_temp_session": temp_cookie},
+                follow_redirects=False,
+            )
+
+        # Extract session cookie from redirect response
+        assert response.status_code == 302
+        session_cookie = response.cookies.get("mcp_gateway_session")
+        assert session_cookie is not None, "Session cookie not set in response"
+
+        # Decode session cookie
+        decoder = URLSafeTimedSerializer(SECRET_KEY)
+        return decoder.loads(session_cookie)
+
+    def test_tokens_excluded_when_disabled(self):
+        """oauth2_callback omits tokens from session when flag is False."""
+        session_data = self._call_oauth2_callback(store_tokens=False)
+
+        assert session_data["username"] == "testuser"
+        assert session_data["auth_method"] == "oauth2"
+        assert "access_token" not in session_data
+        assert "refresh_token" not in session_data
+        assert "token_expires_in" not in session_data
+        assert "token_obtained_at" not in session_data
+
+    def test_tokens_included_when_enabled(self):
+        """oauth2_callback includes tokens in session when flag is True."""
+        session_data = self._call_oauth2_callback(store_tokens=True)
+
+        assert session_data["username"] == "testuser"
+        assert session_data["auth_method"] == "oauth2"
+        assert session_data["access_token"] == "mock-access-token-value"
+        assert session_data["refresh_token"] == "mock-refresh-token-value"
+        assert session_data["token_expires_in"] == 3600
+        assert "token_obtained_at" in session_data

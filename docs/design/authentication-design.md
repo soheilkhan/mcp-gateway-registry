@@ -422,7 +422,7 @@ uv run python entra/generate_tokens.py \
 ```json
 {
   "identity_name": "pub-m2m-bot",
-  "access_token": "<example-jwt>",
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIs...", <!-- gitleaks:allow -->
   "token_type": "Bearer",
   "expires_in": 3599,
   "generated_at": "2026-01-18T02:30:56.123456+00:00",

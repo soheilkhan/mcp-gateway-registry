@@ -436,6 +436,16 @@ variable "entra_client_secret" {
 }
 
 # =============================================================================
+# OAUTH TOKEN STORAGE CONFIGURATION
+# =============================================================================
+
+variable "oauth_store_tokens_in_session" {
+  description = "Store OAuth provider tokens in session cookies. Set to false to avoid cookie size limits with large tokens (e.g., Entra ID). Tokens are not used functionally."
+  type        = bool
+  default     = false
+}
+
+# =============================================================================
 # REGISTRY STATIC TOKEN AUTH (IdP-independent API access)
 # =============================================================================
 
@@ -450,6 +460,12 @@ variable "registry_api_token" {
   type        = string
   default     = ""
   sensitive   = true
+}
+
+variable "max_tokens_per_user_per_hour" {
+  description = "Maximum JWT tokens that can be vended per user per hour."
+  type        = number
+  default     = 100
 }
 
 # =============================================================================
@@ -501,4 +517,77 @@ variable "audit_log_ttl_days" {
     condition     = var.audit_log_ttl_days >= 1 && var.audit_log_ttl_days <= 365
     error_message = "Audit log TTL must be between 1 and 365 days"
   }
+}
+
+# =============================================================================
+# DEPLOYMENT MODE CONFIGURATION
+# =============================================================================
+
+variable "deployment_mode" {
+  description = <<-EOT
+    Controls how the registry integrates with the gateway/nginx.
+    - "with-gateway" (default): Full integration with nginx reverse proxy.
+      Nginx config is regenerated when servers are registered/deleted.
+      Frontend shows gateway authentication instructions.
+    - "registry-only": Registry operates as catalog/discovery service only.
+      Nginx config is NOT updated on server changes.
+      Frontend shows direct connection mode (proxy_pass_url).
+      Use when registry is separate from gateway infrastructure.
+  EOT
+  type        = string
+  default     = "with-gateway"
+
+  validation {
+    condition     = contains(["with-gateway", "registry-only"], var.deployment_mode)
+    error_message = "deployment_mode must be either 'with-gateway' or 'registry-only'"
+  }
+}
+
+variable "registry_mode" {
+  description = <<-EOT
+    Controls which features are enabled (informational - for UI feature flags).
+    This setting affects the /api/config response which the frontend can use
+    to show/hide navigation elements. Currently informational only - all APIs remain active.
+    - "full" (default): All features enabled (mcp_servers, agents, skills, federation)
+    - "skills-only": Only skills feature flag enabled
+    - "mcp-servers-only": Only MCP server feature flag enabled
+    - "agents-only": Only A2A agent feature flag enabled
+    Note: with-gateway + skills-only is invalid and auto-corrects to registry-only + skills-only
+  EOT
+  type        = string
+  default     = "full"
+
+  validation {
+    condition     = contains(["full", "skills-only", "mcp-servers-only", "agents-only"], var.registry_mode)
+    error_message = "registry_mode must be one of: 'full', 'skills-only', 'mcp-servers-only', 'agents-only'"
+  }
+}
+
+# =============================================================================
+# OBSERVABILITY CONFIGURATION (Metrics Pipeline)
+# =============================================================================
+
+variable "enable_observability" {
+  description = "Enable full observability pipeline (AMP, metrics-service, ADOT collector, Grafana). When false, no observability resources are created."
+  type        = bool
+  default     = true
+}
+
+variable "metrics_service_image_uri" {
+  description = "Container image URI for metrics-service. Required when enable_observability is true."
+  type        = string
+  default     = ""
+}
+
+variable "grafana_image_uri" {
+  description = "Container image URI for Grafana OSS (custom image with baked-in provisioning). Required when enable_observability is true."
+  type        = string
+  default     = ""
+}
+
+variable "grafana_admin_password" {
+  description = "Admin password for Grafana. Must be set when enable_observability is true."
+  type        = string
+  sensitive   = true
+  default     = ""
 }

@@ -5,7 +5,7 @@ These abstract base classes define the contract that ALL repository implementati
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional
+from typing import Any
 
 from ..schemas.agent_models import AgentCard
 from ..schemas.federation_schema import FederationConfig
@@ -16,6 +16,11 @@ try:
 except ImportError:
     SkillCard = None
 
+try:
+    from ..schemas.virtual_server_models import VirtualServerConfig
+except ImportError:
+    VirtualServerConfig = None
+
 
 class ServerRepositoryBase(ABC):
     """Abstract base class for MCP server data access."""
@@ -24,19 +29,34 @@ class ServerRepositoryBase(ABC):
     async def get(
         self,
         path: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get server by path."""
         pass
 
     @abstractmethod
-    async def list_all(self) -> Dict[str, Dict[str, Any]]:
+    async def list_all(self) -> dict[str, dict[str, Any]]:
         """List all servers."""
+        pass
+
+    @abstractmethod
+    async def list_by_source(
+        self,
+        source: str,
+    ) -> dict[str, dict[str, Any]]:
+        """List all servers from a specific federation source.
+
+        Args:
+            source: Federation source identifier (e.g., "anthropic")
+
+        Returns:
+            Dictionary mapping server path to server info
+        """
         pass
 
     @abstractmethod
     async def create(
         self,
-        server_info: Dict[str, Any],
+        server_info: dict[str, Any],
     ) -> bool:
         """Create a new server."""
         pass
@@ -45,7 +65,7 @@ class ServerRepositoryBase(ABC):
     async def update(
         self,
         path: str,
-        server_info: Dict[str, Any],
+        server_info: dict[str, Any],
     ) -> bool:
         """Update an existing server."""
         pass
@@ -98,6 +118,15 @@ class ServerRepositoryBase(ABC):
         """Load/reload all servers from storage."""
         pass
 
+    @abstractmethod
+    async def count(self) -> int:
+        """Get total count of servers.
+
+        Returns:
+            Total number of servers in the repository.
+        """
+        pass
+
 
 class AgentRepositoryBase(ABC):
     """Abstract base class for A2A agent data access."""
@@ -106,12 +135,12 @@ class AgentRepositoryBase(ABC):
     async def get(
         self,
         path: str,
-    ) -> Optional[AgentCard]:
+    ) -> AgentCard | None:
         """Get agent by path."""
         pass
 
     @abstractmethod
-    async def list_all(self) -> List[AgentCard]:
+    async def list_all(self) -> list[AgentCard]:
         """List all agents."""
         pass
 
@@ -127,7 +156,7 @@ class AgentRepositoryBase(ABC):
     async def update(
         self,
         path: str,
-        updates: Dict[str, Any],
+        updates: dict[str, Any],
     ) -> AgentCard:
         """Update an existing agent."""
         pass
@@ -162,6 +191,15 @@ class AgentRepositoryBase(ABC):
         """Load/reload all agents from storage."""
         pass
 
+    @abstractmethod
+    async def count(self) -> int:
+        """Get total count of agents.
+
+        Returns:
+            Total number of agents in the repository.
+        """
+        pass
+
 
 class ScopeRepositoryBase(ABC):
     """
@@ -176,7 +214,7 @@ class ScopeRepositoryBase(ABC):
     async def get_ui_scopes(
         self,
         group_name: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Get UI scopes for a Keycloak group.
 
@@ -193,7 +231,7 @@ class ScopeRepositoryBase(ABC):
     async def get_group_mappings(
         self,
         keycloak_group: str,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Get scope names mapped to a Keycloak group.
 
@@ -209,7 +247,7 @@ class ScopeRepositoryBase(ABC):
     async def get_server_scopes(
         self,
         scope_name: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get server access rules for a scope.
 
@@ -235,8 +273,8 @@ class ScopeRepositoryBase(ABC):
         self,
         server_path: str,
         scope_name: str,
-        methods: List[str],
-        tools: Optional[List[str]] = None,
+        methods: list[str],
+        tools: list[str] | None = None,
     ) -> bool:
         """
         Add scope for a server.
@@ -313,7 +351,7 @@ class ScopeRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    async def get_group(self, group_name: str) -> Dict[str, Any]:
+    async def get_group(self, group_name: str) -> dict[str, Any]:
         """
         Get full details of a specific group.
 
@@ -335,8 +373,7 @@ class ScopeRepositoryBase(ABC):
         """
         pass
 
-
-    async def list_groups(self) -> Dict[str, Any]:
+    async def list_groups(self) -> dict[str, Any]:
         """
         List all groups with server counts.
 
@@ -462,7 +499,7 @@ class ScopeRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    async def get_all_group_mappings(self) -> Dict[str, List[str]]:
+    async def get_all_group_mappings(self) -> dict[str, list[str]]:
         """
         Get all group mappings.
 
@@ -486,9 +523,9 @@ class ScopeRepositoryBase(ABC):
     async def add_server_to_multiple_scopes(
         self,
         server_path: str,
-        scope_names: List[str],
-        methods: List[str],
-        tools: List[str],
+        scope_names: list[str],
+        methods: list[str],
+        tools: list[str],
     ) -> bool:
         """
         Add server to multiple scopes at once.
@@ -542,7 +579,7 @@ class SecurityScanRepositoryBase(ABC):
     async def get(
         self,
         server_path: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get latest security scan result for a server.
 
@@ -555,7 +592,7 @@ class SecurityScanRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    async def list_all(self) -> List[Dict[str, Any]]:
+    async def list_all(self) -> list[dict[str, Any]]:
         """
         List all security scan results.
 
@@ -567,7 +604,7 @@ class SecurityScanRepositoryBase(ABC):
     @abstractmethod
     async def create(
         self,
-        scan_result: Dict[str, Any],
+        scan_result: dict[str, Any],
     ) -> bool:
         """
         Create/update a security scan result.
@@ -584,7 +621,7 @@ class SecurityScanRepositoryBase(ABC):
     async def get_latest(
         self,
         server_path: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get latest scan result for a server.
 
@@ -600,7 +637,7 @@ class SecurityScanRepositoryBase(ABC):
     async def query_by_status(
         self,
         status: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Query scan results by status.
 
@@ -621,6 +658,98 @@ class SecurityScanRepositoryBase(ABC):
         pass
 
 
+class SkillSecurityScanRepositoryBase(ABC):
+    """
+    Abstract base class for skill security scan results data access.
+
+    Implementations:
+    - FileSkillSecurityScanRepository: reads ~/mcp-gateway/skill_security_scans/*.json
+    - DocumentDBSkillSecurityScanRepository: reads mcp-skill-security-scans collection
+    """
+
+    @abstractmethod
+    async def get(
+        self,
+        skill_path: str,
+    ) -> dict[str, Any] | None:
+        """
+        Get latest security scan result for a skill.
+
+        Args:
+            skill_path: Skill path (e.g., "/skills/pdf-processing")
+
+        Returns:
+            Security scan result dict if found, None otherwise.
+        """
+        pass
+
+    @abstractmethod
+    async def list_all(self) -> list[dict[str, Any]]:
+        """
+        List all skill security scan results.
+
+        Returns:
+            List of all skill security scan result dicts.
+        """
+        pass
+
+    @abstractmethod
+    async def create(
+        self,
+        scan_result: dict[str, Any],
+    ) -> bool:
+        """
+        Create/update a skill security scan result.
+
+        Args:
+            scan_result: Skill security scan result dict. Must contain "skill_path".
+
+        Returns:
+            True if created successfully.
+        """
+        pass
+
+    @abstractmethod
+    async def get_latest(
+        self,
+        skill_path: str,
+    ) -> dict[str, Any] | None:
+        """
+        Get latest scan result for a skill.
+
+        Args:
+            skill_path: Skill path
+
+        Returns:
+            Latest scan result if found, None otherwise.
+        """
+        pass
+
+    @abstractmethod
+    async def query_by_status(
+        self,
+        status: str,
+    ) -> list[dict[str, Any]]:
+        """
+        Query scan results by status.
+
+        Args:
+            status: Scan status (e.g., "completed", "failed", "pending")
+
+        Returns:
+            List of scan results with the given status.
+        """
+        pass
+
+    @abstractmethod
+    async def load_all(self) -> None:
+        """
+        Load/reload all skill security scan results from storage.
+        Called once at application startup.
+        """
+        pass
+
+
 class SearchRepositoryBase(ABC):
     """Abstract base class for semantic/hybrid search using FAISS or DocumentDB."""
 
@@ -633,7 +762,7 @@ class SearchRepositoryBase(ABC):
     async def index_server(
         self,
         path: str,
-        server_info: Dict[str, Any],
+        server_info: dict[str, Any],
         is_enabled: bool = False,
     ) -> None:
         """Index a server for search."""
@@ -661,9 +790,9 @@ class SearchRepositoryBase(ABC):
     async def search(
         self,
         query: str,
-        entity_types: Optional[List[str]] = None,
+        entity_types: list[str] | None = None,
         max_results: int = 10,
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    ) -> dict[str, list[dict[str, Any]]]:
         """Perform search."""
         pass
 
@@ -685,6 +814,24 @@ class SearchRepositoryBase(ABC):
         """
         pass
 
+    async def index_virtual_server(
+        self,
+        path: str,
+        virtual_server: Any,
+        is_enabled: bool = False,
+    ) -> None:
+        """Index a virtual server for search.
+
+        Default implementation is a no-op. Override in implementations
+        that support virtual server indexing.
+
+        Args:
+            path: Virtual server path (e.g., /virtual/dev-essentials)
+            virtual_server: VirtualServerConfig object
+            is_enabled: Whether virtual server is enabled
+        """
+        pass
+
 
 class PeerFederationRepositoryBase(ABC):
     """Abstract base class for peer federation storage."""
@@ -698,15 +845,15 @@ class PeerFederationRepositoryBase(ABC):
     async def get_peer(
         self,
         peer_id: str,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """Get peer configuration by ID."""
         pass
 
     @abstractmethod
     async def list_peers(
         self,
-        enabled: Optional[bool] = None,
-    ) -> List[Any]:
+        enabled: bool | None = None,
+    ) -> list[Any]:
         """List all peer configurations with optional filtering."""
         pass
 
@@ -722,7 +869,7 @@ class PeerFederationRepositoryBase(ABC):
     async def update_peer(
         self,
         peer_id: str,
-        updates: Dict[str, Any],
+        updates: dict[str, Any],
     ) -> Any:
         """Update an existing peer configuration."""
         pass
@@ -739,7 +886,7 @@ class PeerFederationRepositoryBase(ABC):
     async def get_sync_status(
         self,
         peer_id: str,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """Get sync status for a peer."""
         pass
 
@@ -753,7 +900,7 @@ class PeerFederationRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    async def list_sync_statuses(self) -> List[Any]:
+    async def list_sync_statuses(self) -> list[Any]:
         """List all peer sync statuses."""
         pass
 
@@ -762,10 +909,7 @@ class FederationConfigRepositoryBase(ABC):
     """Abstract base class for federation configuration storage."""
 
     @abstractmethod
-    async def get_config(
-        self,
-        config_id: str = "default"
-    ) -> Optional[FederationConfig]:
+    async def get_config(self, config_id: str = "default") -> FederationConfig | None:
         """
         Get federation configuration by ID.
 
@@ -779,9 +923,7 @@ class FederationConfigRepositoryBase(ABC):
 
     @abstractmethod
     async def save_config(
-        self,
-        config: FederationConfig,
-        config_id: str = "default"
+        self, config: FederationConfig, config_id: str = "default"
     ) -> FederationConfig:
         """
         Save or update federation configuration.
@@ -796,10 +938,7 @@ class FederationConfigRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    async def delete_config(
-        self,
-        config_id: str = "default"
-    ) -> bool:
+    async def delete_config(self, config_id: str = "default") -> bool:
         """
         Delete federation configuration.
 
@@ -812,7 +951,7 @@ class FederationConfigRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    async def list_configs(self) -> List[Dict[str, Any]]:
+    async def list_configs(self) -> list[dict[str, Any]]:
         """
         List all federation configurations.
 
@@ -834,7 +973,7 @@ class SkillRepositoryBase(ABC):
     async def get(
         self,
         path: str,
-    ) -> Optional[SkillCard]:
+    ) -> SkillCard | None:
         """Get a skill by path."""
         pass
 
@@ -843,7 +982,7 @@ class SkillRepositoryBase(ABC):
         self,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[SkillCard]:
+    ) -> list[SkillCard]:
         """List all skills with pagination.
 
         Args:
@@ -859,10 +998,10 @@ class SkillRepositoryBase(ABC):
     async def list_filtered(
         self,
         include_disabled: bool = False,
-        tag: Optional[str] = None,
-        visibility: Optional[str] = None,
-        registry_name: Optional[str] = None,
-    ) -> List[SkillCard]:
+        tag: str | None = None,
+        visibility: str | None = None,
+        registry_name: str | None = None,
+    ) -> list[SkillCard]:
         """List skills with database-level filtering."""
         pass
 
@@ -878,8 +1017,8 @@ class SkillRepositoryBase(ABC):
     async def update(
         self,
         path: str,
-        updates: Dict[str, Any],
-    ) -> Optional[SkillCard]:
+        updates: dict[str, Any],
+    ) -> SkillCard | None:
         """Update a skill."""
         pass
 
@@ -912,15 +1051,245 @@ class SkillRepositoryBase(ABC):
     @abstractmethod
     async def create_many(
         self,
-        skills: List[SkillCard],
-    ) -> List[SkillCard]:
+        skills: list[SkillCard],
+    ) -> list[SkillCard]:
         """Create multiple skills in single operation."""
         pass
 
     @abstractmethod
     async def update_many(
         self,
-        updates: Dict[str, Dict[str, Any]],
+        updates: dict[str, dict[str, Any]],
     ) -> int:
         """Update multiple skills by path, return count."""
+        pass
+
+    @abstractmethod
+    async def count(self) -> int:
+        """Get total count of skills.
+
+        Returns:
+            Total number of skills in the repository.
+        """
+        pass
+
+
+class BackendSessionRepositoryBase(ABC):
+    """Abstract base class for backend MCP session storage.
+
+    Manages per-client backend sessions for virtual MCP servers.
+    Each session maps a (client_session_id, backend_key) pair to the
+    backend MCP server's session ID, enabling session isolation and
+    persistence across L1 cache misses.
+    """
+
+    @abstractmethod
+    async def ensure_indexes(self) -> None:
+        """Create required indexes (TTL on last_used_at, etc.)."""
+        pass
+
+    @abstractmethod
+    async def get_backend_session(
+        self,
+        client_session_id: str,
+        backend_key: str,
+    ) -> str | None:
+        """Get backend session ID and bump last_used_at atomically.
+
+        Args:
+            client_session_id: Client-facing session ID
+            backend_key: Backend location key
+
+        Returns:
+            Backend session ID if found, None otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def store_backend_session(
+        self,
+        client_session_id: str,
+        backend_key: str,
+        backend_session_id: str,
+        user_id: str,
+        virtual_server_path: str,
+    ) -> None:
+        """Store or update a backend session (upsert).
+
+        Args:
+            client_session_id: Client-facing session ID
+            backend_key: Backend location key
+            backend_session_id: Session ID from the backend MCP server
+            user_id: User identity for audit
+            virtual_server_path: Virtual server path
+        """
+        pass
+
+    @abstractmethod
+    async def delete_backend_session(
+        self,
+        client_session_id: str,
+        backend_key: str,
+    ) -> None:
+        """Delete a stale backend session.
+
+        Args:
+            client_session_id: Client-facing session ID
+            backend_key: Backend location key
+        """
+        pass
+
+    @abstractmethod
+    async def create_client_session(
+        self,
+        client_session_id: str,
+        user_id: str,
+        virtual_server_path: str,
+    ) -> None:
+        """Create a client session document for validation.
+
+        Args:
+            client_session_id: Generated client session ID
+            user_id: User identity from auth context
+            virtual_server_path: Virtual server path
+        """
+        pass
+
+    @abstractmethod
+    async def validate_client_session(
+        self,
+        client_session_id: str,
+    ) -> bool:
+        """Check if a client session exists and bump last_used_at.
+
+        Args:
+            client_session_id: Client-facing session ID
+
+        Returns:
+            True if session exists, False otherwise
+        """
+        pass
+
+
+class VirtualServerRepositoryBase(ABC):
+    """Abstract base class for virtual MCP server data access."""
+
+    @abstractmethod
+    async def ensure_indexes(self) -> None:
+        """Create required indexes if not present."""
+        pass
+
+    @abstractmethod
+    async def get(
+        self,
+        path: str,
+    ) -> VirtualServerConfig | None:
+        """Get a virtual server by path.
+
+        Args:
+            path: Virtual server path (e.g., '/virtual/dev-essentials')
+
+        Returns:
+            VirtualServerConfig if found, None otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def list_all(self) -> list[VirtualServerConfig]:
+        """List all virtual servers.
+
+        Returns:
+            List of all VirtualServerConfig objects
+        """
+        pass
+
+    @abstractmethod
+    async def list_enabled(self) -> list[VirtualServerConfig]:
+        """List all enabled virtual servers.
+
+        Returns:
+            List of enabled VirtualServerConfig objects
+        """
+        pass
+
+    @abstractmethod
+    async def create(
+        self,
+        config: VirtualServerConfig,
+    ) -> VirtualServerConfig:
+        """Create a new virtual server.
+
+        Args:
+            config: Virtual server configuration
+
+        Returns:
+            Created VirtualServerConfig
+
+        Raises:
+            VirtualServerAlreadyExistsError: If path already exists
+        """
+        pass
+
+    @abstractmethod
+    async def update(
+        self,
+        path: str,
+        updates: dict[str, Any],
+    ) -> VirtualServerConfig | None:
+        """Update a virtual server.
+
+        Args:
+            path: Virtual server path
+            updates: Fields to update
+
+        Returns:
+            Updated VirtualServerConfig if found, None otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def delete(
+        self,
+        path: str,
+    ) -> bool:
+        """Delete a virtual server.
+
+        Args:
+            path: Virtual server path
+
+        Returns:
+            True if deleted, False if not found
+        """
+        pass
+
+    @abstractmethod
+    async def get_state(
+        self,
+        path: str,
+    ) -> bool:
+        """Get virtual server enabled/disabled state.
+
+        Args:
+            path: Virtual server path
+
+        Returns:
+            True if enabled, False if disabled or not found
+        """
+        pass
+
+    @abstractmethod
+    async def set_state(
+        self,
+        path: str,
+        enabled: bool,
+    ) -> bool:
+        """Set virtual server enabled/disabled state.
+
+        Args:
+            path: Virtual server path
+            enabled: New enabled state
+
+        Returns:
+            True if updated, False if not found
+        """
         pass

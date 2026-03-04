@@ -52,7 +52,7 @@ This document provides a comprehensive overview of all 49 API endpoints availabl
 
 **Example:**
 ```bash
-curl -H "Authorization: Bearer <your-jwt-token>" \
+curl -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ..." \
   http://localhost/v0.1/agents
 ```
 

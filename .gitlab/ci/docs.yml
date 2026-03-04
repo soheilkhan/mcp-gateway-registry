@@ -1,0 +1,50 @@
+docs_build:
+  stage: docs
+  extends: .python_uv_template
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+      changes:
+        - docs/**/*
+        - mkdocs.yml
+        - README.md
+        - .gitlab-ci.yml
+        - .gitlab/ci/**/*
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
+      changes:
+        - docs/**/*
+        - mkdocs.yml
+        - README.md
+        - .gitlab-ci.yml
+        - .gitlab/ci/**/*
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+    - when: never
+  script:
+    - uv pip install --system -e ".[docs]"
+    - mkdocs build --clean
+  artifacts:
+    paths:
+      - site/
+    expire_in: 14 days
+
+pages:
+  stage: deploy
+  extends: .python_uv_template
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - docs/**/*
+        - mkdocs.yml
+        - README.md
+        - .gitlab-ci.yml
+        - .gitlab/ci/**/*
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "main"'
+      when: manual
+    - when: never
+  script:
+    - uv pip install --system -e ".[docs]"
+    - mkdocs build --clean
+    - mv site public
+  artifacts:
+    paths:
+      - public

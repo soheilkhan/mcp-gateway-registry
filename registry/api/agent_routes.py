@@ -8,33 +8,34 @@ Based on: docs/design/a2a-protocol-integration.md
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Annotated, Dict, List, Optional, Any
+from datetime import UTC, datetime
+from typing import Annotated, Any
 
+import httpx
 from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Query,
     Request,
     status,
-    Query,
 )
 from fastapi.responses import JSONResponse
-import httpx
+from pydantic import BaseModel
 
-from ..auth.dependencies import nginx_proxied_auth, SCOPES_CONFIG
 from ..audit import set_audit_action
-from ..services.agent_service import agent_service
+from ..auth.dependencies import nginx_proxied_auth
+from ..core.config import settings
+from ..repositories.factory import get_search_repository
+from ..repositories.interfaces import SearchRepositoryBase
 from ..schemas.agent_models import (
     AgentCard,
     AgentInfo,
     AgentProvider,
     AgentRegistrationRequest,
 )
-from pydantic import BaseModel
-from ..core.config import settings
-from ..repositories.factory import get_search_repository
-from ..repositories.interfaces import SearchRepositoryBase
+from ..services.agent_service import agent_service
+from ..utils.request_utils import get_client_ip
 
 
 def get_search_repo() -> SearchRepositoryBase:
@@ -77,8 +78,8 @@ async def _perform_agent_security_scan_on_registration(
     Returns:
         bool: True if agent should remain enabled, False if disabled due to scan
     """
-    from ..services.agent_scanner import agent_scanner_service
     from ..repositories.factory import get_search_repository
+    from ..services.agent_scanner import agent_scanner_service
 
     scan_config = agent_scanner_service.get_scan_config()
     if not (scan_config.enabled and scan_config.scan_on_registration):
@@ -145,8 +146,8 @@ class RatingRequest(BaseModel):
 
 
 def _normalize_path(
-    path: Optional[str],
-    agent_name: Optional[str] = None,
+    path: str | None,
+    agent_name: str | None = None,
 ) -> str:
     """
     Normalize agent path format.
@@ -166,9 +167,7 @@ def _normalize_path(
     """
     if path is None:
         if not agent_name:
-            raise ValueError(
-                "Path is required or agent_name must be provided for auto-generation"
-            )
+            raise ValueError("Path is required or agent_name must be provided for auto-generation")
         path = agent_name.lower().replace(" ", "-")
 
     if not path.startswith("/"):
@@ -183,7 +182,7 @@ def _normalize_path(
 def _check_agent_permission(
     permission: str,
     agent_name: str,
-    user_context: Dict[str, Any],
+    user_context: dict[str, Any],
 ) -> None:
     """
     Check if user has permission for agent operation.
@@ -213,7 +212,7 @@ def _check_agent_permission(
         )
 
 
-def _has_delete_agent_permission(user_context: Dict[str, Any], agent_path: str) -> bool:
+def _has_delete_agent_permission(user_context: dict[str, Any], agent_path: str) -> bool:
     """
     Check if user has permission to delete an agent.
 
@@ -253,9 +252,9 @@ def _has_delete_agent_permission(user_context: Dict[str, Any], agent_path: str) 
 
 
 def _filter_agents_by_access(
-    agents: List[AgentCard],
-    user_context: Dict[str, Any],
-) -> List[AgentCard]:
+    agents: list[AgentCard],
+    user_context: dict[str, Any],
+) -> list[AgentCard]:
     """
     Filter agents based on user access permissions.
 
@@ -272,7 +271,7 @@ def _filter_agents_by_access(
     is_admin = user_context.get("is_admin", False)
 
     # Get accessible agents from user context (UI-Scopes)
-    accessible_agent_list = user_context.get('accessible_agents', [])
+    accessible_agent_list = user_context.get("accessible_agents", [])
     logger.debug(f"User {username} accessible agents from UI-Scopes: {accessible_agent_list}")
 
     for agent in agents:
@@ -281,8 +280,10 @@ def _filter_agents_by_access(
             continue
 
         # Check if user has agent-level restrictions from UI-Scopes
-        if 'all' not in accessible_agent_list and agent.path not in accessible_agent_list:
-            logger.debug(f"Agent {agent.path} filtered out: not in accessible agents {accessible_agent_list}")
+        if "all" not in accessible_agent_list and agent.path not in accessible_agent_list:
+            logger.debug(
+                f"Agent {agent.path} filtered out: not in accessible agents {accessible_agent_list}"
+            )
             continue
 
         if agent.visibility == "public":
@@ -325,8 +326,14 @@ async def register_agent(
         HTTPException: 409 if path exists, 422 if validation fails, 403 if unauthorized
     """
     # Set audit action for agent registration
-    set_audit_action(http_request, "create", "agent", resource_id=request.path, description=f"Register agent {request.name}")
-    
+    set_audit_action(
+        http_request,
+        "create",
+        "agent",
+        resource_id=request.path,
+        description=f"Register agent {request.name}",
+    )
+
     ui_permissions = user_context.get("ui_permissions", {})
     publish_permissions = ui_permissions.get("publish_agent", [])
 
@@ -449,9 +456,7 @@ async def register_agent(
                 "url": str(agent_card.url),
                 "num_skills": len(agent_card.skills),
                 "registered_at": (
-                    agent_card.registered_at.isoformat()
-                    if agent_card.registered_at
-                    else None
+                    agent_card.registered_at.isoformat() if agent_card.registered_at else None
                 ),
                 "is_enabled": is_enabled,
             },
@@ -462,9 +467,9 @@ async def register_agent(
 @router.get("/agents")
 async def list_agents(
     request: Request,
-    query: Optional[str] = Query(None, description="Search query string"),
+    query: str | None = Query(None, description="Search query string"),
     enabled_only: bool = Query(False, description="Show only enabled agents"),
-    visibility: Optional[str] = Query(None, description="Filter by visibility"),
+    visibility: str | None = Query(None, description="Filter by visibility"),
     user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ):
     """
@@ -481,9 +486,9 @@ async def list_agents(
     """
     # Set audit action for agent list
     set_audit_action(request, "list", "agent", description="List all agents")
-    
+
     # CRITICAL DIAGNOSTIC: Log that we reached this endpoint
-    logger.info(f"[GET_AGENTS_ENTRY] GET /api/agents called from {request.client.host if request.client else 'unknown'}")
+    logger.info(f"[GET_AGENTS_ENTRY] GET /api/agents called from {get_client_ip(request)}")
     logger.info(f"[GET_AGENTS_ENTRY] Request headers: {dict(request.headers)}")
 
     # CRITICAL DIAGNOSTIC: Log user_context received by endpoint (for comparison with /servers)
@@ -492,8 +497,12 @@ async def list_agents(
     if user_context:
         logger.info(f"[GET_AGENTS_DEBUG] Username: {user_context.get('username', 'NOT PRESENT')}")
         logger.info(f"[GET_AGENTS_DEBUG] Scopes: {user_context.get('scopes', 'NOT PRESENT')}")
-        logger.info(f"[GET_AGENTS_DEBUG] Auth method: {user_context.get('auth_method', 'NOT PRESENT')}")
-        logger.info(f"[GET_AGENTS_DEBUG] Accessible agents: {user_context.get('accessible_agents', 'NOT PRESENT')}")
+        logger.info(
+            f"[GET_AGENTS_DEBUG] Auth method: {user_context.get('auth_method', 'NOT PRESENT')}"
+        )
+        logger.info(
+            f"[GET_AGENTS_DEBUG] Accessible agents: {user_context.get('accessible_agents', 'NOT PRESENT')}"
+        )
 
     all_agents = await agent_service.get_all_agents()
 
@@ -550,9 +559,9 @@ async def list_agents(
     }
 
 
-
 # IMPORTANT: Specific routes with path suffixes (/health, /rate, /rating, /toggle)
 # must come BEFORE catch-all {path:path} routes to prevent FastAPI from matching them incorrectly
+
 
 @router.post("/agents/{path:path}/health")
 async def check_agent_health(
@@ -593,13 +602,13 @@ async def check_agent_health(
     detail = None
     status_code = None
     response_time_ms = None
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.now(UTC)
 
     try:
         async with httpx.AsyncClient(timeout=timeout_seconds) as client:
             response = await client.get(ping_url)
         status_code = response.status_code
-        response_time_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
+        response_time_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
         if response.status_code == 200:
             status_label = "healthy"
         else:
@@ -615,11 +624,9 @@ async def check_agent_health(
         status_label = "unhealthy"
         detail = f"Unexpected health check error: {exc}"
 
-    last_checked_iso = datetime.now(timezone.utc).isoformat()
+    last_checked_iso = datetime.now(UTC).isoformat()
 
-    logger.info(
-        f"Agent health check for {path} ({ping_url}) completed with status {status_label}"
-    )
+    logger.info(f"Agent health check for {path} ({ping_url}) completed with status {status_label}")
 
     return {
         "agent_path": path,
@@ -641,8 +648,14 @@ async def rate_agent(
 ):
     """Save integer ratings to agent card."""
     # Set audit action for agent rating
-    set_audit_action(request, "rate", "agent", resource_id=path, description=f"Rate agent with {rating_request.rating}")
-    
+    set_audit_action(
+        request,
+        "rate",
+        "agent",
+        resource_id=path,
+        description=f"Rate agent with {rating_request.rating}",
+    )
+
     path = _normalize_path(path)
 
     agent_card = await agent_service.get_agent_info(path)
@@ -663,7 +676,9 @@ async def rate_agent(
         )
 
     try:
-        avg_rating = await agent_service.update_rating(path, user_context["username"], rating_request.rating)
+        avg_rating = await agent_service.update_rating(
+            path, user_context["username"], rating_request.rating
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -703,7 +718,7 @@ async def get_agent_rating(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this agent",
         )
-    
+
     return {
         "num_stars": agent_card.num_stars,
         "rating_details": agent_card.rating_details,
@@ -734,8 +749,10 @@ async def toggle_agent(
         HTTPException: 404 if not found, 403 if unauthorized
     """
     # Set audit action for agent toggle
-    set_audit_action(request, "toggle", "agent", resource_id=path, description=f"Toggle agent to {enabled}")
-    
+    set_audit_action(
+        request, "toggle", "agent", resource_id=path, description=f"Toggle agent to {enabled}"
+    )
+
     path = _normalize_path(path)
 
     agent_card = await agent_service.get_agent_info(path)
@@ -800,7 +817,7 @@ async def get_agent(
         HTTPException: 404 if not found, 403 if not authorized
     """
     path = _normalize_path(path)
-    
+
     # Set audit action for agent read
     set_audit_action(request, "read", "agent", resource_id=path, description=f"Read agent {path}")
 
@@ -815,8 +832,7 @@ async def get_agent(
 
     if not accessible:
         logger.warning(
-            f"User {user_context['username']} attempted to access agent {path} "
-            f"without permission"
+            f"User {user_context['username']} attempted to access agent {path} without permission"
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -824,12 +840,6 @@ async def get_agent(
         )
 
     return agent_card.model_dump()
-
-
-
-
-
-
 
 
 @router.put("/agents/{path:path}")
@@ -857,8 +867,14 @@ async def update_agent(
         HTTPException: 404 if not found, 403 if unauthorized
     """
     # Set audit action for agent update
-    set_audit_action(http_request, "update", "agent", resource_id=path, description=f"Update agent {request.name}")
-    
+    set_audit_action(
+        http_request,
+        "update",
+        "agent",
+        resource_id=path,
+        description=f"Update agent {request.name}",
+    )
+
     path = _normalize_path(path)
 
     existing_agent = await agent_service.get_agent_info(path)
@@ -870,9 +886,7 @@ async def update_agent(
 
     _check_agent_permission("modify_service", existing_agent.name, user_context)
 
-    if not user_context["is_admin"] and existing_agent.registered_by != user_context[
-        "username"
-    ]:
+    if not user_context["is_admin"] and existing_agent.registered_by != user_context["username"]:
         logger.warning(
             f"User {user_context['username']} attempted to update agent {path} "
             f"owned by {existing_agent.registered_by}"
@@ -946,8 +960,7 @@ async def update_agent(
     )
 
     logger.info(
-        f"Agent '{updated_agent.name}' ({path}) updated by user "
-        f"'{user_context['username']}'"
+        f"Agent '{updated_agent.name}' ({path}) updated by user '{user_context['username']}'"
     )
 
     return updated_agent.model_dump()
@@ -975,8 +988,10 @@ async def delete_agent(
         HTTPException: 404 if not found, 403 if unauthorized
     """
     # Set audit action for agent deletion
-    set_audit_action(request, "delete", "agent", resource_id=path, description=f"Delete agent at {path}")
-    
+    set_audit_action(
+        request, "delete", "agent", resource_id=path, description=f"Delete agent at {path}"
+    )
+
     path = _normalize_path(path)
 
     existing_agent = await agent_service.get_agent_info(path)
@@ -1001,11 +1016,12 @@ async def delete_agent(
         )
 
     # Check delete permission: admin, delete_agent permission, or owner
-    if not _has_delete_agent_permission(user_context, path) and \
-       existing_agent.registered_by != user_context["username"]:
+    if (
+        not _has_delete_agent_permission(user_context, path)
+        and existing_agent.registered_by != user_context["username"]
+    ):
         logger.warning(
-            f"User {user_context['username']} attempted to delete agent {path} "
-            f"without permission"
+            f"User {user_context['username']} attempted to delete agent {path} without permission"
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1024,9 +1040,7 @@ async def delete_agent(
 
     await faiss_service.remove_entity(path)
 
-    logger.info(
-        f"Agent at path '{path}' deleted by user '{user_context['username']}'"
-    )
+    logger.info(f"Agent at path '{path}' deleted by user '{user_context['username']}'")
 
     return JSONResponse(
         status_code=status.HTTP_204_NO_CONTENT,
@@ -1034,12 +1048,10 @@ async def delete_agent(
     )
 
 
-
-
 @router.post("/agents/discover")
 async def discover_agents_by_skills(
-    skills: List[str],
-    tags: Optional[List[str]] = None,
+    skills: list[str],
+    tags: list[str] | None = None,
     max_results: int = Query(10, ge=1, le=100),
     user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ):
@@ -1066,9 +1078,7 @@ async def discover_agents_by_skills(
             detail="At least one skill must be specified",
         )
 
-    logger.info(
-        f"User {user_context['username']} discovering agents with skills: {skills}"
-    )
+    logger.info(f"User {user_context['username']} discovering agents with skills: {skills}")
 
     all_agents = await agent_service.get_all_agents()
     accessible_agents = _filter_agents_by_access(all_agents, user_context)
@@ -1081,9 +1091,9 @@ async def discover_agents_by_skills(
         if not agent_service.is_agent_enabled(agent.path):
             continue
 
-        agent_skills = set(
-            skill.id.lower() for skill in agent.skills
-        ) | set(skill.name.lower() for skill in agent.skills)
+        agent_skills = set(skill.id.lower() for skill in agent.skills) | set(
+            skill.name.lower() for skill in agent.skills
+        )
 
         skill_matches = required_skills & agent_skills
         if not skill_matches:
@@ -1093,9 +1103,7 @@ async def discover_agents_by_skills(
         tag_matches = required_tags & agent_tags if required_tags else set()
 
         skill_match_score = len(skill_matches) / len(required_skills)
-        tag_match_score = (
-            len(tag_matches) / len(required_tags) if required_tags else 0.0
-        )
+        tag_match_score = len(tag_matches) / len(required_tags) if required_tags else 0.0
 
         trust_boost = {
             "unverified": 0.0,
@@ -1132,9 +1140,7 @@ async def discover_agents_by_skills(
     matched_agents.sort(key=lambda x: x["relevance_score"], reverse=True)
     matched_agents = matched_agents[:max_results]
 
-    logger.info(
-        f"Found {len(matched_agents)} agents matching skills: {skills}"
-    )
+    logger.info(f"Found {len(matched_agents)} agents matching skills: {skills}")
 
     return {
         "agents": matched_agents,
@@ -1175,9 +1181,7 @@ async def discover_agents_semantic(
             detail="Query cannot be empty",
         )
 
-    logger.info(
-        f"User {user_context['username']} semantic search for agents: {query}"
-    )
+    logger.info(f"User {user_context['username']} semantic search for agents: {query}")
 
     try:
         search_results = await search_repo.search(
@@ -1207,9 +1211,7 @@ async def discover_agents_semantic(
 
             accessible_results.append(agent_data)
 
-        logger.info(
-            f"Semantic search returned {len(accessible_results)} agents for query: {query}"
-        )
+        logger.info(f"Semantic search returned {len(accessible_results)} agents for query: {query}")
 
         return {
             "agents": accessible_results,

@@ -1,0 +1,71 @@
+image: python:3.12
+
+stages:
+  - validate
+  - test
+  - security
+  - image
+  - image-scan
+  - publish
+  - promote
+  - docs
+  - deploy
+  - summary
+
+default:
+  tags:
+    - ops-default-runner
+  interruptible: true
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - api_failure
+
+services:
+  - name: docker:27.2-dind
+    command:
+      [
+        "--insecure-registry=http://docker-registry-mirror.magic.infr.zglbl.net:6000",
+        "--registry-mirror=http://docker-registry-mirror.magic.infr.zglbl.net:6000/",
+        "--tls=false",
+      ]
+    alias: docker
+
+variables:
+  PROJECT_NAME: mcp-gateway-registry
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_SOCK: tcp://docker:2375
+  # HACK: Workaround for triggered downstream jobs, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/28183
+  CI_BUILDS_DIR: "/builds"
+  GIT_CLONE_PATH: "$CI_BUILDS_DIR/$CI_PROJECT_NAME/$CI_JOB_ID"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  REGION: us-east-1
+  AWS_PREPROD_ACCOUNT: "636347950933"
+  AWS_PROD_ACCOUNT: "066377602118"
+  AWS_PREPROD_ECR_URL: $AWS_PREPROD_ACCOUNT.dkr.ecr.$REGION.amazonaws.com
+  AWS_PROD_ECR_URL: $AWS_PROD_ACCOUNT.dkr.ecr.$REGION.amazonaws.com
+
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+include:
+  - local: ".gitlab/ci/templates.yml"
+  - local: ".gitlab/ci/build.yml"
+  - local: ".gitlab/ci/image-security.yml"
+  - local: ".gitlab/ci/release.yml"
+  - local: ".gitlab/ci/tests.yml"
+  - local: ".gitlab/ci/helm.yml"
+  - local: ".gitlab/ci/terraform.yml"
+  - local: ".gitlab/ci/docs.yml"

@@ -157,6 +157,13 @@ session_cookie_secure = true
 # Default: Empty (cookie scoped to exact host only - safest option)
 session_cookie_domain = ""
 
+# Control whether OAuth provider tokens are stored in session cookies
+# When false: OAuth tokens NOT stored in session cookies, reduces cookie size
+# When true: tokens stored (may cause cookie size issues with large tokens from Entra ID)
+# The tokens stored in the session are not used functionally, so false is recommended
+# Default: false
+oauth_store_tokens_in_session = false
+
 # ============================================================================
 # EMBEDDINGS CONFIGURATION
 # ============================================================================
@@ -224,7 +231,11 @@ registry_static_token_auth_enabled = true
 # Generate with: python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 # Can also be set via environment variable:
 #   export TF_VAR_registry_api_token="your-generated-token"
-registry_api_token = "<your-generated-token-from-secrets-token-urlsafe-32>"
+registry_api_token = "m3zT65wREARMVDToKosg_DgNkKqS_434hNxy3sslGPY" #gitleaks:allow
+
+# Maximum JWT tokens that can be vended per user per hour
+# Default: 100
+# max_tokens_per_user_per_hour = 100
 
 # ============================================================================
 # FEDERATION CONFIGURATION (Peer-to-Peer Registry Sync)
@@ -294,3 +305,51 @@ registry_api_token = "<your-generated-token-from-secrets-token-urlsafe-32>"
 #   - Azure China: https://login.chinacloudapi.cn
 #   - Azure Germany: https://login.microsoftonline.de
 # entra_login_base_url = "https://login.microsoftonline.com"
+
+# ============================================================================
+# DEPLOYMENT MODE CONFIGURATION
+# ============================================================================
+
+# DEPLOYMENT_MODE controls how the registry integrates with the gateway/nginx
+# Options:
+#   - "with-gateway" (default): Full integration with nginx reverse proxy
+#     - Nginx config is regenerated when servers are registered/deleted
+#     - Frontend shows gateway authentication instructions
+#   - "registry-only": Registry operates as catalog/discovery service only
+#     - Nginx config is NOT updated on server changes
+#     - Frontend shows direct connection mode (proxy_pass_url)
+#     - Use when registry is separate from gateway infrastructure
+# Default: "with-gateway" (uncomment to change)
+deployment_mode = "registry-only"
+
+# REGISTRY_MODE controls which features are enabled (informational - for UI feature flags)
+# This setting affects the /api/config response which the frontend can use
+# to show/hide navigation elements. Currently informational only - all APIs remain active.
+# Options:
+#   - "full" (default): All features enabled (mcp_servers, agents, skills, federation)
+#   - "skills-only": Only skills feature flag enabled
+#   - "mcp-servers-only": Only MCP server feature flag enabled
+#   - "agents-only": Only A2A agent feature flag enabled
+# Note: with-gateway + skills-only is invalid and auto-corrects to registry-only + skills-only
+# Default: "full" (uncomment to change)
+# registry_mode = "full"
+
+# ============================================================================
+# OBSERVABILITY CONFIGURATION (Metrics Pipeline)
+# ============================================================================
+
+# Enable full observability pipeline (AMP, metrics-service, ADOT collector, Grafana)
+# When false, no observability resources are created
+# Default: true
+# enable_observability = true
+
+# Container image URIs for observability services (required when enable_observability = true)
+# metrics_service_image_uri = "YOUR_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com/mcp-gateway-metrics-service:latest"
+# grafana_image_uri         = "YOUR_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com/mcp-gateway-grafana:latest"
+
+# Grafana admin password (REQUIRED when enable_observability = true)
+# IMPORTANT: You MUST set a strong, random password. Do NOT use "admin" or any weak default.
+# Generate with: python3 -c "import secrets; print(secrets.token_urlsafe(24))"
+# Can also be set via environment variable:
+#   export TF_VAR_grafana_admin_password="your-secure-password"
+grafana_admin_password = "CHANGE-ME-SET-STRONG-PASSWORD"

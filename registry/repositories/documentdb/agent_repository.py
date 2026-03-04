@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo.errors import DuplicateKeyError
@@ -11,7 +11,6 @@ from ...schemas.agent_models import AgentCard
 from ..interfaces import AgentRepositoryBase
 from .client import get_collection_name, get_documentdb_client
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -19,9 +18,8 @@ class DocumentDBAgentRepository(AgentRepositoryBase):
     """DocumentDB implementation of agent repository."""
 
     def __init__(self):
-        self._collection: Optional[AsyncIOMotorCollection] = None
+        self._collection: AsyncIOMotorCollection | None = None
         self._collection_name = get_collection_name("mcp_agents")
-
 
     async def _get_collection(self) -> AsyncIOMotorCollection:
         """Get DocumentDB collection."""
@@ -29,7 +27,6 @@ class DocumentDBAgentRepository(AgentRepositoryBase):
             db = await get_documentdb_client()
             self._collection = db[self._collection_name]
         return self._collection
-
 
     async def load_all(self) -> None:
         """Load all agents from DocumentDB."""
@@ -42,11 +39,10 @@ class DocumentDBAgentRepository(AgentRepositoryBase):
         except Exception as e:
             logger.error(f"Error loading agents from DocumentDB: {e}", exc_info=True)
 
-
     async def get(
         self,
         path: str,
-    ) -> Optional[AgentCard]:
+    ) -> AgentCard | None:
         """Get agent by path."""
         collection = await self._get_collection()
 
@@ -61,8 +57,7 @@ class DocumentDBAgentRepository(AgentRepositoryBase):
             logger.error(f"Error getting agent '{path}' from DocumentDB: {e}", exc_info=True)
             return None
 
-
-    async def list_all(self) -> List[AgentCard]:
+    async def list_all(self) -> list[AgentCard]:
         """List all agents."""
         collection = await self._get_collection()
 
@@ -81,7 +76,6 @@ class DocumentDBAgentRepository(AgentRepositoryBase):
         except Exception as e:
             logger.error(f"Error listing agents from DocumentDB: {e}", exc_info=True)
             return []
-
 
     async def create(
         self,
@@ -114,11 +108,10 @@ class DocumentDBAgentRepository(AgentRepositoryBase):
             logger.error(f"Failed to create agent in DocumentDB: {e}", exc_info=True)
             raise ValueError(f"Failed to create agent: {e}")
 
-
     async def update(
         self,
         path: str,
-        updates: Dict[str, Any],
+        updates: dict[str, Any],
     ) -> AgentCard:
         """Update an existing agent."""
         existing_agent = await self.get(path)
@@ -142,10 +135,7 @@ class DocumentDBAgentRepository(AgentRepositoryBase):
         update_dict.pop("path", None)
 
         try:
-            result = await collection.update_one(
-                {"_id": path},
-                {"$set": update_dict}
-            )
+            result = await collection.update_one({"_id": path}, {"$set": update_dict})
 
             if result.matched_count == 0:
                 raise ValueError(f"Agent at '{path}' not found in DocumentDB")
@@ -155,7 +145,6 @@ class DocumentDBAgentRepository(AgentRepositoryBase):
         except Exception as e:
             logger.error(f"Failed to update agent in DocumentDB: {e}", exc_info=True)
             raise ValueError(f"Failed to update agent: {e}")
-
 
     async def delete(
         self,
@@ -184,11 +173,10 @@ class DocumentDBAgentRepository(AgentRepositoryBase):
             logger.error(f"Failed to delete agent from DocumentDB: {e}", exc_info=True)
             return False
 
-
     async def get_state(
         self,
         path: str = None,
-    ) -> Dict[str, List[str]] | bool:
+    ) -> dict[str, list[str]] | bool:
         """Get agent state."""
         if path is None:
             collection = await self._get_collection()
@@ -213,7 +201,6 @@ class DocumentDBAgentRepository(AgentRepositoryBase):
             return getattr(agent, "is_enabled", False)
         return False
 
-
     async def set_state(
         self,
         path: str,
@@ -232,12 +219,7 @@ class DocumentDBAgentRepository(AgentRepositoryBase):
 
             result = await collection.update_one(
                 {"_id": path},
-                {
-                    "$set": {
-                        "is_enabled": enabled,
-                        "updated_at": datetime.utcnow().isoformat()
-                    }
-                }
+                {"$set": {"is_enabled": enabled, "updated_at": datetime.utcnow().isoformat()}},
             )
 
             if result.matched_count == 0:
@@ -250,13 +232,28 @@ class DocumentDBAgentRepository(AgentRepositoryBase):
             logger.error(f"Failed to update agent state in DocumentDB: {e}", exc_info=True)
             return False
 
-
     async def save_state(
         self,
-        state: Dict[str, List[str]],
+        state: dict[str, list[str]],
     ) -> None:
         """Save agent state (compatibility method for file repository interface)."""
         logger.debug(
             f"Updated agent state cache: {len(state['enabled'])} enabled, "
             f"{len(state['disabled'])} disabled"
         )
+
+    async def count(self) -> int:
+        """Get total count of agents.
+
+        Returns:
+            Total number of agents in the repository.
+        """
+        collection = await self._get_collection()
+
+        try:
+            count = await collection.count_documents({})
+            logger.debug(f"DocumentDB COUNT: Found {count} agents")
+            return count
+        except Exception as e:
+            logger.error(f"Error counting agents in DocumentDB: {e}", exc_info=True)
+            return 0

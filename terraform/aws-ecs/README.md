@@ -23,7 +23,7 @@ Production-grade infrastructure for the MCP Gateway Registry using AWS ECS Farga
 
 ### Network Architecture
 
-The infrastructure is deployed within a dedicated VPC spanning two availability zones for high availability. User traffic enters through Route 53 DNS resolution, directing requests to either the Main ALB (for Registry and Auth Server) or the Keycloak ALB (for identity management). AWS Certificate Manager provisions and manages SSL/TLS certificates for secure HTTPS communication.
+The infrastructure is deployed within a dedicated VPC spanning two availability zones for redundancy. User traffic enters through Route 53 DNS resolution, directing requests to either the Main ALB (for Registry and Auth Server) or the Keycloak ALB (for identity management). AWS Certificate Manager provisions and manages SSL/TLS certificates for secure HTTPS communication.
 
 ### Application Load Balancers
 
@@ -46,7 +46,7 @@ The infrastructure is deployed within a dedicated VPC spanning two availability 
 
 The infrastructure runs on an ECS cluster with Fargate launch type, eliminating server management. Three primary service types run as containerized tasks:
 
-**Registry Tasks** provide the core MCP server registry and discovery service. An auto-scaling group manages task count based on CPU and memory utilization, with tasks deployed across both availability zones for high availability. The registry retrieves secrets from AWS Secrets Manager for secure credential management, writes logs to CloudWatch Logs for centralized monitoring, and stores server metadata in DocumentDB for persistent, distributed access with native vector search capabilities.
+**Registry Tasks** provide the core MCP server registry and discovery service. An auto-scaling group manages task count based on CPU and memory utilization, with tasks deployed across both availability zones for redundancy. The registry retrieves secrets from AWS Secrets Manager for secure credential management, writes logs to CloudWatch Logs for centralized monitoring, and stores server metadata in DocumentDB for persistent, distributed access with native vector search capabilities.
 
 **Auth Server Tasks** handle OAuth2/OIDC authentication and authorization for the entire platform. These tasks manage user sessions and token validation, integrate with Keycloak for identity federation, and auto-scale based on demand. User data and session information is stored in Aurora PostgreSQL Serverless for reliable, scalable persistence.
 
@@ -54,11 +54,13 @@ The infrastructure runs on an ECS cluster with Fargate launch type, eliminating 
 
 ### Data Layer
 
-**Amazon Aurora PostgreSQL Serverless v2** provides a fully managed, auto-scaling database with capacity ranging from 0.5 to 2 ACUs based on workload demands. The database stores user credentials, session data, and application state with automatic backups and point-in-time recovery capabilities. Deployed in a multi-AZ configuration for high availability, Aurora uses RDS Proxy for efficient connection pooling and management across ECS tasks.
+**Amazon Aurora PostgreSQL Serverless v2** provides a fully managed, auto-scaling database with capacity ranging from 0.5 to 2 ACUs based on workload demands. The database stores user credentials, session data, and application state with automatic backups and point-in-time recovery capabilities. Deployed in a multi-AZ configuration for redundancy, Aurora uses RDS Proxy for efficient connection pooling and management across ECS tasks.
 
-**Amazon DocumentDB** (MongoDB-compatible) serves as the primary data store for the MCP Gateway Registry. DocumentDB provides distributed, scalable storage for server metadata, agent registrations, scopes, and security scan results. With native HNSW vector search support, DocumentDB enables sub-100ms semantic queries for server and agent discovery. The cluster automatically scales storage and replicates data across multiple availability zones for high availability and durability.
+**Amazon DocumentDB** (MongoDB-compatible) serves as the primary data store for the MCP Gateway Registry. DocumentDB provides distributed, scalable storage for server metadata, agent registrations, scopes, and security scan results. With native HNSW vector search support, DocumentDB enables sub-100ms semantic queries for server and agent discovery. The cluster automatically scales storage and replicates data across multiple availability zones for redundancy and durability.
 
 ### Observability
+
+**Amazon Managed Prometheus (AMP) + Grafana** provides an optional metrics pipeline when `enable_observability = true`. A metrics-service container with an AWS Distro for OpenTelemetry (ADOT) sidecar scrapes application metrics and remote-writes them to an AMP workspace. Grafana OSS (pinned to v12.3.1) is deployed as an ECS service with pre-provisioned AMP datasource and dashboards, accessible at `https://<your-domain>/grafana/`. Anonymous access is disabled by default; login requires the admin password configured via `grafana_admin_password` in `terraform.tfvars`. The `aps:*` IAM permission is required for the deploying role when this feature is enabled.
 
 **CloudWatch Logs** provides centralized logging for all ECS tasks with separate log groups created for each service to organize and isolate log streams. Log retention policies automatically expire old logs after a configurable period, and the logs integrate with CloudWatch Alarms to trigger alerts based on specific patterns or error rates found in the log data.
 
@@ -261,6 +263,7 @@ cp terraform.tfvars.example terraform.tfvars
 | `keycloak_admin_password` | Keycloak admin password (min 12 chars) |
 | `keycloak_database_password` | Database password (min 12 chars) |
 | `session_cookie_secure` | Set to `true` for HTTPS (all modes except development) |
+| `grafana_admin_password` | Grafana admin password (required when `enable_observability = true`) |
 | 7 ECR image URIs | Container image URIs with your account ID and region |
 
 **Mode-Specific Parameters:**
@@ -344,6 +347,16 @@ mcpgw_image_uri                  = "123456789012.dkr.ecr.us-east-1.amazonaws.com
 realserverfaketools_image_uri    = "123456789012.dkr.ecr.us-east-1.amazonaws.com/mcp-gateway-realserverfaketools:latest"
 flight_booking_agent_image_uri   = "123456789012.dkr.ecr.us-east-1.amazonaws.com/mcp-gateway-flight-booking-agent:latest"
 travel_assistant_agent_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/mcp-gateway-travel-assistant-agent:latest"
+
+# Observability (optional - creates AMP workspace, metrics-service, Grafana)
+# enable_observability       = true
+# metrics_service_image_uri  = "123456789012.dkr.ecr.us-east-1.amazonaws.com/mcp-gateway-metrics-service:latest"
+# grafana_image_uri          = "123456789012.dkr.ecr.us-east-1.amazonaws.com/mcp-gateway-grafana:latest"
+
+# Grafana admin password (REQUIRED when enable_observability = true)
+# IMPORTANT: Do NOT use "admin" or any weak default. Generate a strong random password.
+# Generate with: python3 -c "import secrets; print(secrets.token_urlsafe(24))"
+# grafana_admin_password     = "YOUR-STRONG-RANDOM-PASSWORD"
 ```
 
 **Example terraform.tfvars for Mode 2 or 3 (Custom Domain):**
@@ -1004,7 +1017,8 @@ For running Terraform and the deployment scripts, your IAM user or role needs th
         "sns:*",
         "ssm:*",
         "kms:*",
-        "servicediscovery:*"
+        "servicediscovery:*",
+        "aps:*"
     ],
     "Resource": "*"
 }
@@ -1013,6 +1027,8 @@ For running Terraform and the deployment scripts, your IAM user or role needs th
 **Note:** For production, consider restricting these permissions to specific resource ARNs.
 
 **Note:** The `cloudfront:*` permission is required for CloudFront deployment modes (Mode 1: CloudFront Only, Mode 3: CloudFront + Custom Domain). If you are only using Mode 2 (Custom Domain Only), you can omit this permission.
+
+**Note:** The `aps:*` permission is required when `enable_observability = true` (Amazon Managed Prometheus). If you are not using the observability pipeline, you can omit this permission.
 
 **ECS Task Role Security:**
 - ECS task roles follow principle of least privilege

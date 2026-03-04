@@ -89,7 +89,7 @@ Get a preview of what would be cleaned up without executing the operation.
 
 ```http
 GET /admin/retention/preview?table_name={table}
-X-API-Key: &lt;your-api-key&gt;
+X-API-Key: your-api-key
 ```
 
 **Parameters:**
@@ -116,7 +116,7 @@ Run data cleanup operations with optional dry-run mode.
 
 ```http
 POST /admin/retention/cleanup
-X-API-Key: &lt;your-api-key&gt;
+X-API-Key: your-api-key
 Content-Type: application/json
 
 {
@@ -164,7 +164,7 @@ Content-Type: application/json
 
 ```http
 GET /admin/retention/policies
-X-API-Key: &lt;your-api-key&gt;
+X-API-Key: your-api-key
 ```
 
 **Response:**
@@ -189,7 +189,7 @@ X-API-Key: &lt;your-api-key&gt;
 
 ```http
 PUT /admin/retention/policies/metrics
-X-API-Key: &lt;your-api-key&gt;
+X-API-Key: your-api-key
 Content-Type: application/json
 
 {
@@ -217,7 +217,7 @@ Get detailed statistics for all tables:
 
 ```http
 GET /admin/database/stats  
-X-API-Key: &lt;your-api-key&gt;
+X-API-Key: your-api-key
 ```
 
 **Response:**
@@ -248,7 +248,7 @@ Get comprehensive database size metrics:
 
 ```http
 GET /admin/database/size
-X-API-Key: &lt;your-api-key&gt;
+X-API-Key: your-api-key
 ```
 
 **Response:**

@@ -34,7 +34,7 @@ The token file typically contains:
 ```json
 {
   "tokens": {
-    "access_token": "<your-jwt-token>",
+    "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...", <!-- gitleaks:allow -->
     "refresh_token": null,
     "token_type": "bearer",
     "expires_in": 300

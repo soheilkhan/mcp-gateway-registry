@@ -9,7 +9,7 @@ Spec: https://raw.githubusercontent.com/modelcontextprotocol/registry/refs/heads
 """
 
 import logging
-from typing import Annotated, Optional
+from typing import Annotated
 from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -23,7 +23,6 @@ from ..services.transform_service import (
     transform_to_server_list,
     transform_to_server_response,
 )
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,9 +44,9 @@ router = APIRouter(
     description="Returns a paginated list of all registered MCP servers that the authenticated user can access.",
 )
 async def list_servers(
-    cursor: Annotated[Optional[str], Query(description="Pagination cursor")] = None,
+    cursor: Annotated[str | None, Query(description="Pagination cursor")] = None,
     limit: Annotated[
-        Optional[int], Query(description="Maximum number of items", ge=1, le=1000)
+        int | None, Query(description="Maximum number of items", ge=1, le=1000)
     ] = None,
     user_context: Annotated[dict, Depends(nginx_proxied_auth)] = None,
 ) -> ServerList:
@@ -96,9 +95,7 @@ async def list_servers(
         filtered_servers.append(server_info_with_status)
 
     # Transform to Anthropic format with pagination
-    server_list = transform_to_server_list(
-        filtered_servers, cursor=cursor, limit=limit or 100
-    )
+    server_list = transform_to_server_list(filtered_servers, cursor=cursor, limit=limit or 100)
 
     logger.info(
         f"{REGISTRY_CONSTANTS.ANTHROPIC_API_VERSION} API: Returning {len(server_list.servers)} servers (hasMore={server_list.metadata.nextCursor is not None})"
@@ -146,9 +143,7 @@ async def list_server_versions(
 
     if not decoded_name.startswith(expected_prefix):
         logger.warning(f"Invalid server name format: {decoded_name}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Server not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
 
     # Construct initial path for lookup
     lookup_path = "/" + decoded_name.replace(expected_prefix, "")
@@ -161,9 +156,7 @@ async def list_server_versions(
 
     if not server_info:
         logger.warning(f"Server not found: {lookup_path}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Server not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
 
     # Use the actual path from server_info (has correct trailing slash)
     path = server_info.get("path", lookup_path)
@@ -178,9 +171,7 @@ async def list_server_versions(
             logger.warning(
                 f"User '{user_context['username']}' attempted to access unauthorized server: {server_name}"
             )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Server not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
 
     # Add health and status info using the correct path
     health_data = health_service._get_service_health_data(path, server_info)
@@ -205,9 +196,7 @@ async def list_server_versions(
     response_model=ServerResponse,
     summary="Get server version details",
     description="Returns detailed information about a specific version of an MCP server. Use 'latest' to get the most recent version.",
-    responses={
-        404: {"model": ErrorResponse, "description": "Server or version not found"}
-    },
+    responses={404: {"model": ErrorResponse, "description": "Server or version not found"}},
 )
 async def get_server_version(
     serverName: str,
@@ -242,9 +231,7 @@ async def get_server_version(
 
     if not decoded_name.startswith(expected_prefix):
         logger.warning(f"Invalid server name format: {decoded_name}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Server not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
 
     # Construct initial path for lookup
     lookup_path = "/" + decoded_name.replace(expected_prefix, "")
@@ -257,9 +244,7 @@ async def get_server_version(
 
     if not server_info:
         logger.warning(f"Server not found: {lookup_path}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Server not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
 
     # Use the actual path from server_info (has correct trailing slash)
     path = server_info.get("path", lookup_path)
@@ -273,9 +258,7 @@ async def get_server_version(
             logger.warning(
                 f"User '{user_context['username']}' attempted to access unauthorized server: {server_name}"
             )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Server not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
 
     # Currently we only support "latest" or "1.0.0" since we don't version servers
     if decoded_version not in ["latest", "1.0.0"]:

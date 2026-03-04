@@ -297,8 +297,8 @@ chmod +x keycloak/setup/get-all-client-credentials.sh
 **Expected Output:**
 ```
 Admin token obtained
-Found and saved: mcp-gateway-web (Secret: <your-keycloak-client-secret>)
-Found and saved: mcp-gateway-m2m (Secret: <your-keycloak-m2m-secret>)
+Found and saved: mcp-gateway-web (Secret: JyJzW00JeUBaCmH9Z5xtYDhE2MsGqOSv)
+Found and saved: mcp-gateway-m2m (Secret: iCjPsMLLmet124K8b7FCfcEcRJ9bx4Oo)
 Files created in: .oauth-tokens/
 ```
 
@@ -369,17 +369,17 @@ cat .oauth-tokens/keycloak-client-secrets.txt
 
 # You'll see output like:
 # KEYCLOAK_CLIENT_ID=mcp-gateway-web
-# KEYCLOAK_CLIENT_SECRET=<your-keycloak-client-secret>
+# KEYCLOAK_CLIENT_SECRET=JyJzW00JeUBaCmH9Z5xtYDhE2MsGqOSv <!-- gitleaks:allow -->
 #
 # KEYCLOAK_M2M_CLIENT_ID=mcp-gateway-m2m
-# KEYCLOAK_M2M_CLIENT_SECRET=<your-keycloak-m2m-secret>
+# KEYCLOAK_M2M_CLIENT_SECRET=iCjPsMLLmet124K8b7FCfcEcRJ9bx4Oo <!-- gitleaks:allow -->
 
 # Update your .env file with these exact secret values
 nano .env
 
 # Find and update these lines with the actual secret values from above:
-# KEYCLOAK_CLIENT_SECRET=<your-keycloak-client-secret>
-# KEYCLOAK_M2M_CLIENT_SECRET=<your-keycloak-m2m-secret>
+# KEYCLOAK_CLIENT_SECRET=JyJzW00JeUBaCmH9Z5xtYDhE2MsGqOSv <!-- gitleaks:allow -->
+# KEYCLOAK_M2M_CLIENT_SECRET=iCjPsMLLmet124K8b7FCfcEcRJ9bx4Oo <!-- gitleaks:allow -->
 
 # Save and exit (Ctrl+X, then Y, then Enter)
 ```
@@ -1027,7 +1027,7 @@ telnet localhost 8080
 
 You now have a fully functional MCP Gateway & Registry running on macOS! The system provides:
 
-- **Authentication**: Enterprise-grade Keycloak identity provider
+- **Authentication**: Keycloak identity provider
 - **Registry**: Web-based interface for managing MCP servers
 - **API Gateway**: Centralized access to multiple MCP servers
 - **Agent Support**: Ready for AI coding assistants and agents

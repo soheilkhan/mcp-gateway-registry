@@ -130,7 +130,7 @@ The service will be available at:
 ```bash
 curl -X POST http://localhost:8890/metrics \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: &lt;your-api-key&gt;" \
+  -H "X-API-Key: your-api-key-here" \
   -d '{
     "service": "test-service",
     "version": "1.0.0",
@@ -157,7 +157,7 @@ curl -X POST http://localhost:8890/metrics \
 All API endpoints require authentication via the `X-API-Key` header:
 
 ```http
-X-API-Key: &lt;your-api-key&gt;
+X-API-Key: your-api-key-here
 ```
 
 API keys are:

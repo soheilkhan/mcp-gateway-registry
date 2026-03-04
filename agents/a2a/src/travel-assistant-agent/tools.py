@@ -2,16 +2,9 @@
 
 import json
 import logging
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-)
-
-from strands import tool
 
 from dependencies import get_db_manager
+from strands import tool
 
 # Configure logging with basicConfig
 logging.basicConfig(
@@ -36,7 +29,11 @@ def search_flights(
         flights = get_db_manager().search_flights(departure_city, arrival_city, departure_date)
 
         result = {
-            "query": {"departure_city": departure_city, "arrival_city": arrival_city, "departure_date": departure_date},
+            "query": {
+                "departure_city": departure_city,
+                "arrival_city": arrival_city,
+                "departure_date": departure_date,
+            },
             "flights": flights,
             "count": len(flights),
         }
@@ -74,10 +71,12 @@ def check_prices(
 @tool
 def get_recommendations(
     max_price: float,
-    preferred_airlines: Optional[List[str]] = None,
+    preferred_airlines: list[str] | None = None,
 ) -> str:
     """Get flight recommendations based on customer preferences."""
-    logger.info(f"Tool called: get_recommendations(max_price={max_price}, preferred_airlines={preferred_airlines})")
+    logger.info(
+        f"Tool called: get_recommendations(max_price={max_price}, preferred_airlines={preferred_airlines})"
+    )
     try:
         recommendations = get_db_manager().get_recommendations(max_price, preferred_airlines)
 
@@ -100,8 +99,8 @@ def create_trip_plan(
     departure_city: str,
     arrival_city: str,
     departure_date: str,
-    return_date: Optional[str] = None,
-    budget: Optional[float] = None,
+    return_date: str | None = None,
+    budget: float | None = None,
 ) -> str:
     """Create and save a trip planning record."""
     logger.info(
@@ -110,7 +109,9 @@ def create_trip_plan(
     logger.debug(f"Return date: {return_date}, Budget: {budget}")
     try:
         db_manager = get_db_manager()
-        trip_plan_id = db_manager.create_trip_plan(departure_city, arrival_city, departure_date, return_date, budget)
+        trip_plan_id = db_manager.create_trip_plan(
+            departure_city, arrival_city, departure_date, return_date, budget
+        )
 
         # Get available flights for the trip
         outbound_flights = db_manager.search_flights(departure_city, arrival_city, departure_date)
@@ -131,7 +132,11 @@ def create_trip_plan(
             },
             "outbound_flights": outbound_flights,
             "return_flights": return_flights,
-            "next_steps": ["Review available flights", "Select preferred flights", "Contact Flight Booking Agent for reservation"],
+            "next_steps": [
+                "Review available flights",
+                "Select preferred flights",
+                "Contact Flight Booking Agent for reservation",
+            ],
         }
 
         logger.debug(f"Trip plan result:\n{json.dumps(result, indent=2)}")

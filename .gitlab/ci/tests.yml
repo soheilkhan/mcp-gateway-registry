@@ -1,0 +1,132 @@
+registry_tests:
+  stage: test
+  extends:
+    - .python_uv_template
+    - .run_registry_tests_rules
+  script:
+    - uv sync --extra dev
+    - uv run python scripts/test.py check
+    - uv run python scripts/test.py unit
+    - uv run python scripts/test.py integration
+    - uv run python scripts/test.py coverage
+    - |
+      if [[ -n "$CODECOV_TOKEN" && -f "coverage.xml" ]]; then
+        curl -sSfL https://uploader.codecov.io/latest/linux/codecov -o codecov
+        chmod +x codecov
+        ./codecov -t "$CODECOV_TOKEN" -f coverage.xml -F unittests -n "codecov-python-3.12" || true
+      fi
+  artifacts:
+    when: always
+    paths:
+      - coverage.xml
+      - htmlcov/
+      - tests/reports/
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    expire_in: 14 days
+
+registry_lint:
+  stage: test
+  extends:
+    - .python_uv_template
+    - .run_registry_tests_rules
+  allow_failure: true
+  script:
+    - uv pip install --system ruff
+    - ruff check registry/ tests/ || true
+    - ruff format --check registry/ tests/ || true
+
+registry_security:
+  stage: security
+  extends:
+    - .python_uv_template
+    - .run_registry_tests_rules
+  script:
+    - uv pip install --system bandit
+    - bandit -r registry/ -f json -o bandit-report.json || true
+  artifacts:
+    when: always
+    paths:
+      - bandit-report.json
+    expire_in: 14 days
+
+auth_server_tests:
+  stage: test
+  extends:
+    - .python_uv_template
+    - .run_auth_server_tests_rules
+  script:
+    - uv sync --extra dev
+    - uv run pytest tests/auth_server/ -v -o "addopts=" --cov=auth_server --cov-report=xml --cov-report=html --cov-report=term
+    - |
+      if [[ -n "$CODECOV_TOKEN" && -f "coverage.xml" ]]; then
+        curl -sSfL https://uploader.codecov.io/latest/linux/codecov -o codecov
+        chmod +x codecov
+        ./codecov -t "$CODECOV_TOKEN" -f coverage.xml -F auth-server -n "codecov-auth-server-3.12" || true
+      fi
+  artifacts:
+    when: always
+    paths:
+      - coverage.xml
+      - htmlcov/
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    expire_in: 14 days
+
+auth_server_lint:
+  stage: test
+  extends:
+    - .python_uv_template
+    - .run_auth_server_tests_rules
+  allow_failure: true
+  script:
+    - uv pip install --system ruff
+    - ruff check auth_server/ || true
+    - ruff format --check auth_server/ || true
+
+metrics_service_tests:
+  stage: test
+  extends:
+    - .python_uv_template
+    - .run_metrics_tests_rules
+  cache:
+    key:
+      files:
+        - metrics-service/pyproject.toml
+    paths:
+      - .cache/uv
+  script:
+    - cd metrics-service
+    - uv sync --extra dev
+    - uv run pytest tests/ -v --cov=. --cov-report=xml --cov-report=html --cov-report=term
+    - |
+      if [[ -n "$CODECOV_TOKEN" && -f "coverage.xml" ]]; then
+        curl -sSfL https://uploader.codecov.io/latest/linux/codecov -o codecov
+        chmod +x codecov
+        ./codecov -t "$CODECOV_TOKEN" -f coverage.xml -F metrics-service -n "codecov-metrics-service-3.12" || true
+      fi
+  artifacts:
+    when: always
+    paths:
+      - metrics-service/coverage.xml
+      - metrics-service/htmlcov/
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: metrics-service/coverage.xml
+    expire_in: 14 days
+
+metrics_service_lint:
+  stage: test
+  extends:
+    - .python_uv_template
+    - .run_metrics_tests_rules
+  script:
+    - uv pip install --system ruff
+    - cd metrics-service
+    - ruff check .
+    - ruff format --check . || true

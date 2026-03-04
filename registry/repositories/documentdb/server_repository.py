@@ -2,15 +2,13 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo.errors import DuplicateKeyError
 
-from ...core.config import settings
 from ..interfaces import ServerRepositoryBase
 from .client import get_collection_name, get_documentdb_client
-
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +17,8 @@ class DocumentDBServerRepository(ServerRepositoryBase):
     """DocumentDB implementation of server repository."""
 
     def __init__(self):
-        self._collection: Optional[AsyncIOMotorCollection] = None
+        self._collection: AsyncIOMotorCollection | None = None
         self._collection_name = get_collection_name("mcp_servers")
-
 
     async def _get_collection(self) -> AsyncIOMotorCollection:
         """Get DocumentDB collection."""
@@ -29,7 +26,6 @@ class DocumentDBServerRepository(ServerRepositoryBase):
             db = await get_documentdb_client()
             self._collection = db[self._collection_name]
         return self._collection
-
 
     async def load_all(self) -> None:
         """Load all servers from DocumentDB."""
@@ -42,20 +38,37 @@ class DocumentDBServerRepository(ServerRepositoryBase):
         except Exception as e:
             logger.error(f"Error loading servers from DocumentDB: {e}", exc_info=True)
 
-
     async def get(
         self,
         path: str,
-    ) -> Optional[Dict[str, Any]]:
-        """Get server by path."""
-        logger.debug(f"DocumentDB READ: Getting server with path='{path}' from collection '{self._collection_name}'")
+    ) -> dict[str, Any] | None:
+        """Get server by path.
+
+        Normalizes paths to match both with and without trailing slashes.
+        """
+        logger.debug(
+            f"DocumentDB READ: Getting server with path='{path}' from collection '{self._collection_name}'"
+        )
         collection = await self._get_collection()
 
         try:
             server_info = await collection.find_one({"_id": path})
+
+            # If not found, try alternate path (with/without trailing slash)
+            if not server_info:
+                if path.endswith("/"):
+                    alternate_path = path.rstrip("/")
+                else:
+                    alternate_path = path + "/"
+
+                logger.debug(f"DocumentDB READ: Trying alternate path '{alternate_path}'")
+                server_info = await collection.find_one({"_id": alternate_path})
+
             if server_info:
                 server_info["path"] = server_info.pop("_id")
-                logger.debug(f"DocumentDB READ: Found server '{server_info.get('server_name', 'unknown')}' at '{path}'")
+                logger.debug(
+                    f"DocumentDB READ: Found server '{server_info.get('server_name', 'unknown')}' at '{path}'"
+                )
             else:
                 logger.debug(f"DocumentDB READ: Server not found at '{path}'")
             return server_info
@@ -63,10 +76,11 @@ class DocumentDBServerRepository(ServerRepositoryBase):
             logger.error(f"Error getting server '{path}' from DocumentDB: {e}", exc_info=True)
             return None
 
-
-    async def list_all(self) -> Dict[str, Dict[str, Any]]:
+    async def list_all(self) -> dict[str, dict[str, Any]]:
         """List all servers."""
-        logger.debug(f"DocumentDB READ: Listing all servers from collection '{self._collection_name}'")
+        logger.debug(
+            f"DocumentDB READ: Listing all servers from collection '{self._collection_name}'"
+        )
         collection = await self._get_collection()
 
         try:
@@ -76,20 +90,57 @@ class DocumentDBServerRepository(ServerRepositoryBase):
                 path = doc.pop("_id")
                 doc["path"] = path
                 servers[path] = doc
-            logger.info(f"DocumentDB READ: Retrieved {len(servers)} servers from collection '{self._collection_name}'")
+            logger.info(
+                f"DocumentDB READ: Retrieved {len(servers)} servers from collection '{self._collection_name}'"
+            )
             return servers
         except Exception as e:
             logger.error(f"Error listing servers from DocumentDB: {e}", exc_info=True)
             return {}
 
+    async def list_by_source(
+        self,
+        source: str,
+    ) -> dict[str, dict[str, Any]]:
+        """List all servers from a specific federation source.
+
+        Args:
+            source: Federation source identifier (e.g., "anthropic")
+
+        Returns:
+            Dictionary mapping server path to server info
+        """
+        logger.debug(
+            f"DocumentDB READ: Listing servers with source='{source}' from collection '{self._collection_name}'"
+        )
+        collection = await self._get_collection()
+
+        try:
+            cursor = collection.find({"source": source})
+            servers = {}
+            async for doc in cursor:
+                path = doc.pop("_id")
+                doc["path"] = path
+                servers[path] = doc
+            logger.info(
+                f"DocumentDB READ: Retrieved {len(servers)} servers with source='{source}' from collection '{self._collection_name}'"
+            )
+            return servers
+        except Exception as e:
+            logger.error(
+                f"Error listing servers by source '{source}' from DocumentDB: {e}", exc_info=True
+            )
+            return {}
 
     async def create(
         self,
-        server_info: Dict[str, Any],
+        server_info: dict[str, Any],
     ) -> bool:
         """Create a new server."""
         path = server_info["path"]
-        logger.debug(f"DocumentDB WRITE: Creating server '{server_info.get('server_name', 'unknown')}' at '{path}' in collection '{self._collection_name}'")
+        logger.debug(
+            f"DocumentDB WRITE: Creating server '{server_info.get('server_name', 'unknown')}' at '{path}' in collection '{self._collection_name}'"
+        )
         collection = await self._get_collection()
 
         server_info["registered_at"] = datetime.utcnow().isoformat()
@@ -102,7 +153,9 @@ class DocumentDBServerRepository(ServerRepositoryBase):
             doc.pop("path", None)
 
             await collection.insert_one(doc)
-            logger.info(f"DocumentDB WRITE: Created server '{server_info['server_name']}' at '{path}'")
+            logger.info(
+                f"DocumentDB WRITE: Created server '{server_info['server_name']}' at '{path}'"
+            )
             return True
         except DuplicateKeyError:
             logger.error(f"Server path '{path}' already exists in DocumentDB")
@@ -111,14 +164,15 @@ class DocumentDBServerRepository(ServerRepositoryBase):
             logger.error(f"Failed to create server in DocumentDB: {e}", exc_info=True)
             return False
 
-
     async def update(
         self,
         path: str,
-        server_info: Dict[str, Any],
+        server_info: dict[str, Any],
     ) -> bool:
         """Update an existing server."""
-        logger.debug(f"DocumentDB WRITE: Updating server at '{path}' in collection '{self._collection_name}'")
+        logger.debug(
+            f"DocumentDB WRITE: Updating server at '{path}' in collection '{self._collection_name}'"
+        )
         collection = await self._get_collection()
 
         server_info["updated_at"] = datetime.utcnow().isoformat()
@@ -127,28 +181,28 @@ class DocumentDBServerRepository(ServerRepositoryBase):
             doc = {**server_info}
             doc.pop("path", None)
 
-            result = await collection.update_one(
-                {"_id": path},
-                {"$set": doc}
-            )
+            result = await collection.update_one({"_id": path}, {"$set": doc})
 
             if result.matched_count == 0:
                 logger.error(f"Server at '{path}' not found in DocumentDB")
                 return False
 
-            logger.info(f"DocumentDB WRITE: Updated server '{server_info.get('server_name', 'unknown')}' at '{path}'")
+            logger.info(
+                f"DocumentDB WRITE: Updated server '{server_info.get('server_name', 'unknown')}' at '{path}'"
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to update server in DocumentDB: {e}", exc_info=True)
             return False
-
 
     async def delete(
         self,
         path: str,
     ) -> bool:
         """Delete a server."""
-        logger.debug(f"DocumentDB DELETE: Deleting server at '{path}' from collection '{self._collection_name}'")
+        logger.debug(
+            f"DocumentDB DELETE: Deleting server at '{path}' from collection '{self._collection_name}'"
+        )
         collection = await self._get_collection()
 
         try:
@@ -170,7 +224,6 @@ class DocumentDBServerRepository(ServerRepositoryBase):
         except Exception as e:
             logger.error(f"Failed to delete server from DocumentDB: {e}", exc_info=True)
             return False
-
 
     async def delete_with_versions(
         self,
@@ -221,7 +274,6 @@ class DocumentDBServerRepository(ServerRepositoryBase):
             )
             return 0
 
-
     async def get_state(
         self,
         path: str,
@@ -231,7 +283,6 @@ class DocumentDBServerRepository(ServerRepositoryBase):
         if server_info:
             return server_info.get("is_enabled", False)
         return False
-
 
     async def set_state(
         self,
@@ -251,12 +302,7 @@ class DocumentDBServerRepository(ServerRepositoryBase):
 
             result = await collection.update_one(
                 {"_id": path},
-                {
-                    "$set": {
-                        "is_enabled": enabled,
-                        "updated_at": datetime.utcnow().isoformat()
-                    }
-                }
+                {"$set": {"is_enabled": enabled, "updated_at": datetime.utcnow().isoformat()}},
             )
 
             if result.matched_count == 0:
@@ -268,3 +314,22 @@ class DocumentDBServerRepository(ServerRepositoryBase):
         except Exception as e:
             logger.error(f"Failed to update server state in DocumentDB: {e}", exc_info=True)
             return False
+
+    async def count(self) -> int:
+        """Get total count of servers.
+
+        Returns:
+            Total number of servers in the repository.
+        """
+        logger.debug(
+            f"DocumentDB COUNT: Counting servers in collection '{self._collection_name}'"
+        )
+        collection = await self._get_collection()
+
+        try:
+            count = await collection.count_documents({})
+            logger.debug(f"DocumentDB COUNT: Found {count} servers")
+            return count
+        except Exception as e:
+            logger.error(f"Error counting servers in DocumentDB: {e}", exc_info=True)
+            return 0

@@ -13,7 +13,6 @@ import pytest
 from registry.constants import HealthStatus
 from registry.core.nginx_service import NginxConfigService
 
-
 # =============================================================================
 # TEST FIXTURES
 # =============================================================================
@@ -35,8 +34,15 @@ def nginx_service():
 
         mock_path_class.return_value = mock_template
 
-        service = NginxConfigService()
-        return service
+        # Mock settings.nginx_updates_enabled to True for testing
+        with patch("registry.core.nginx_service.settings") as mock_settings:
+            mock_settings.nginx_updates_enabled = True
+            mock_settings.deployment_mode = MagicMock()
+            mock_settings.deployment_mode.value = "with-gateway"
+            mock_settings.nginx_config_path = "/etc/nginx/conf.d/nginx_rev_proxy.conf"
+
+            service = NginxConfigService()
+            yield service
 
 
 @pytest.fixture
@@ -237,7 +243,9 @@ async def test_get_additional_server_names_hostname_command(nginx_service):
         with patch("subprocess.run", return_value=mock_result):
             with patch("httpx.AsyncClient") as mock_client:
                 # Mock EC2 metadata failure
-                mock_client.return_value.__aenter__.return_value.put.side_effect = httpx.ConnectError("No connection")
+                mock_client.return_value.__aenter__.return_value.put.side_effect = (
+                    httpx.ConnectError("No connection")
+                )
 
                 result = await nginx_service.get_additional_server_names()
 
@@ -251,7 +259,9 @@ async def test_get_additional_server_names_fallback_empty(nginx_service):
     with patch.dict("os.environ", {}, clear=True):
         with patch("httpx.AsyncClient") as mock_client:
             # Mock EC2 metadata failure
-            mock_client.return_value.__aenter__.return_value.put.side_effect = httpx.ConnectError("No connection")
+            mock_client.return_value.__aenter__.return_value.put.side_effect = httpx.ConnectError(
+                "No connection"
+            )
 
             with patch("subprocess.run") as mock_subprocess:
                 # Mock hostname command failure
@@ -270,6 +280,7 @@ async def test_get_additional_server_names_fallback_empty(nginx_service):
 @pytest.mark.unit
 def test_generate_config_from_async_context(nginx_service):
     """Test that generate_config logs error when called from async context."""
+
     async def async_test():
         result = nginx_service.generate_config({})
         assert result is False
@@ -299,9 +310,19 @@ server {
                     "/test-server-2": HealthStatus.HEALTHY,
                 }
 
-                with patch.object(nginx_service, "get_additional_server_names", return_value="10.0.0.1"):
+                with patch.object(
+                    nginx_service, "get_additional_server_names", return_value="10.0.0.1"
+                ):
                     with patch.object(nginx_service, "reload_nginx", return_value=True):
-                        with patch("os.environ.get", return_value="http://keycloak:8080"):
+                        env_values = {
+                            "AUTH_PROVIDER": "keycloak",
+                            "KEYCLOAK_URL": "http://keycloak:8080",
+                            "NGINX_DISABLE_API_AUTH_REQUEST": "false",
+                        }
+                        with patch(
+                            "os.environ.get",
+                            side_effect=lambda key, default=None: env_values.get(key, default),
+                        ):
                             result = await nginx_service.generate_config_async(sample_servers)
 
                             assert result is True
@@ -319,7 +340,9 @@ async def test_generate_config_async_template_not_found(nginx_service, sample_se
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_generate_config_async_unhealthy_servers(nginx_service, sample_servers, mock_health_service):
+async def test_generate_config_async_unhealthy_servers(
+    nginx_service, sample_servers, mock_health_service
+):
     """Test configuration generation with unhealthy servers."""
     template_content = """
 server {
@@ -447,7 +470,7 @@ def test_generate_transport_location_blocks_streamable_http(nginx_service):
     blocks = nginx_service._generate_transport_location_blocks("/test", server_info)
 
     assert len(blocks) == 1
-    assert "location /test" in blocks[0]
+    assert "location {{ROOT_PATH}}/test" in blocks[0]
     assert "proxy_pass http://localhost:8000/mcp" in blocks[0]
 
 
@@ -462,7 +485,7 @@ def test_generate_transport_location_blocks_sse(nginx_service):
     blocks = nginx_service._generate_transport_location_blocks("/test", server_info)
 
     assert len(blocks) == 1
-    assert "location /test" in blocks[0]
+    assert "location {{ROOT_PATH}}/test" in blocks[0]
     assert "proxy_pass http://localhost:8000/sse" in blocks[0]
 
 
@@ -478,7 +501,7 @@ def test_generate_transport_location_blocks_both_transports(nginx_service):
 
     # Should prefer streamable-http
     assert len(blocks) == 1
-    assert "location /test" in blocks[0]
+    assert "location {{ROOT_PATH}}/test" in blocks[0]
 
 
 @pytest.mark.unit
@@ -493,7 +516,7 @@ def test_generate_transport_location_blocks_no_transports(nginx_service):
 
     # Should default to streamable-http
     assert len(blocks) == 1
-    assert "location /test" in blocks[0]
+    assert "location {{ROOT_PATH}}/test" in blocks[0]
 
 
 # =============================================================================
@@ -508,7 +531,7 @@ def test_create_location_block_streamable_http(nginx_service):
         "/test", "http://localhost:8000/mcp", "streamable-http"
     )
 
-    assert "location /test" in block
+    assert "location {{ROOT_PATH}}/test" in block
     assert "proxy_pass http://localhost:8000/mcp" in block
     assert "proxy_buffering off" in block
     assert "auth_request /validate" in block
@@ -517,11 +540,9 @@ def test_create_location_block_streamable_http(nginx_service):
 @pytest.mark.unit
 def test_create_location_block_sse(nginx_service):
     """Test creating location block for SSE."""
-    block = nginx_service._create_location_block(
-        "/test", "http://localhost:8000/sse", "sse"
-    )
+    block = nginx_service._create_location_block("/test", "http://localhost:8000/sse", "sse")
 
-    assert "location /test" in block
+    assert "location {{ROOT_PATH}}/test" in block
     assert "proxy_pass http://localhost:8000/sse" in block
     assert "proxy_buffering off" in block
     assert "proxy_set_header Connection $http_connection" in block
@@ -534,7 +555,7 @@ def test_create_location_block_external_service(nginx_service):
         "/test", "https://api.example.com/mcp", "streamable-http"
     )
 
-    assert "location /test" in block
+    assert "location {{ROOT_PATH}}/test" in block
     assert "proxy_pass https://api.example.com/mcp" in block
     # Should use upstream hostname for external services
     assert "proxy_set_header Host api.example.com" in block
@@ -547,7 +568,7 @@ def test_create_location_block_internal_service(nginx_service):
         "/test", "http://backend:8000/mcp", "streamable-http"
     )
 
-    assert "location /test" in block
+    assert "location {{ROOT_PATH}}/test" in block
     assert "proxy_pass http://backend:8000/mcp" in block
     # Should preserve original host for internal services
     assert "proxy_set_header Host $host" in block
@@ -556,11 +577,9 @@ def test_create_location_block_internal_service(nginx_service):
 @pytest.mark.unit
 def test_create_location_block_direct_transport(nginx_service):
     """Test creating location block for direct transport."""
-    block = nginx_service._create_location_block(
-        "/test", "http://localhost:8000", "direct"
-    )
+    block = nginx_service._create_location_block("/test", "http://localhost:8000", "direct")
 
-    assert "location /test" in block
+    assert "location {{ROOT_PATH}}/test" in block
     assert "proxy_pass http://localhost:8000" in block
     assert "proxy_cache off" in block
 
@@ -572,7 +591,9 @@ def test_create_location_block_direct_transport(nginx_service):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_generate_config_async_keycloak_parsing(nginx_service, sample_servers, mock_health_service):
+async def test_generate_config_async_keycloak_parsing(
+    nginx_service, sample_servers, mock_health_service
+):
     """Test Keycloak URL parsing in configuration generation."""
     template_content = """
 server {
@@ -590,7 +611,15 @@ server {
 
                 with patch.object(nginx_service, "get_additional_server_names", return_value=""):
                     with patch.object(nginx_service, "reload_nginx", return_value=True):
-                        with patch("os.environ.get", return_value="https://keycloak.example.com:8443"):
+                        env_values = {
+                            "AUTH_PROVIDER": "keycloak",
+                            "KEYCLOAK_URL": "https://keycloak.example.com:8443",
+                            "NGINX_DISABLE_API_AUTH_REQUEST": "false",
+                        }
+                        with patch(
+                            "os.environ.get",
+                            side_effect=lambda key, default=None: env_values.get(key, default),
+                        ):
                             result = await nginx_service.generate_config_async(sample_servers)
 
                             assert result is True
@@ -598,11 +627,16 @@ server {
                             # Verify file was written with parsed Keycloak values
                             write_calls = list(mock_file().write.call_args_list)
                             assert len(write_calls) > 0
+                            written_content = write_calls[0][0][0]
+                            assert "keycloak.example.com" in written_content
+                            assert "8443" in written_content
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_generate_config_async_keycloak_default_port(nginx_service, sample_servers, mock_health_service):
+async def test_generate_config_async_keycloak_default_port(
+    nginx_service, sample_servers, mock_health_service
+):
     """Test Keycloak URL parsing with default port."""
     template_content = """
 server {
@@ -618,7 +652,303 @@ server {
 
                 with patch.object(nginx_service, "get_additional_server_names", return_value=""):
                     with patch.object(nginx_service, "reload_nginx", return_value=True):
-                        with patch("os.environ.get", return_value="http://keycloak"):
+                        env_values = {
+                            "AUTH_PROVIDER": "keycloak",
+                            "KEYCLOAK_URL": "http://keycloak",
+                            "NGINX_DISABLE_API_AUTH_REQUEST": "false",
+                        }
+                        with patch(
+                            "os.environ.get",
+                            side_effect=lambda key, default=None: env_values.get(key, default),
+                        ):
                             result = await nginx_service.generate_config_async(sample_servers)
 
                             assert result is True
+
+
+# =============================================================================
+# KEYCLOAK CONDITIONAL LOCATION TESTS
+# =============================================================================
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_generate_config_async_strips_keycloak_locations_for_entra(
+    nginx_service, sample_servers, mock_health_service
+):
+    """Test that Keycloak location blocks are stripped when AUTH_PROVIDER is entra."""
+    template_content = """
+server {
+    listen 80;
+    server_name localhost {{ADDITIONAL_SERVER_NAMES}};
+
+    # {{KEYCLOAK_LOCATIONS_START}}
+    location /keycloak/ {
+        proxy_pass {{KEYCLOAK_SCHEME}}://{{KEYCLOAK_HOST}}:{{KEYCLOAK_PORT}}/;
+    }
+
+    location /realms/ {
+        proxy_pass {{KEYCLOAK_SCHEME}}://{{KEYCLOAK_HOST}}:{{KEYCLOAK_PORT}}/realms/;
+    }
+    # {{KEYCLOAK_LOCATIONS_END}}
+
+{{LOCATION_BLOCKS}}
+}
+"""
+
+    env_values = {
+        "AUTH_PROVIDER": "entra",
+        "KEYCLOAK_URL": "http://keycloak:8080",
+        "NGINX_DISABLE_API_AUTH_REQUEST": "false",
+    }
+
+    with patch.object(nginx_service.nginx_template_path, "exists", return_value=True):
+        with patch("builtins.open", mock_open(read_data=template_content)) as mock_file:
+            with patch("registry.health.service.health_service", mock_health_service):
+                mock_health_service.server_health_status = {
+                    "/test-server": HealthStatus.HEALTHY,
+                }
+
+                with patch.object(nginx_service, "get_additional_server_names", return_value=""):
+                    with patch.object(nginx_service, "reload_nginx", return_value=True):
+                        with patch(
+                            "os.environ.get",
+                            side_effect=lambda key, default=None: env_values.get(key, default),
+                        ):
+                            result = await nginx_service.generate_config_async(sample_servers)
+
+                            assert result is True
+
+                            # Verify the written config does not contain keycloak locations
+                            write_calls = mock_file().write.call_args_list
+                            assert len(write_calls) > 0
+                            written_content = write_calls[0][0][0]
+                            assert "/keycloak/" not in written_content
+                            assert "/realms/" not in written_content
+                            assert "KEYCLOAK_LOCATIONS_START" not in written_content
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_generate_config_async_keeps_keycloak_locations_for_keycloak(
+    nginx_service, sample_servers, mock_health_service
+):
+    """Test that Keycloak location blocks are kept when AUTH_PROVIDER is keycloak."""
+    template_content = """
+server {
+    listen 80;
+    server_name localhost {{ADDITIONAL_SERVER_NAMES}};
+
+    # {{KEYCLOAK_LOCATIONS_START}}
+    location /keycloak/ {
+        proxy_pass {{KEYCLOAK_SCHEME}}://{{KEYCLOAK_HOST}}:{{KEYCLOAK_PORT}}/;
+    }
+
+    location /realms/ {
+        proxy_pass {{KEYCLOAK_SCHEME}}://{{KEYCLOAK_HOST}}:{{KEYCLOAK_PORT}}/realms/;
+    }
+    # {{KEYCLOAK_LOCATIONS_END}}
+
+{{LOCATION_BLOCKS}}
+}
+"""
+
+    env_values = {
+        "AUTH_PROVIDER": "keycloak",
+        "KEYCLOAK_URL": "https://keycloak.example.com:8443",
+        "NGINX_DISABLE_API_AUTH_REQUEST": "false",
+    }
+
+    with patch.object(nginx_service.nginx_template_path, "exists", return_value=True):
+        with patch("builtins.open", mock_open(read_data=template_content)) as mock_file:
+            with patch("registry.health.service.health_service", mock_health_service):
+                mock_health_service.server_health_status = {
+                    "/test-server": HealthStatus.HEALTHY,
+                }
+
+                with patch.object(nginx_service, "get_additional_server_names", return_value=""):
+                    with patch.object(nginx_service, "reload_nginx", return_value=True):
+                        with patch(
+                            "os.environ.get",
+                            side_effect=lambda key, default=None: env_values.get(key, default),
+                        ):
+                            result = await nginx_service.generate_config_async(sample_servers)
+
+                            assert result is True
+
+                            # Verify the written config contains keycloak locations with substituted values
+                            write_calls = mock_file().write.call_args_list
+                            assert len(write_calls) > 0
+                            written_content = write_calls[0][0][0]
+                            assert "/keycloak/" in written_content
+                            assert "/realms/" in written_content
+                            assert "keycloak.example.com" in written_content
+                            assert "8443" in written_content
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_generate_config_async_strips_keycloak_locations_for_cognito(
+    nginx_service, sample_servers, mock_health_service
+):
+    """Test that Keycloak location blocks are stripped when AUTH_PROVIDER is cognito."""
+    template_content = """
+server {
+    listen 80;
+    server_name localhost {{ADDITIONAL_SERVER_NAMES}};
+
+    # {{KEYCLOAK_LOCATIONS_START}}
+    location /keycloak/ {
+        proxy_pass {{KEYCLOAK_SCHEME}}://{{KEYCLOAK_HOST}}:{{KEYCLOAK_PORT}}/;
+    }
+    # {{KEYCLOAK_LOCATIONS_END}}
+
+{{LOCATION_BLOCKS}}
+}
+"""
+
+    env_values = {
+        "AUTH_PROVIDER": "cognito",
+        "NGINX_DISABLE_API_AUTH_REQUEST": "false",
+    }
+
+    with patch.object(nginx_service.nginx_template_path, "exists", return_value=True):
+        with patch("builtins.open", mock_open(read_data=template_content)) as mock_file:
+            with patch("registry.health.service.health_service", mock_health_service):
+                mock_health_service.server_health_status = {}
+
+                with patch.object(nginx_service, "get_additional_server_names", return_value=""):
+                    with patch.object(nginx_service, "reload_nginx", return_value=True):
+                        with patch(
+                            "os.environ.get",
+                            side_effect=lambda key, default=None: env_values.get(key, default),
+                        ):
+                            result = await nginx_service.generate_config_async(sample_servers)
+
+                            assert result is True
+
+                            write_calls = mock_file().write.call_args_list
+                            assert len(write_calls) > 0
+                            written_content = write_calls[0][0][0]
+                            assert "/keycloak/" not in written_content
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_generate_config_async_keycloak_https_default_port(
+    nginx_service, sample_servers, mock_health_service
+):
+    """Test Keycloak URL parsing defaults to port 443 for HTTPS without explicit port."""
+    template_content = """
+server {
+    {{KEYCLOAK_SCHEME}}://{{KEYCLOAK_HOST}}:{{KEYCLOAK_PORT}}
+    {{LOCATION_BLOCKS}}
+}
+"""
+
+    env_values = {
+        "AUTH_PROVIDER": "keycloak",
+        "KEYCLOAK_URL": "https://keycloak.example.com",
+        "NGINX_DISABLE_API_AUTH_REQUEST": "false",
+    }
+
+    with patch.object(nginx_service.nginx_template_path, "exists", return_value=True):
+        with patch("builtins.open", mock_open(read_data=template_content)) as mock_file:
+            with patch("registry.health.service.health_service", mock_health_service):
+                mock_health_service.server_health_status = {}
+
+                with patch.object(nginx_service, "get_additional_server_names", return_value=""):
+                    with patch.object(nginx_service, "reload_nginx", return_value=True):
+                        with patch(
+                            "os.environ.get",
+                            side_effect=lambda key, default=None: env_values.get(key, default),
+                        ):
+                            result = await nginx_service.generate_config_async(sample_servers)
+
+                            assert result is True
+                            written_content = mock_file().write.call_args_list[0][0][0]
+                            assert "https" in written_content
+                            assert "443" in written_content
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_generate_config_async_keycloak_hostname_fallback(
+    nginx_service, sample_servers, mock_health_service
+):
+    """Test Keycloak hostname fallback when hostname resolves to bare 'keycloak'."""
+    template_content = """
+server {
+    {{KEYCLOAK_SCHEME}}://{{KEYCLOAK_HOST}}:{{KEYCLOAK_PORT}}
+    {{LOCATION_BLOCKS}}
+}
+"""
+
+    env_values = {
+        "AUTH_PROVIDER": "keycloak",
+        "KEYCLOAK_URL": "http://keycloak:8080",
+        "NGINX_DISABLE_API_AUTH_REQUEST": "false",
+    }
+
+    with patch.object(nginx_service.nginx_template_path, "exists", return_value=True):
+        with patch("builtins.open", mock_open(read_data=template_content)) as mock_file:
+            with patch("registry.health.service.health_service", mock_health_service):
+                mock_health_service.server_health_status = {}
+
+                with patch.object(nginx_service, "get_additional_server_names", return_value=""):
+                    with patch.object(nginx_service, "reload_nginx", return_value=True):
+                        with patch(
+                            "os.environ.get",
+                            side_effect=lambda key, default=None: env_values.get(key, default),
+                        ):
+                            result = await nginx_service.generate_config_async(sample_servers)
+
+                            assert result is True
+                            written_content = mock_file().write.call_args_list[0][0][0]
+                            # Should still contain keycloak as the host (netloc fallback)
+                            assert "keycloak" in written_content
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_generate_config_async_keycloak_url_parse_exception(
+    nginx_service, sample_servers, mock_health_service
+):
+    """Test Keycloak URL parsing falls back to defaults on exception."""
+    template_content = """
+server {
+    {{KEYCLOAK_SCHEME}}://{{KEYCLOAK_HOST}}:{{KEYCLOAK_PORT}}
+    {{LOCATION_BLOCKS}}
+}
+"""
+
+    env_values = {
+        "AUTH_PROVIDER": "keycloak",
+        "KEYCLOAK_URL": "http://keycloak:8080",
+        "NGINX_DISABLE_API_AUTH_REQUEST": "false",
+    }
+
+    with patch.object(nginx_service.nginx_template_path, "exists", return_value=True):
+        with patch("builtins.open", mock_open(read_data=template_content)) as mock_file:
+            with patch("registry.health.service.health_service", mock_health_service):
+                mock_health_service.server_health_status = {}
+
+                with patch.object(nginx_service, "get_additional_server_names", return_value=""):
+                    with patch.object(nginx_service, "reload_nginx", return_value=True):
+                        with patch(
+                            "os.environ.get",
+                            side_effect=lambda key, default=None: env_values.get(key, default),
+                        ):
+                            # Force urlparse to raise an exception
+                            with patch(
+                                "registry.core.nginx_service.urlparse",
+                                side_effect=Exception("parse error"),
+                            ):
+                                result = await nginx_service.generate_config_async(sample_servers)
+
+                                assert result is True
+                                written_content = mock_file().write.call_args_list[0][0][0]
+                                # Should fall back to defaults
+                                assert "http" in written_content
+                                assert "keycloak" in written_content
+                                assert "8080" in written_content

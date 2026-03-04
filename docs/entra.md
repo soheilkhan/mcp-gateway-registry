@@ -331,7 +331,7 @@ This ensures both token types work seamlessly with the same validation endpoint.
 
 ```bash
 # Set the token from "Get JWT Token" button
-export MCP_TOKEN="<your-jwt-token>"
+export MCP_TOKEN="eyJhbGciOiJIUzI1NiIs..." <!-- gitleaks:allow -->
 
 # Use with mcpgw CLI
 mcpgw servers list --token "$MCP_TOKEN"
@@ -343,7 +343,7 @@ mcpgw tools call context7 resolve-library-id --args '{"libraryName": "react"}'
 ```python
 import requests
 
-token = "<your-jwt-token>"
+token = "eyJhbGciOiJIUzI1NiIs..." <!-- gitleaks:allow -->
 headers = {"Authorization": f"Bearer {token}"}
 
 response = requests.get(

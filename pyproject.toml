@@ -41,6 +41,8 @@ dependencies = [
     "rich>=13.0.0",
     "requests>=2.31.0",
     "cisco-ai-a2a-scanner @ git+https://github.com/cisco-ai-defense/a2a-scanner.git@main",
+    "cisco-ai-skill-scanner>=1.0.0",
+    "cisco-ai-mcp-scanner>=3.0.1",
     "awscli>=1.36.0",
     "boto3>=1.35.0",
     "motor>=3.3.0",
@@ -48,6 +50,7 @@ dependencies = [
     "dnspython>=2.4.0",
     "litellm>=1.50.0",
     "cryptography>=46.0.3",
+    "prometheus-client>=0.20.0",
 ]
 
 [project.optional-dependencies]
@@ -162,6 +165,13 @@ title = "MCP Registry Coverage Report"
 [tool.uv]
 # Local-only project - never resolve from PyPI
 package = false
+
+# Bandit Configuration
+# B101 (assert_used): exclude test directories where assert is expected
+# Requires: bandit -c pyproject.toml -r .
+# See: https://bandit.readthedocs.io/en/latest/plugins/b101_assert_used.html
+[tool.bandit]
+exclude_dirs = ["tests", "*/test/*", "*/tests/*", ".venv"]
 
 # Ruff Configuration
 [tool.ruff]

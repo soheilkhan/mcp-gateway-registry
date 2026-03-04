@@ -18,12 +18,10 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ASCENDING
-from pymongo.errors import ServerSelectionTimeoutError, OperationFailure
-
+from pymongo.errors import OperationFailure, ServerSelectionTimeoutError
 
 # Configure logging with basicConfig
 logging.basicConfig(
@@ -97,12 +95,7 @@ def _initialize_replica_set(
                 raise
 
         # Initialize replica set
-        config = {
-            "_id": "rs0",
-            "members": [
-                {"_id": 0, "host": f"{host}:{port}"}
-            ]
-        }
+        config = {"_id": "rs0", "members": [{"_id": 0, "host": f"{host}:{port}"}]}
 
         result = client.admin.command("replSetInitiate", config)
         logger.info(f"Replica set initialized: {result}")
@@ -165,19 +158,49 @@ async def _create_standard_indexes(
         # Note: timestamp index is created as TTL index below, so we use compound indexes here
         await collection.create_index([("identity.username", ASCENDING), ("timestamp", ASCENDING)])
         await collection.create_index([("action.operation", ASCENDING), ("timestamp", ASCENDING)])
-        await collection.create_index([("action.resource_type", ASCENDING), ("timestamp", ASCENDING)])
-        await collection.create_index([("request_id", ASCENDING)], unique=True)
+        await collection.create_index(
+            [("action.resource_type", ASCENDING), ("timestamp", ASCENDING)]
+        )
+
+        # Index for MCP server name distinct/filter queries
+        await collection.create_index([("mcp_server.name", ASCENDING)])
+
+        # Migration: drop old single-field request_id index if it exists
+        # Try both auto-generated name and explicit name variants
+        for old_index_name in ("request_id_1", "request_id_idx"):
+            try:
+                await collection.drop_index(old_index_name)
+                logger.info(f"Dropped old single-field index '{old_index_name}' from {full_name}")
+            except Exception:
+                logger.debug(f"No old index '{old_index_name}' to drop from {full_name}")
+
+        # Composite unique index on (request_id, log_type)
+        # Allows both MCPServerAccessRecord and RegistryApiAccessRecord
+        # to coexist for the same request_id while preventing true duplicates
+        await collection.create_index(
+            [("request_id", ASCENDING), ("log_type", ASCENDING)],
+            name="request_id_log_type_idx",
+            unique=True,
+        )
 
         # TTL index for automatic expiration (Requirements 6.3)
         # This also serves as the timestamp index for sorting
         # Default 7 days (604800 seconds), configurable via AUDIT_LOG_MONGODB_TTL_DAYS
         ttl_days = int(os.getenv("AUDIT_LOG_MONGODB_TTL_DAYS", "7"))
         ttl_seconds = ttl_days * 24 * 60 * 60
-        await collection.create_index(
-            [("timestamp", ASCENDING)],
-            expireAfterSeconds=ttl_seconds,
-            name="timestamp_ttl"
-        )
+        try:
+            await collection.create_index(
+                [("timestamp", ASCENDING)], expireAfterSeconds=ttl_seconds, name="timestamp_ttl"
+            )
+        except OperationFailure as e:
+            if e.code == 85:  # IndexOptionsConflict
+                logger.info(f"TTL index options changed for {full_name}, recreating index...")
+                await collection.drop_index("timestamp_ttl")
+                await collection.create_index(
+                    [("timestamp", ASCENDING)], expireAfterSeconds=ttl_seconds, name="timestamp_ttl"
+                )
+            else:
+                raise
         logger.info(f"Created indexes for {full_name} (TTL: {ttl_days} days)")
 
     elif collection_name == COLLECTION_SKILLS:
@@ -226,16 +249,24 @@ async def _load_default_scopes(
             continue
 
         try:
-            with open(scope_file, "r") as f:
+            with open(scope_file) as f:
                 scope_data = json.load(f)
 
             logger.info(f"Loading scope from {scope_filename}")
 
+            # For registry-admins scope, add Entra admin group ID from env if configured
+            if scope_data["_id"] == "registry-admins":
+                entra_admin_group_id = os.getenv("ENTRA_GROUP_ADMIN_ID", "").strip()
+                if entra_admin_group_id:
+                    group_mappings = scope_data.get("group_mappings", [])
+                    if entra_admin_group_id not in group_mappings:
+                        group_mappings.append(entra_admin_group_id)
+                        scope_data["group_mappings"] = group_mappings
+                        logger.info(f"  Added Entra admin group ID: {entra_admin_group_id}")
+
             # Upsert the scope document
             result = await collection.update_one(
-                {"_id": scope_data["_id"]},
-                {"$set": scope_data},
-                upsert=True
+                {"_id": scope_data["_id"]}, {"$set": scope_data}, upsert=True
             )
 
             if result.upserted_id:
@@ -248,9 +279,7 @@ async def _load_default_scopes(
                 logger.info(f"Scope already up-to-date: {scope_data['_id']}")
 
             if "group_mappings" in scope_data:
-                logger.info(
-                    f"  group_mappings: {scope_data.get('group_mappings', [])}"
-                )
+                logger.info(f"  group_mappings: {scope_data.get('group_mappings', [])}")
 
         except Exception as e:
             logger.error(f"Failed to load scope from {scope_filename}: {e}", exc_info=True)
@@ -279,7 +308,7 @@ async def _initialize_mongodb_ce() -> None:
 
     # Connect with motor for async operations
     # Use auth only if username is provided (MongoDB CE runs without auth by default)
-    if config['username'] and config['password']:
+    if config["username"] and config["password"]:
         connection_string = f"mongodb://{config['username']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}?replicaSet={config['replicaset']}&authMechanism=SCRAM-SHA-256&authSource=admin"
     else:
         connection_string = f"mongodb://{config['host']}:{config['port']}/{config['database']}?replicaSet={config['replicaset']}"

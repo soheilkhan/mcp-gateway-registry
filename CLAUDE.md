@@ -46,59 +46,163 @@ When evaluating pull requests for merge, adopt the **Merge Specialist** persona 
 ### Type Annotations
 - Use clear type annotations for all function parameters
 - One function parameter per line for better readability
+- Use modern Python 3.10+ type hint syntax (PEP 604/585)
 - Example:
   ```python
   def process_data(
       input_file: str,
       output_format: str,
       validate: bool = True
-  ) -> dict:
+  ) -> dict[str, Any]:
       pass
   ```
 
-### Type Hints for Optional Parameters
-- Always use `Optional[type]` for parameters that can be None
-- Be explicit about optional parameters, especially when they have special meanings:
-  ```python
-  from typing import Optional, List
-  
-  def process_samples(
-      sample_size: Optional[int] = None,  # None means use default
-      language: Optional[str] = None      # None means no filtering
-  ) -> List[dict]:
-      """Process dataset samples.
-      
-      Args:
-          sample_size: Number of samples. None uses default, 0 means all.
-          language: Language filter. None means all languages.
-      """
-      if sample_size == 0:
-          # Special case: process all samples
-          return process_all()
-      elif sample_size is None:
-          # Use default sample size
-          sample_size = DEFAULT_SAMPLE_SIZE
-          
-      # Process with explicit sample size
-      return process_with_size(sample_size)
-  ```
+### Modern Type Hint Standards (Python 3.10+)
+
+**IMPORTANT**: This codebase uses modern Python 3.10+ type hint syntax (PEP 604 and PEP 585). Always use built-in types instead of importing from `typing` module.
+
+#### PEP 604: Union Types with `|`
+Use `X | None` instead of `Optional[X]`:
+
+```python
+# Good - Modern syntax (Python 3.10+)
+def process_data(
+    sample_size: int | None = None,
+    language: str | None = None
+) -> list[dict[str, Any]]:
+    pass
+
+# Avoid - Legacy syntax
+from typing import Optional, List, Dict, Any
+
+def process_data(
+    sample_size: Optional[int] = None,
+    language: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    pass
+```
+
+#### PEP 585: Built-in Generic Types
+Use `list`, `dict`, `tuple`, `set` directly instead of importing from `typing`:
+
+```python
+# Good - Built-in generic types
+def process_items(
+    data: list[dict[str, Any]],
+    filters: set[str],
+    metadata: tuple[str, int]
+) -> dict[str, list[Any]]:
+    pass
+
+# Avoid - typing module imports
+from typing import List, Dict, Set, Tuple, Any
+
+def process_items(
+    data: List[Dict[str, Any]],
+    filters: Set[str],
+    metadata: Tuple[str, int]
+) -> Dict[str, List[Any]]:
+    pass
+```
+
+#### Type Hint Migration Examples
+
+**Example 1: Optional Parameters**
+```python
+# Old style
+from typing import Optional
+
+def get_user(user_id: int, token: Optional[str] = None) -> Optional[dict]:
+    pass
+
+# New style - no imports needed
+def get_user(user_id: int, token: str | None = None) -> dict | None:
+    pass
+```
+
+**Example 2: Complex Types**
+```python
+# Old style
+from typing import List, Dict, Optional, Tuple
+
+def process_samples(
+    sample_size: Optional[int] = None,
+    language: Optional[str] = None
+) -> List[dict]:
+    """Process dataset samples.
+
+    Args:
+        sample_size: Number of samples. None uses default, 0 means all.
+        language: Language filter. None means all languages.
+    """
+    if sample_size == 0:
+        return process_all()
+    elif sample_size is None:
+        sample_size = DEFAULT_SAMPLE_SIZE
+
+    return process_with_size(sample_size)
+
+# New style - cleaner and more Pythonic
+def process_samples(
+    sample_size: int | None = None,
+    language: str | None = None
+) -> list[dict[str, Any]]:
+    """Process dataset samples.
+
+    Args:
+        sample_size: Number of samples. None uses default, 0 means all.
+        language: Language filter. None means all languages.
+    """
+    if sample_size == 0:
+        return process_all()
+    elif sample_size is None:
+        sample_size = DEFAULT_SAMPLE_SIZE
+
+    return process_with_size(sample_size)
+```
+
+**Example 3: Nested Generic Types**
+```python
+# Old style
+from typing import Dict, List, Tuple, Optional
+
+def get_user_data(
+    user_id: int
+) -> Optional[Dict[str, List[Tuple[str, int]]]]:
+    pass
+
+# New style - much cleaner
+def get_user_data(
+    user_id: int
+) -> dict[str, list[tuple[str, int]]] | None:
+    pass
+```
+
+#### Benefits of Modern Type Hints
+1. **Fewer imports**: No need to import from `typing` for basic types
+2. **More readable**: `X | None` is clearer than `Optional[X]`
+3. **Consistent with Python evolution**: PEP 585 and PEP 604 are the future
+4. **Better IDE support**: Native type inference without imports
+5. **Simpler syntax**: Less typing, easier to understand
 
 ### Class Definitions with Pydantic
 - Consider using Pydantic BaseModel for all class definitions to leverage validation, serialization, and other powerful features
 - Pydantic provides automatic validation, type coercion, and serialization capabilities
+- Use modern type hints (PEP 604/585) in Pydantic models
 - Example:
   ```python
   from pydantic import BaseModel, Field, validator
-  from typing import Optional
-  
+
   class UserConfig(BaseModel):
       """User configuration settings."""
-      
+
       username: str = Field(..., min_length=3, max_length=50)
       email: str = Field(..., regex=r'^[\w\.-]+@[\w\.-]+\.\w+$')
       timeout_seconds: int = Field(default=30, ge=1, le=300)
       debug_enabled: bool = False
-      
+      tags: list[str] = Field(default_factory=list)
+      metadata: dict[str, str] | None = None
+
       @validator('username')
       def username_alphanumeric(cls, v: str) -> str:
           if not v.replace('_', '').isalnum():
@@ -679,6 +783,301 @@ def get_secret(key: str, default: Optional[str] = None) -> str:
   app.run(host=private_ip, port=8000)
   ```
 
+### Subprocess Security Guidelines
+
+When using the `subprocess` module, follow these security patterns to prevent Bandit B603/B607 findings and avoid shell injection vulnerabilities.
+
+#### ✅ ALWAYS Use List Form (Not String Commands)
+
+```python
+# Good - list form prevents shell injection
+result = subprocess.run(
+    ["nginx", "-s", "reload"],
+    capture_output=True,
+    text=True,
+    timeout=5,
+)
+
+# Bad - string form with shell=True is vulnerable to injection
+result = subprocess.run("nginx -s reload", shell=True)  # NEVER DO THIS
+```
+
+#### ✅ ALWAYS Add Timeout
+
+```python
+# Good - prevents DoS from hanging processes
+result = subprocess.run(cmd, timeout=30, capture_output=True)
+
+# Bad - no timeout can cause infinite hangs
+result = subprocess.run(cmd, capture_output=True)  # Missing timeout!
+```
+
+#### ✅ ALWAYS Handle Errors
+
+```python
+# Good - proper error handling
+try:
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        check=True,  # Raises CalledProcessError on non-zero exit
+        timeout=30,
+    )
+except subprocess.TimeoutExpired:
+    logger.error("Command timed out")
+    return False
+except subprocess.CalledProcessError as e:
+    logger.error(f"Command failed: {e.stderr}")
+    return False
+```
+
+#### ✅ Approved Subprocess Patterns
+
+**Pattern 1: System Utilities (hardcoded commands)**
+```python
+# System commands with hardcoded paths and flags
+result = subprocess.run(
+    ["nginx", "-t"],  # nosec B603 B607 - hardcoded command
+    capture_output=True,
+    text=True,
+    timeout=5,
+)
+
+result = subprocess.run(
+    ["hostname", "-I"],  # nosec B603 B607 - hardcoded command
+    capture_output=True,
+    text=True,
+    timeout=2,
+)
+```
+
+**Pattern 2: Internal Scripts (controlled paths)**
+```python
+# Internal scripts with validated arguments
+script_path = os.path.join(project_root, "scripts/generate_token.sh")
+result = subprocess.run(
+    [script_path, validated_arg],  # nosec B603 - hardcoded internal script path
+    capture_output=True,
+    text=True,
+    timeout=30,
+    cwd=working_directory,
+)
+```
+
+**Pattern 3: External Tools (hardcoded flags, data as arguments)**
+```python
+# External tools with hardcoded flags - user data passed as arguments, not commands
+cmd = ["mcp-scanner", "--format", "json", "--url", user_provided_url]
+result = subprocess.run(  # nosec B603 - args are hardcoded flags passed to mcp-scanner tool
+    cmd,
+    capture_output=True,
+    text=True,
+    check=True,
+    timeout=60,
+)
+```
+
+#### ✅ Security Comment Standards for Subprocess
+
+When suppressing Bandit warnings for subprocess calls, **always include a clear justification**:
+
+```python
+# Good - explains why it's safe
+subprocess.run(
+    ["nginx", "-s", "reload"],
+    ...
+)  # nosec B603 B607 - hardcoded command
+
+# Good - explains the security model
+subprocess.run(
+    [script_path, arg],
+    ...
+)  # nosec B603 - hardcoded internal script path
+
+# Good - explains what's hardcoded
+subprocess.run(
+    cmd,
+    ...
+)  # nosec B603 - args are hardcoded flags passed to tool
+
+# Bad - no justification
+subprocess.run(cmd, ...)  # nosec B603
+```
+
+**Valid Justification Templates:**
+- `# nosec B603 B607 - hardcoded command` - for system utilities (nginx, hostname, etc.)
+- `# nosec B603 - hardcoded internal script path` - for internal project scripts
+- `# nosec B603 - hardcoded internal script path and flags` - when both path and flags are hardcoded
+- `# nosec B603 - args are hardcoded flags passed to [tool-name]` - for external tools
+
+#### ❌ NEVER Do These With Subprocess
+
+```python
+# NEVER use shell=True with any user input
+user_cmd = f"tool --arg {user_input}"
+subprocess.run(user_cmd, shell=True)  # VULNERABLE TO INJECTION
+
+# NEVER construct commands from user input
+cmd = f"grep {user_search_term} file.txt"  # VULNERABLE
+subprocess.run(cmd, shell=True)
+
+# NEVER skip timeout - can hang forever
+subprocess.run(["long-running-command"])  # NO TIMEOUT
+
+# NEVER ignore errors without logging
+result = subprocess.run(cmd, capture_output=True)
+# No error handling - failures go unnoticed
+```
+
+### SQL Security Guidelines
+
+When working with databases, follow these patterns to prevent SQL injection vulnerabilities (Bandit B608).
+
+#### ✅ ALWAYS Use Parameterized Queries
+
+```python
+# Good - parameterized query with placeholders
+cutoff = datetime.now().isoformat()
+query = "DELETE FROM table_name WHERE created_at < ?"
+cursor.execute(query, (cutoff,))
+
+# Bad - string formatting is vulnerable to SQL injection
+cutoff_str = f"'{datetime.now().isoformat()}'"
+query = f"DELETE FROM table_name WHERE created_at < {cutoff_str}"  # VULNERABLE
+cursor.execute(query)
+```
+
+#### ✅ Validate Identifiers Against Allowlists
+
+For table names and column names that cannot be parameterized, use allowlist validation:
+
+```python
+# Define allowlists for table and column names
+ALLOWED_TABLES = {"users", "metrics", "auth_logs"}
+ALLOWED_COLUMNS = {"created_at", "updated_at", "timestamp"}
+
+def validate_table_name(table: str) -> str:
+    """Validate table name against allowlist."""
+    if table not in ALLOWED_TABLES:
+        raise ValueError(f"Invalid table: {table}")
+    return table
+
+def validate_column_name(column: str) -> str:
+    """Validate column name against allowlist."""
+    if column not in ALLOWED_COLUMNS:
+        raise ValueError(f"Invalid column: {column}")
+    return column
+
+# Use validated identifiers with nosec comment
+table = validate_table_name(user_provided_table)
+column = validate_column_name(user_provided_column)
+query = f"SELECT * FROM {table} WHERE {column} = ?"  # nosec B608 - table and column validated against allowlists
+cursor.execute(query, (value,))
+```
+
+#### ✅ Return Query and Parameters as Tuple
+
+For query-building methods, return both query string and parameters:
+
+```python
+def get_cleanup_query(
+    table_name: str,
+    days: int
+) -> tuple[str, tuple]:
+    """Get cleanup query and parameters.
+
+    Returns:
+        Tuple of (query_string, parameters)
+    """
+    # Validate table name against allowlist
+    table_name = validate_table_name(table_name)
+
+    # Calculate cutoff date
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+
+    # Build parameterized query
+    query = f"DELETE FROM {table_name} WHERE created_at < ?"  # nosec B608 - table_name validated against allowlist
+
+    return query, (cutoff,)
+
+# Use the query and parameters
+query, params = get_cleanup_query("metrics", 90)
+cursor.execute(query, params)
+```
+
+#### ✅ Security Comment Standards for SQL
+
+When suppressing B608 warnings, **always document the validation**:
+
+```python
+# Good - documents allowlist validation
+query = f"SELECT * FROM {table}"  # nosec B608 - table name validated against allowlist
+cursor.execute(query, params)
+
+# Good - references validation function
+query = f"DELETE FROM {table}"  # nosec B608 - table validated by validate_table_name()
+cursor.execute(query, params)
+
+# Good - explains multiple validations
+query = f"SELECT {column} FROM {table}"  # nosec B608 - table and column validated against allowlists
+cursor.execute(query, params)
+
+# Bad - no justification
+query = f"SELECT * FROM {table}"  # nosec B608
+cursor.execute(query)
+```
+
+**Valid Justification Templates:**
+- `# nosec B608 - table name validated against allowlist`
+- `# nosec B608 - column name validated against allowlist`
+- `# nosec B608 - table and column validated against allowlists`
+- `# nosec B608 - identifier validated by _validate_identifier()`
+
+#### ❌ NEVER Do These With SQL
+
+```python
+# NEVER use string formatting for values
+value = user_input
+query = f"SELECT * FROM users WHERE name = '{value}'"  # VULNERABLE TO SQL INJECTION
+cursor.execute(query)
+
+# NEVER concatenate user input into queries
+query = "SELECT * FROM " + user_table + " WHERE id = " + user_id  # VULNERABLE
+cursor.execute(query)
+
+# NEVER skip validation for identifiers
+table = request.args.get('table')  # No validation!
+query = f"SELECT * FROM {table}"  # VULNERABLE
+cursor.execute(query)
+
+# NEVER use datetime() SQL functions with interpolated values
+days = user_input
+query = f"DELETE FROM t WHERE created_at < datetime('now', '-{days} days')"  # VULNERABLE
+cursor.execute(query)
+```
+
+### Security Checklist for Code Review
+
+When reviewing code with subprocess or SQL operations, verify:
+
+**Subprocess Checklist:**
+- [ ] Using list form (not string commands)
+- [ ] No `shell=True` anywhere
+- [ ] Timeout specified
+- [ ] Error handling includes `TimeoutExpired` and `CalledProcessError`
+- [ ] Commands are hardcoded (no dynamic construction from user input)
+- [ ] `# nosec` comments include clear justifications
+- [ ] Arguments passed as list elements (not interpolated into commands)
+
+**SQL Checklist:**
+- [ ] Using parameterized queries for all values
+- [ ] Table and column names validated against allowlists
+- [ ] No string formatting or concatenation for SQL values
+- [ ] Query methods return `tuple[str, tuple]`
+- [ ] `# nosec` comments document validation method
+- [ ] No datetime() SQL functions with interpolated parameters
+
 ## Development Workflow
 
 ### Recommended Development Tools
@@ -688,6 +1087,39 @@ def get_secret(key: str, default: Optional[str] = None) -> str:
 - **Pytest**: For testing
 
 ### Pre-commit Workflow
+
+#### Option 1: Automated Pre-commit Hooks (Recommended)
+
+Install pre-commit hooks to automatically run checks before each commit:
+
+```bash
+# Install pre-commit (one-time setup)
+uv pip install pre-commit
+
+# Install the git hooks (one-time per repo clone)
+pre-commit install
+
+# Now all checks run automatically on git commit
+git add file.py
+git commit -m "Your message"  # Hooks run automatically
+
+# Run hooks manually on all files
+pre-commit run --all-files
+```
+
+**What runs automatically:**
+- ✅ Ruff linter with auto-fixes
+- ✅ Ruff formatter (PEP 604/585 modernization)
+- ✅ Trailing whitespace removal
+- ✅ End-of-file fixes
+- ✅ YAML/JSON validation
+- ✅ Bandit security scan
+- ✅ MyPy type checking
+- ✅ Fast unit tests
+- ✅ Python/shell syntax checks
+
+#### Option 2: Manual Workflow
+
 Before committing code, run these checks in order:
 
 ```bash
@@ -707,10 +1139,40 @@ uv run pytest
 uv run ruff check --fix . && uv run ruff format . && uv run bandit -r src/ && uv run mypy src/ && uv run pytest
 ```
 
+### Code Formatting Standards
+
+**Ruff Configuration**: This project uses ruff for formatting with the following key settings (see `pyproject.toml`):
+
+- **Target Python**: 3.10+ (enables PEP 604/585)
+- **Line Length**: 100 characters
+- **Type Hint Modernization**: Automatic via ruff rules:
+  - `UP006`: Use PEP 585 built-in generics (`list`, `dict`, `tuple`)
+  - `UP007`: Use PEP 604 union syntax (`X | Y` instead of `Union[X, Y]`)
+  - `UP037`: Remove quotes from type annotations
+  - `I001`: Auto-sort imports (isort compatible)
+
+**Formatting automatically handles:**
+- Type hint modernization (PEP 604/585)
+- Import organization (stdlib, third-party, local)
+- Trailing whitespace removal
+- Consistent indentation (4 spaces)
+- Line length enforcement
+- Docstring formatting
+
+**Example ruff modernizations:**
+```python
+# Before ruff format
+from typing import Optional, List, Dict
+def func(x: Optional[List[Dict]]) -> Optional[str]: pass
+
+# After ruff format (automatic)
+def func(x: list[dict] | None) -> str | None: pass
+```
+
 ### Adding Development Dependencies
 ```bash
 # Add development dependencies
-uv add --dev ruff mypy bandit pytest pytest-cov
+uv add --dev ruff mypy bandit pytest pytest-cov pre-commit
 ```
 
 ## Dependency Management
@@ -1157,7 +1619,16 @@ gh issue comment 123 --body "Suggest adding 'agentcore' label for AgentCore-rela
 ```
 
 ## Summary
-These guidelines ensure consistent, maintainable, and modern Python code. Always prioritize simplicity and clarity over cleverness.
+
+These guidelines ensure consistent, maintainable, and modern Python code. Key principles:
+
+- **Simplicity First**: Write code maintainable by entry-level developers
+- **Modern Python**: Use Python 3.10+ features (PEP 604/585 type hints)
+- **Automated Quality**: Use pre-commit hooks for consistent formatting
+- **Security**: Follow subprocess and SQL security patterns
+- **Type Safety**: Clear type annotations with modern syntax
+
+Always prioritize simplicity and clarity over cleverness.
 ## Federated Registry Implementation Workflow
 
 When implementing the federated registry feature, follow this 3-agent workflow for each sub-feature:

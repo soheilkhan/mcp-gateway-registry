@@ -12,19 +12,14 @@ import logging
 import os
 import sys
 from datetime import (
+    UTC,
     datetime,
-    timezone,
 )
-from pathlib import Path
 from typing import (
     Any,
-    Dict,
-    List,
-    Optional,
 )
 
 import requests
-
 
 # Configure logging
 logging.basicConfig(
@@ -62,9 +57,9 @@ def _get_token_from_entra(
     client_id: str,
     client_secret: str,
     tenant_id: str,
-    scope: Optional[str] = None,
+    scope: str | None = None,
     verbose: bool = False,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Request access token from Microsoft Entra ID using client credentials."""
     login_base_url = os.environ.get(
         "ENTRA_LOGIN_BASE_URL",
@@ -99,12 +94,18 @@ def _get_token_from_entra(
         if response.status_code >= 400:
             try:
                 error_data = response.json()
-                error_msg = error_data.get("error_description", error_data.get("error", "Unknown error"))
+                error_msg = error_data.get(
+                    "error_description", error_data.get("error", "Unknown error")
+                )
                 print(f"{Colors.RED}[ERROR]{Colors.NC} Entra ID error: {error_msg}")
                 if verbose:
-                    print(f"{Colors.BLUE}[DEBUG]{Colors.NC} Full error response: {json.dumps(error_data, indent=2)}")
+                    print(
+                        f"{Colors.BLUE}[DEBUG]{Colors.NC} Full error response: {json.dumps(error_data, indent=2)}"
+                    )
             except json.JSONDecodeError:
-                print(f"{Colors.RED}[ERROR]{Colors.NC} HTTP {response.status_code}: {response.text}")
+                print(
+                    f"{Colors.RED}[ERROR]{Colors.NC} HTTP {response.status_code}: {response.text}"
+                )
             return None
 
         token_data = response.json()
@@ -122,9 +123,7 @@ def _get_token_from_entra(
         return token_data
 
     except requests.exceptions.RequestException as e:
-        print(
-            f"{Colors.RED}[ERROR]{Colors.NC} Failed to make token request to Entra ID: {e}"
-        )
+        print(f"{Colors.RED}[ERROR]{Colors.NC} Failed to make token request to Entra ID: {e}")
         return None
     except json.JSONDecodeError as e:
         print(f"{Colors.RED}[ERROR]{Colors.NC} Invalid JSON response: {e}")
@@ -133,7 +132,7 @@ def _get_token_from_entra(
 
 def _save_token_file(
     identity_name: str,
-    token_data: Dict[str, Any],
+    token_data: dict[str, Any],
     client_id: str,
     tenant_id: str,
     scope: str,
@@ -145,13 +144,13 @@ def _save_token_file(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at = datetime.now(UTC).isoformat()
     expires_at = None
     if expires_in:
-        expiry_timestamp = datetime.now(timezone.utc).timestamp() + expires_in
+        expiry_timestamp = datetime.now(UTC).timestamp() + expires_in
         expires_at = datetime.fromtimestamp(
             expiry_timestamp,
-            timezone.utc,
+            UTC,
         ).isoformat()
 
     token_json = {
@@ -193,20 +192,18 @@ def _save_token_file(
 
 def _load_identities_file(
     file_path: str,
-) -> Optional[List[Dict[str, Any]]]:
+) -> list[dict[str, Any]] | None:
     """Load identities from JSON file."""
     if not os.path.exists(file_path):
         print(f"{Colors.RED}[ERROR]{Colors.NC} Identities file not found: {file_path}")
         return None
 
     try:
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             identities = json.load(f)
 
         if not isinstance(identities, list):
-            print(
-                f"{Colors.RED}[ERROR]{Colors.NC} Identities file must contain a JSON array"
-            )
+            print(f"{Colors.RED}[ERROR]{Colors.NC} Identities file must contain a JSON array")
             return None
 
         return identities
@@ -243,12 +240,10 @@ def generate_tokens(
     for identity in identities:
         identity_name = identity.get("identity_name")
         if not identity_name:
-            print(
-                f"{Colors.RED}[ERROR]{Colors.NC} Identity missing 'identity_name' field"
-            )
+            print(f"{Colors.RED}[ERROR]{Colors.NC} Identity missing 'identity_name' field")
             continue
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Processing identity: {identity_name}")
         print("=" * 60)
 
@@ -258,9 +253,7 @@ def generate_tokens(
         scope = identity.get("scope")
 
         if not client_id:
-            print(
-                f"{Colors.RED}[ERROR]{Colors.NC} Identity '{identity_name}' missing 'client_id'"
-            )
+            print(f"{Colors.RED}[ERROR]{Colors.NC} Identity '{identity_name}' missing 'client_id'")
             continue
         if not client_secret:
             print(
@@ -268,9 +261,7 @@ def generate_tokens(
             )
             continue
         if not tenant_id:
-            print(
-                f"{Colors.RED}[ERROR]{Colors.NC} Identity '{identity_name}' missing 'tenant_id'"
-            )
+            print(f"{Colors.RED}[ERROR]{Colors.NC} Identity '{identity_name}' missing 'tenant_id'")
             continue
 
         print(f"Requesting access token for identity: {identity_name}")
@@ -304,7 +295,7 @@ def generate_tokens(
         ):
             success_count += 1
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Token generation complete: {success_count}/{total_count} successful")
     print("=" * 60)
 

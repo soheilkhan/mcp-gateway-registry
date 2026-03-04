@@ -154,6 +154,10 @@ module "ecs_service_auth" {
           value = var.session_cookie_domain
         },
         {
+          name  = "OAUTH_STORE_TOKENS_IN_SESSION"
+          value = tostring(var.oauth_store_tokens_in_session)
+        },
+        {
           name  = "REGISTRY_STATIC_TOKEN_AUTH_ENABLED"
           value = tostring(var.registry_static_token_auth_enabled)
         },
@@ -217,6 +221,11 @@ module "ecs_service_auth" {
         {
           name  = "AUDIT_LOG_MONGODB_TTL_DAYS"
           value = tostring(var.audit_log_ttl_days)
+        },
+        # Metrics pipeline (only wired when observability is enabled)
+        {
+          name  = "METRICS_SERVICE_URL"
+          value = var.enable_observability ? "http://metrics-service:8890" : ""
         }
       ]
 
@@ -247,6 +256,12 @@ module "ecs_service_auth" {
           {
             name      = "ENTRA_CLIENT_SECRET"
             valueFrom = aws_secretsmanager_secret.entra_client_secret[0].arn
+          }
+        ] : [],
+        var.enable_observability ? [
+          {
+            name      = "METRICS_API_KEY"
+            valueFrom = aws_secretsmanager_secret.metrics_api_key[0].arn
           }
         ] : []
       )
@@ -585,6 +600,41 @@ module "ecs_service_registry" {
         {
           name  = "AUDIT_LOG_MONGODB_TTL_DAYS"
           value = tostring(var.audit_log_ttl_days)
+        },
+        {
+          name  = "DEPLOYMENT_MODE"
+          value = var.deployment_mode
+        },
+        {
+          name  = "REGISTRY_MODE"
+          value = var.registry_mode
+        },
+        {
+          name  = "OAUTH_STORE_TOKENS_IN_SESSION"
+          value = tostring(var.oauth_store_tokens_in_session)
+        },
+        {
+          name  = "REGISTRY_STATIC_TOKEN_AUTH_ENABLED"
+          value = tostring(var.registry_static_token_auth_enabled)
+        },
+        {
+          name  = "REGISTRY_API_TOKEN"
+          value = var.registry_api_token
+        },
+        {
+          name  = "MAX_TOKENS_PER_USER_PER_HOUR"
+          value = tostring(var.max_tokens_per_user_per_hour)
+        },
+        # Metrics pipeline (only wired when observability is enabled)
+        {
+          name  = "METRICS_SERVICE_URL"
+          value = var.enable_observability ? "http://metrics-service:8890" : ""
+        },
+        # Service Connect namespace for FQDN alias injection in entrypoint.
+        # Enables Python health checker to resolve both short names and FQDNs.
+        {
+          name  = "SERVICE_CONNECT_NAMESPACE"
+          value = aws_service_discovery_private_dns_namespace.mcp.name
         }
       ]
 
@@ -629,6 +679,12 @@ module "ecs_service_registry" {
           {
             name      = "ENTRA_CLIENT_SECRET"
             valueFrom = aws_secretsmanager_secret.entra_client_secret[0].arn
+          }
+        ] : [],
+        var.enable_observability ? [
+          {
+            name      = "METRICS_API_KEY"
+            valueFrom = aws_secretsmanager_secret.metrics_api_key[0].arn
           }
         ] : []
       )

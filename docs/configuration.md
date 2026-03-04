@@ -25,7 +25,7 @@ This document provides a comprehensive reference for all configuration files in 
 
 The MCP Gateway Registry supports multiple authentication providers. Choose one by setting the `AUTH_PROVIDER` environment variable:
 
-- **`keycloak`**: Enterprise-grade open-source identity and access management with individual agent audit trails
+- **`keycloak`**: Open-source identity and access management with individual agent audit trails
 - **`cognito`**: Amazon managed authentication service
 
 Based on your selection, configure the corresponding provider-specific variables below.
@@ -54,7 +54,7 @@ Based on your selection, configure the corresponding provider-specific variables
 | `KEYCLOAK_CLIENT_ID` | Keycloak web client ID (see note below) | `mcp-gateway-web` | ✅ |
 | `KEYCLOAK_CLIENT_SECRET` | Keycloak web client secret (auto-generated) | `0tiBtgQFcaBiwHXIxDws...` | ✅ |
 | `KEYCLOAK_M2M_CLIENT_ID` | Keycloak M2M client ID (see note below) | `mcp-gateway-m2m` | ✅ |
-| `KEYCLOAK_M2M_CLIENT_SECRET` | Keycloak M2M client secret (auto-generated) | `<your-m2m-secret>` | ✅ |
+| `KEYCLOAK_M2M_CLIENT_SECRET` | Keycloak M2M client secret (auto-generated) | `ZJqbsamnQs79hbUbkJLB...` | ✅ |
 | `KEYCLOAK_ENABLED` | Enable Keycloak in OAuth2 providers | `true` | ✅ |
 | `INITIAL_ADMIN_PASSWORD` | Initial admin user password | `changeme` | For setup |
 | `INITIAL_USER_PASSWORD` | Initial test user password | `testpass` | For setup |
@@ -100,7 +100,7 @@ cat keycloak/setup/keycloak-client-secrets.txt
 
 | Variable | Description | Example | Required |
 |----------|-------------|---------|----------|
-| `COGNITO_USER_POOL_ID` | Amazon Cognito User Pool ID | `us-east-1_XXXXXXXXX` | ✅ |
+| `COGNITO_USER_POOL_ID` | Amazon Cognito User Pool ID | `us-east-1_vm1115QSU` | ✅ |
 | `COGNITO_CLIENT_ID` | Amazon Cognito App Client ID | `3aju04s66t...` | ✅ |
 | `COGNITO_CLIENT_SECRET` | Amazon Cognito App Client Secret | `85ps32t55df39hm61k966fqjurj...` | ✅ |
 | `COGNITO_DOMAIN` | Cognito domain (optional) | `auto` | Optional |
@@ -351,6 +351,49 @@ These credentials are **entirely optional** and only needed if you want to:
 
 ---
 
+### Federation Configuration
+
+#### WORKDAY_TOKEN_URL (Optional)
+
+Configuration for Workday ASOR (Agent Service Orchestrator) federation integration.
+
+| Variable | Description | Example | Required |
+|----------|-------------|---------|----------|
+| `WORKDAY_TOKEN_URL` | Workday OAuth2 token endpoint URL | `https://services.wd101.myworkday.com/ccx/oauth2/production_instance/token` | **Optional** |
+
+**Required only if using Workday ASOR federation**
+
+- **Default**: `https://your-tenant.workday.com/ccx/oauth2/your_instance/token` (placeholder)
+- **Format**: `https://<tenant>.workday.com/ccx/oauth2/<instance>/token`
+- **Example**: `https://services.wd101.myworkday.com/ccx/oauth2/production_instance/token`
+- **Security**: Must use HTTPS in production environments
+- **Behavior**: If not configured with a valid URL, ASOR federation will be automatically disabled with a warning logged
+
+**Getting your Workday token URL:**
+
+Replace the placeholder values with your actual Workday tenant identifiers:
+- `<tenant>`: Your Workday tenant domain (e.g., `services.wd101.myworkday.com`)
+- `<instance>`: Your Workday instance name (e.g., `production_instance`, `sandbox_instance`)
+
+**Configuration example:**
+
+```bash
+# For production Workday instance
+WORKDAY_TOKEN_URL=https://services.wd101.myworkday.com/ccx/oauth2/production_instance/token
+
+# For sandbox/testing instance
+WORKDAY_TOKEN_URL=https://services.wd101.myworkday.com/ccx/oauth2/sandbox_instance/token
+```
+
+**Troubleshooting:**
+
+- If ASOR federation is not working, check the registry logs for warnings about WORKDAY_TOKEN_URL
+- Ensure the URL uses HTTPS (HTTP will fail in production)
+- Verify your Workday tenant and instance names are correct
+- Contact your Workday administrator if you're unsure about your instance configuration
+
+---
+
 ## Keycloak Setup and Configuration
 
 When using Keycloak as your authentication provider, the system provides comprehensive setup scripts and configuration options:
@@ -413,15 +456,15 @@ For detailed Keycloak integration documentation, see [Keycloak Integration Guide
 | `KEYCLOAK_URL` | Keycloak server URL | `https://mcpgateway.ddns.net` | ✅ |
 | `KEYCLOAK_REALM` | Keycloak realm | `mcp-gateway` | ✅ |
 | `KEYCLOAK_M2M_CLIENT_ID` | M2M client ID | `mcp-gateway-m2m` | ✅ |
-| `KEYCLOAK_M2M_CLIENT_SECRET` | M2M client secret | `<your-m2m-secret>` | ✅ |
+| `KEYCLOAK_M2M_CLIENT_SECRET` | M2M client secret | `ZJqbsamnQs79hbUbkJLB...` | ✅ |
 
 #### For Cognito (if AUTH_PROVIDER=cognito)
 
 | Variable | Description | Example | Required |
 |----------|-------------|---------|----------|
-| `INGRESS_OAUTH_USER_POOL_ID` | Cognito User Pool for ingress auth | `us-east-1_XXXXXXXXX` | ✅ |
+| `INGRESS_OAUTH_USER_POOL_ID` | Cognito User Pool for ingress auth | `us-east-1_vm1115QSU` | ✅ |
 | `INGRESS_OAUTH_CLIENT_ID` | Cognito client ID for ingress | `5v2rav1v93...` | ✅ |
-| `INGRESS_OAUTH_CLIENT_SECRET` | Cognito client secret for ingress | `<your-cognito-client-secret>` | ✅ |
+| `INGRESS_OAUTH_CLIENT_SECRET` | Cognito client secret for ingress | `1i888fnolv6k5sa1b8s5k839pdm...` | ✅ |
 
 ### Egress Authentication (Optional)
 
@@ -529,7 +572,7 @@ When using Keycloak as the authentication provider, the following configuration 
 
 ### Supported Providers
 
-- **Keycloak**: Enterprise-grade open-source identity and access management
+- **Keycloak**: Open-source identity and access management
 - **Amazon Cognito**: Amazon managed authentication service
 - **GitHub**: Repository and development services (planned)
 - **Google**: Google Workspace and consumer services (planned)
@@ -650,3 +693,130 @@ python -c "import yaml; yaml.safe_load(open('file.yml'))"  # YAML validation
 - **OAuth flows**: `.oauth-tokens/` directory contains generated tokens and logs
 - **Registry operations**: Check `registry.log` for service-level issues
 - **Authentication**: Check `auth.log` for OAuth and FGAC issues
+
+---
+
+## Viewing Configuration via UI
+
+Administrators can view and export the current system configuration through the web interface.
+
+### Accessing the Configuration Viewer
+
+1. Navigate to **Settings** from the main dashboard
+2. Select **System Config** > **Configuration** from the sidebar
+
+![System Configuration Viewer](img/system-config.png)
+
+### Features
+
+The Configuration Viewer provides:
+
+- **Grouped View**: Configuration parameters organized into 11 categories:
+  - Deployment Mode
+  - Storage Backend
+  - Authentication
+  - Embeddings / Vector Search
+  - Health Checks
+  - WebSocket Settings
+  - Security Scanning (MCP Servers)
+  - Security Scanning (Agents)
+  - Audit Logging
+  - Federation
+  - Well-Known Discovery
+
+- **Search**: Filter configuration parameters by name or value
+- **Expand/Collapse**: View all groups or focus on specific categories
+- **Sensitive Value Masking**: Passwords, API keys, and secrets are automatically masked
+- **Statistics**: Quick overview showing total, enabled, disabled, and issue counts
+
+### Export Options
+
+Click the **Export** button to download configuration in multiple formats:
+
+| Format | Description | Use Case |
+|--------|-------------|----------|
+| ENV | Shell environment variables | Docker/shell deployment |
+| JSON | Structured JSON format | Programmatic access |
+| TFVARS | Terraform variables | Infrastructure as Code |
+| YAML | YAML format | Kubernetes ConfigMaps |
+
+**Note**: Sensitive values are masked by default in exports. Use `include_sensitive=true` with caution.
+
+---
+
+## Configuration API
+
+The registry provides REST API endpoints for programmatic configuration access.
+
+### GET /api/config
+
+Returns basic configuration information (public endpoint).
+
+```bash
+curl -X GET "https://your-registry/api/config"
+```
+
+**Response:**
+```json
+{
+  "deployment_mode": "with-gateway",
+  "registry_mode": "full",
+  "nginx_updates_enabled": true,
+  "features": {
+    "mcp_servers": true,
+    "agents": true,
+    "skills": true
+  }
+}
+```
+
+### GET /api/config/full
+
+Returns complete configuration grouped by category (admin only).
+
+```bash
+curl -X GET "https://your-registry/api/config/full" \
+  -H "Cookie: session=<session-cookie>"
+```
+
+**Response:**
+```json
+{
+  "groups": {
+    "deployment": {
+      "title": "Deployment Mode",
+      "order": 1,
+      "fields": {
+        "deployment_mode": {
+          "label": "Deployment Mode",
+          "value": { "raw": "with-gateway", "display": "with-gateway", "is_masked": false }
+        }
+      }
+    }
+  },
+  "generated_at": "2025-01-15T10:30:00Z"
+}
+```
+
+### GET /api/config/export
+
+Export configuration in various formats (admin only).
+
+```bash
+# Export as ENV format
+curl -X GET "https://your-registry/api/config/export?format=env" \
+  -H "Cookie: session=<session-cookie>"
+
+# Export as JSON with sensitive values
+curl -X GET "https://your-registry/api/config/export?format=json&include_sensitive=true" \
+  -H "Cookie: session=<session-cookie>"
+```
+
+**Query Parameters:**
+
+| Parameter | Values | Default | Description |
+|-----------|--------|---------|-------------|
+| `format` | `env`, `json`, `tfvars`, `yaml` | `env` | Export format |
+| `include_sensitive` | `true`, `false` | `false` | Include sensitive values (use with caution) |
+
+**Rate Limiting**: These endpoints are rate-limited to 10 requests per minute per user.

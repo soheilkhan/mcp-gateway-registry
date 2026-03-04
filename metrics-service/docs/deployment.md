@@ -109,7 +109,7 @@ uv run pytest --watch
 # Terminal 3: Test API changes
 curl -X POST http://localhost:8890/metrics \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: &lt;your-api-key&gt;" \
+  -H "X-API-Key: your-dev-key" \
   -d '{"service": "test", "metrics": [{"type": "auth_request", "value": 1.0}]}'
 ```
 

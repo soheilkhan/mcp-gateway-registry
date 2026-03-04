@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM public.ecr.aws/docker/library/python:3.12-slim
 
 WORKDIR /app
 
@@ -17,6 +17,12 @@ COPY create_api_key.py ./
 
 # Create data directory
 RUN mkdir -p /var/lib/sqlite
+
+# Run as non-root user
+RUN groupadd --gid 1001 appuser && \
+    useradd --uid 1001 --gid appuser --shell /bin/bash appuser && \
+    chown -R appuser:appuser /app /var/lib/sqlite
+USER appuser
 
 # Expose port
 EXPOSE 8890

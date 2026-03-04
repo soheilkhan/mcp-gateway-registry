@@ -4,27 +4,27 @@ Constants and enums for the MCP Gateway Registry.
 
 import os
 from enum import Enum
-from typing import List
+
 from pydantic import BaseModel
 
 
 class HealthStatus(str, Enum):
     """Health status constants for services."""
-    
+
     HEALTHY = "healthy"
     HEALTHY_AUTH_EXPIRED = "healthy-auth-expired"
     UNHEALTHY_TIMEOUT = "unhealthy: timeout"
-    UNHEALTHY_CONNECTION_ERROR = "unhealthy: connection error" 
+    UNHEALTHY_CONNECTION_ERROR = "unhealthy: connection error"
     UNHEALTHY_ENDPOINT_CHECK_FAILED = "unhealthy: endpoint check failed"
     UNHEALTHY_MISSING_PROXY_URL = "unhealthy: missing proxy URL"
     CHECKING = "checking"
     UNKNOWN = "unknown"
 
     @classmethod
-    def get_healthy_statuses(cls) -> List[str]:
+    def get_healthy_statuses(cls) -> list[str]:
         """Get list of statuses that should be considered healthy for nginx inclusion."""
         return [cls.HEALTHY, cls.HEALTHY_AUTH_EXPIRED]
-    
+
     @classmethod
     def is_healthy(cls, status: str) -> bool:
         """Check if a status should be considered healthy."""
@@ -33,9 +33,23 @@ class HealthStatus(str, Enum):
 
 class TransportType(str, Enum):
     """Supported transport types for MCP servers."""
-    
+
     STREAMABLE_HTTP = "streamable-http"
     SSE = "sse"
+
+
+class AuthScheme(str, Enum):
+    """Authentication scheme for backend MCP servers."""
+
+    NONE = "none"
+    BEARER = "bearer"
+    API_KEY = "api_key"
+
+
+# Auth header defaults
+DEFAULT_API_KEY_HEADER: str = "X-API-Key"
+DEFAULT_BEARER_HEADER: str = "Authorization"
+VALID_AUTH_SCHEMES: list = ["none", "bearer", "api_key"]
 
 
 class RegistryConstants(BaseModel):
@@ -43,6 +57,7 @@ class RegistryConstants(BaseModel):
 
     class Config:
         """Pydantic config."""
+
         frozen = True
 
     # Health check settings
@@ -62,7 +77,7 @@ class RegistryConstants(BaseModel):
 
     # Server settings
     DEFAULT_TRANSPORT: str = TransportType.STREAMABLE_HTTP
-    SUPPORTED_TRANSPORTS: List[str] = [TransportType.STREAMABLE_HTTP, TransportType.SSE]
+    SUPPORTED_TRANSPORTS: list[str] = [TransportType.STREAMABLE_HTTP, TransportType.SSE]
 
     # Anthropic Registry API constants
     ANTHROPIC_API_VERSION: str = "v0.1"
@@ -74,8 +89,7 @@ class RegistryConstants(BaseModel):
     # Comma-separated list of tags that identify external registry servers
     # Example: "anthropic-registry,workday-asor,custom-registry"
     EXTERNAL_REGISTRY_TAGS: str = os.getenv(
-        "EXTERNAL_REGISTRY_TAGS",
-        "anthropic-registry,workday-asor"
+        "EXTERNAL_REGISTRY_TAGS", "anthropic-registry,workday-asor"
     )
 
 

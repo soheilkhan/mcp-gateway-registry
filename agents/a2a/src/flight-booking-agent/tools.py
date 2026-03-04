@@ -2,16 +2,9 @@
 
 import json
 import logging
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-)
-
-from strands import tool
 
 from dependencies import get_db_manager
+from strands import tool
 
 # Configure logging with basicConfig
 logging.basicConfig(
@@ -47,8 +40,8 @@ def check_availability(
 @tool
 def reserve_flight(
     flight_id: int,
-    passengers: List[Dict[str, str]],
-    requested_seats: Optional[List[str]] = None,
+    passengers: list[dict[str, str]],
+    requested_seats: list[str] | None = None,
 ) -> str:
     """Reserve seats on a flight for passengers."""
     logger.info(f"Tool called: reserve_flight(flight_id={flight_id}, passengers={len(passengers)})")
@@ -89,10 +82,12 @@ def confirm_booking(
 def process_payment(
     booking_number: str,
     payment_method: str,
-    amount: Optional[float] = None,
+    amount: float | None = None,
 ) -> str:
     """Process payment for a booking (simulated)."""
-    logger.info(f"Tool called: process_payment(booking_number={booking_number}, payment_method={payment_method})")
+    logger.info(
+        f"Tool called: process_payment(booking_number={booking_number}, payment_method={payment_method})"
+    )
     logger.debug(f"Payment amount: {amount}")
     try:
         payment_result = get_db_manager().process_payment(booking_number, payment_method, amount)
@@ -111,10 +106,12 @@ def process_payment(
 def manage_reservation(
     booking_number: str,
     action: str,
-    reason: Optional[str] = None,
+    reason: str | None = None,
 ) -> str:
     """Update, view, or cancel existing reservations."""
-    logger.info(f"Tool called: manage_reservation(booking_number={booking_number}, action={action})")
+    logger.info(
+        f"Tool called: manage_reservation(booking_number={booking_number}, action={action})"
+    )
     logger.debug(f"Reason: {reason}")
     try:
         db_manager = get_db_manager()
@@ -151,4 +148,10 @@ def manage_reservation(
 # @tool
 # def delegate_to_agent(agent_capability: str, action: str, params: Dict) -> str:
 
-FLIGHT_BOOKING_TOOLS = [check_availability, reserve_flight, confirm_booking, process_payment, manage_reservation]
+FLIGHT_BOOKING_TOOLS = [
+    check_availability,
+    reserve_flight,
+    confirm_booking,
+    process_payment,
+    manage_reservation,
+]

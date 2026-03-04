@@ -8,8 +8,6 @@ without complex fixture dependencies.
 import pytest
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from registry.core.config import Settings
-
 
 @pytest.mark.integration
 @pytest.mark.asyncio
@@ -23,13 +21,13 @@ class TestMongoDBConnectivity:
         client = AsyncIOMotorClient(
             "mongodb://localhost:27017",
             directConnection=True,  # Bypass replica set discovery
-            serverSelectionTimeoutMS=5000
+            serverSelectionTimeoutMS=5000,
         )
 
         # Act & Assert - connection happens on first operation
         try:
             # Ping the server
-            await client.admin.command('ping')
+            await client.admin.command("ping")
             assert True, "Successfully connected to MongoDB"
         finally:
             client.close()
@@ -40,14 +38,14 @@ class TestMongoDBConnectivity:
         # Arrange - Use localhost with directConnection
         client = AsyncIOMotorClient("mongodb://localhost:27017", directConnection=True)
         db = client["test_mcp_registry"]
-        collection = db['test_connectivity']
+        collection = db["test_connectivity"]
 
         try:
             # Act - Insert a test document
             test_doc = {
                 "test_id": "connectivity_test_1",
                 "message": "Hello MongoDB",
-                "status": "testing"
+                "status": "testing",
             }
             result = await collection.insert_one(test_doc)
 
@@ -73,21 +71,16 @@ class TestMongoDBConnectivity:
         # Arrange - Use localhost with directConnection
         client = AsyncIOMotorClient("mongodb://localhost:27017", directConnection=True)
         db = client["test_mcp_registry"]
-        collection = db['test_connectivity']
+        collection = db["test_connectivity"]
 
         try:
             # Act - Insert a test document
-            test_doc = {
-                "test_id": "connectivity_test_2",
-                "value": 100,
-                "status": "initial"
-            }
+            test_doc = {"test_id": "connectivity_test_2", "value": 100, "status": "initial"}
             await collection.insert_one(test_doc)
 
             # Act - Update the document
             await collection.update_one(
-                {"test_id": "connectivity_test_2"},
-                {"$set": {"value": 200, "status": "updated"}}
+                {"test_id": "connectivity_test_2"}, {"$set": {"value": 200, "status": "updated"}}
             )
 
             # Assert - Document was updated

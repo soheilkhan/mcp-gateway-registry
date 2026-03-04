@@ -92,8 +92,8 @@ EMBEDDINGS_AWS_REGION=us-east-1
 
 **Option 2: Environment Variables**
 ```bash
-export AWS_ACCESS_KEY_ID=<your-aws-access-key-id>
-export AWS_SECRET_ACCESS_KEY=<your-aws-secret-access-key>
+export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE <!-- gitleaks:allow -->
+export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 export AWS_REGION=us-east-1
 ```
 
@@ -101,8 +101,8 @@ export AWS_REGION=us-east-1
 ```bash
 # ~/.aws/credentials
 [default]
-aws_access_key_id = <your-aws-access-key-id>
-aws_secret_access_key = <your-aws-secret-access-key>
+aws_access_key_id = AKIAIOSFODNN7EXAMPLE <!-- gitleaks:allow -->
+aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 
 # ~/.aws/config
 [default]

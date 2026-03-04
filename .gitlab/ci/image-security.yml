@@ -1,0 +1,95 @@
+# Image vulnerability scanning with Trivy
+# Runs after image stage; pulls the just-pushed arch-tagged image and scans it.
+# Publish stage depends on these jobs, so manifests are only created for scanned images.
+
+scan_registry_image:
+  stage: image-scan
+  extends: .trivy_scan_template
+  needs:
+    - job: build registry image amd64
+      optional: true
+  script:
+    - export REGISTRY_IMAGE="${AWS_PREPROD_ECR_URL}/${REGISTRY_IMAGE_PREFIX}/mcp-gateway-registry"
+    - VERSION=$(echo $CI_COMMIT_TAG | sed 's#rel/\(.*\)$#\1#')
+    - export IMAGE_TAG="${REGISTRY_IMAGE}:${VERSION}-amd64"
+    - echo "Pulling ${IMAGE_TAG} for vulnerability scan..."
+    - docker pull "${IMAGE_TAG}"
+    - echo "Scanning for ${TRIVY_SEVERITY} vulnerabilities (ignore unfixed=${TRIVY_IGNORE_UNFIXED})..."
+    - |
+      trivy image \
+        --exit-code "${TRIVY_EXIT_CODE}" \
+        --severity "${TRIVY_SEVERITY}" \
+        --ignore-unfixed="${TRIVY_IGNORE_UNFIXED}" \
+        --format table \
+        "${IMAGE_TAG}"
+    - |
+      trivy image \
+        --severity CRITICAL,HIGH,MEDIUM,LOW \
+        --ignore-unfixed \
+        --format json \
+        --output trivy-registry.json \
+        "${IMAGE_TAG}" || true
+  artifacts:
+    when: always
+    paths:
+      - trivy-registry.json
+    expire_in: 14 days
+  only:
+    - /^rel\//
+
+scan_auth_server_image:
+  stage: image-scan
+  extends: .trivy_scan_template
+  needs:
+    - job: build auth-server image amd64
+      optional: true
+  script:
+    - export REGISTRY_IMAGE="${AWS_PREPROD_ECR_URL}/${REGISTRY_IMAGE_PREFIX}/mcp-gateway-auth-server"
+    - VERSION=$(echo $CI_COMMIT_TAG | sed 's#rel/\(.*\)$#\1#')
+    - export IMAGE_TAG="${REGISTRY_IMAGE}:${VERSION}-amd64"
+    - echo "Pulling ${IMAGE_TAG} for vulnerability scan..."
+    - docker pull "${IMAGE_TAG}"
+    - echo "Scanning for ${TRIVY_SEVERITY} vulnerabilities (ignore unfixed=${TRIVY_IGNORE_UNFIXED})..."
+    - |
+      trivy image \
+        --exit-code "${TRIVY_EXIT_CODE}" \
+        --severity "${TRIVY_SEVERITY}" \
+        --ignore-unfixed="${TRIVY_IGNORE_UNFIXED}" \
+        --format table \
+        "${IMAGE_TAG}"
+    - |
+      trivy image \
+        --severity CRITICAL,HIGH,MEDIUM,LOW \
+        --ignore-unfixed \
+        --format json \
+        --output trivy-auth-server.json \
+        "${IMAGE_TAG}" || true
+  artifacts:
+    when: always
+    paths:
+      - trivy-auth-server.json
+    expire_in: 14 days
+  only:
+    - /^rel\//
+
+image_scan_summary:
+  stage: image-scan
+  image: alpine:3.20
+  needs:
+    - job: scan_registry_image
+      optional: true
+    - job: scan_auth_server_image
+      optional: true
+  when: always
+  script:
+    - echo "Image vulnerability scan jobs completed. Review job statuses in pipeline graph."
+    - |
+      for report in trivy-*.json; do
+        if [ -f "$report" ]; then
+          echo "--- ${report} ---"
+          head -c 2000 "$report" || true
+          echo ""
+        fi
+      done
+  only:
+    - /^rel\//

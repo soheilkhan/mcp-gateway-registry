@@ -1,0 +1,21 @@
+# Port override to avoid conflicts with existing services on the host.
+# MCP servers are not published to the host; the registry reaches them
+# via Docker network (e.g. http://currenttime-server:8000).
+# Auth and Grafana are remapped so they don't conflict.
+version: '3.8'
+
+services:
+  currenttime-server:
+    ports: []
+  fininfo-server:
+    ports: []
+  realserverfaketools-server:
+    ports: []
+  mcpgw-server:
+    ports: []
+  auth-server:
+    ports:
+      - "18888:8888"
+  grafana:
+    ports:
+      - "13000:3000"

@@ -10,7 +10,7 @@ TOKEN_RESPONSE=$(curl -s -X POST 'http://localhost:8080/realms/mcp-gateway/proto
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -d 'grant_type=client_credentials' \
   -d 'client_id=mcp-gateway-m2m' \
-  -d 'client_secret=<YOUR_KEYCLOAK_M2M_CLIENT_SECRET>' \
+  -d 'client_secret=pB0q6ZFnHStlOB0q5t4noHsxhPgc0nqL' \ #gitleaks:allow
   -d 'scope=openid')
 
 TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token')

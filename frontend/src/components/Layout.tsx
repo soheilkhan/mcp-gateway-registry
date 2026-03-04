@@ -1,20 +1,17 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Menu, Transition } from '@headlessui/react';
 import { Link } from 'react-router-dom';
-import { 
-  Bars3Icon, 
-  UserIcon, 
+import {
+  Bars3Icon,
+  UserIcon,
   ChevronDownIcon,
   ArrowRightOnRectangleIcon,
-  KeyIcon,
   Cog6ToothIcon,
-  SunIcon,
-  MoonIcon
 } from '@heroicons/react/24/outline';
 import Sidebar from './Sidebar';
+import UptimeDisplay from './UptimeDisplay';
 import { useServerStats } from '../hooks/useServerStats';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
 import logo from '../assets/logo.png';
 
 interface LayoutProps {
@@ -25,7 +22,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [version, setVersion] = useState<string | null>(null);
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const { stats, activeFilter, setActiveFilter } = useServerStats();
 
   useEffect(() => {
@@ -69,11 +65,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <Link to="/" className="flex items-center hover:opacity-80 transition-opacity">
                   <img
                     src={logo}
-                    alt="MCP Servers & A2A Agents Registry Logo"
+                    alt="AI Gateway & Registry Logo"
                     className="h-8 w-8 dark:brightness-0 dark:invert"
                   />
                   <span className="ml-2 text-xl font-bold text-gray-900 dark:text-white">
-                    MCP Servers & A2A Agents Registry
+                    AI Gateway & Registry
                   </span>
                 </Link>
               </div>
@@ -112,6 +108,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </div>
               )}
 
+              {/* Uptime display */}
+              <UptimeDisplay />
+
               {/* Settings gear icon (admin only) */}
               {user?.is_admin && (
                 <Link
@@ -122,18 +121,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <Cog6ToothIcon className="h-5 w-5" />
                 </Link>
               )}
-
-              {/* Theme toggle */}
-              <button
-                onClick={toggleTheme}
-                className="p-2 text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                {theme === 'dark' ? (
-                  <SunIcon className="h-5 w-5" />
-                ) : (
-                  <MoonIcon className="h-5 w-5" />
-                )}
-              </button>
 
               {/* User dropdown */}
               <Menu as="div" className="relative">
@@ -159,22 +146,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   leaveTo="transform opacity-0 scale-95"
                 >
                   <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                    <Menu.Item>
-                      {({ active }) => (
-                        <Link
-                          to="/settings"
-                          className={`${
-                            active ? 'bg-gray-100 dark:bg-gray-800' : ''
-                          } flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-100`}
-                        >
-                          <Cog6ToothIcon className="mr-3 h-4 w-4" />
-                          Settings
-                        </Link>
-                      )}
-                    </Menu.Item>
-
-                    <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
-                    
                     <Menu.Item>
                       {({ active }) => (
                         <button

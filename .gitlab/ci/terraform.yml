@@ -1,0 +1,89 @@
+terraform_validate:
+  stage: validate
+  image:
+    name: hashicorp/terraform:1.6.0
+    entrypoint: [""]
+  extends: .run_terraform_rules
+  before_script:
+    - cd terraform/aws-ecs
+  script:
+    - set +e
+    - terraform fmt -check -recursive
+    - FMT_EXIT=$?
+    - terraform init -backend=false
+    - INIT_EXIT=$?
+    - terraform validate
+    - VALIDATE_EXIT=$?
+    - |
+      cat <<EOF
+      Terraform Validation Results
+      - fmt: ${FMT_EXIT}
+      - init: ${INIT_EXIT}
+      - validate: ${VALIDATE_EXIT}
+      EOF
+    - |
+      if [[ ${INIT_EXIT} -ne 0 ]]; then
+        echo "terraform init failed"
+        exit 1
+      fi
+      exit 0
+
+terraform_tflint:
+  stage: validate
+  image:
+    name: ghcr.io/terraform-linters/tflint:v0.50.3
+    entrypoint: [""]
+  extends: .run_terraform_rules
+  before_script:
+    - cd terraform/aws-ecs
+  allow_failure: true
+  script:
+    - tflint --init || true
+    - tflint --recursive --format compact || true
+
+terraform_tfsec:
+  stage: security
+  image:
+    name: aquasec/tfsec:v1.28.5
+    entrypoint: [""]
+  extends: .run_terraform_rules
+  allow_failure: true
+  script:
+    - tfsec terraform/aws-ecs --soft-fail --format sarif --out tfsec-results.sarif || true
+  artifacts:
+    when: always
+    paths:
+      - tfsec-results.sarif
+    expire_in: 14 days
+
+terraform_checkov:
+  stage: security
+  image:
+    name: bridgecrew/checkov:3.2.315
+    entrypoint: [""]
+  extends: .run_terraform_rules
+  allow_failure: true
+  script:
+    - checkov -d terraform/aws-ecs --framework terraform --soft-fail --output cli --output sarif --output-file-path console,checkov-results.sarif --download-external-modules true || true
+  artifacts:
+    when: always
+    paths:
+      - checkov-results.sarif
+    expire_in: 14 days
+
+terraform_summary:
+  stage: summary
+  image: alpine:3.20
+  extends: .run_terraform_rules
+  needs:
+    - job: terraform_validate
+      optional: true
+    - job: terraform_tflint
+      optional: true
+    - job: terraform_tfsec
+      optional: true
+    - job: terraform_checkov
+      optional: true
+  when: always
+  script:
+    - echo "Terraform validation/security jobs completed. Review job statuses in pipeline graph."

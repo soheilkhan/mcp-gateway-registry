@@ -47,6 +47,7 @@ services:
       - DOCUMENTDB_HOST=mongodb
       - DOCUMENTDB_PORT=27017
       - DOCUMENTDB_DATABASE=mcp_registry
+      - ENTRA_GROUP_ADMIN_ID=${ENTRA_GROUP_ADMIN_ID:-}
     volumes:
       - ./scripts/init-mongodb-ce.py:/app/scripts/init-mongodb-ce.py:ro
       - ./scripts/registry-admins.json:/app/scripts/registry-admins.json:ro
@@ -175,7 +176,7 @@ services:
       # Registry ID for federation
       - REGISTRY_ID=registry-b
       # Static token for peer federation (testing only)
-      - FEDERATION_STATIC_TOKEN=<paste-test-jwt-here>
+      - FEDERATION_STATIC_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJtY3AtZ2F0ZXdheS1yZWdpc3RyeSIsInN1YiI6ImZlZGVyYXRpb24tc2VydmljZSIsInVzZXJuYW1lIjoiZmVkZXJhdGlvbi1zZXJ2aWNlIiwic2NvcGVzIjpbImZlZGVyYXRpb24tc2VydmljZSIsInJlZ2lzdHJ5LWFkbWlucyJdLCJncm91cHMiOlsiZmVkZXJhdGlvbi1zZXJ2aWNlIiwicmVnaXN0cnktYWRtaW5zIl0sImlhdCI6MTc2OTg4Njg3OSwiZXhwIjoxODAxNDIyODc5fQ.-zU0VW_egYINSPyf0rtD-8SF8zGnl0UezFs5Ux6eRwo #gitleaks:allow
     ports:
       - "7861:7860"
       - "81:80"

@@ -353,6 +353,12 @@ variable "session_cookie_domain" {
   default     = ""
 }
 
+variable "oauth_store_tokens_in_session" {
+  description = "Store OAuth provider tokens in session cookies. Set to false to avoid cookie size limits with large tokens (e.g., Entra ID). Tokens are not used functionally."
+  type        = bool
+  default     = false
+}
+
 # Security Scanning Configuration
 variable "security_scan_enabled" {
   description = "Enable/disable security scanning for MCP servers during registration"
@@ -512,6 +518,12 @@ variable "registry_api_token" {
   sensitive   = true
 }
 
+variable "max_tokens_per_user_per_hour" {
+  description = "Maximum JWT tokens that can be vended per user per hour."
+  type        = number
+  default     = 100
+}
+
 # =============================================================================
 # FEDERATION CONFIGURATION (Peer-to-Peer Registry Sync)
 # =============================================================================
@@ -556,4 +568,49 @@ variable "audit_log_ttl_days" {
   description = "Audit log retention period in days."
   type        = number
   default     = 7
+}
+
+# =============================================================================
+# DEPLOYMENT MODE CONFIGURATION
+# =============================================================================
+
+variable "deployment_mode" {
+  description = "Controls how the registry integrates with the gateway/nginx. 'with-gateway' for full integration, 'registry-only' for catalog-only mode."
+  type        = string
+  default     = "with-gateway"
+}
+
+variable "registry_mode" {
+  description = "Controls which features are enabled (informational - for UI feature flags). Options: 'full', 'skills-only', 'mcp-servers-only', 'agents-only'."
+  type        = string
+  default     = "full"
+}
+
+# =============================================================================
+# OBSERVABILITY CONFIGURATION (Metrics Pipeline)
+# =============================================================================
+
+variable "enable_observability" {
+  description = "Enable full observability pipeline (AMP, metrics-service, ADOT collector, Grafana). When false, no observability resources are created."
+  type        = bool
+  default     = true
+}
+
+variable "metrics_service_image_uri" {
+  description = "Container image URI for metrics-service. Required when enable_observability is true."
+  type        = string
+  default     = ""
+}
+
+variable "grafana_image_uri" {
+  description = "Container image URI for Grafana OSS (custom image with baked-in provisioning). Required when enable_observability is true."
+  type        = string
+  default     = ""
+}
+
+variable "grafana_admin_password" {
+  description = "Admin password for Grafana. Must be set when enable_observability is true."
+  type        = string
+  sensitive   = true
+  default     = ""
 }

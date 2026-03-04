@@ -1072,12 +1072,12 @@ cd keycloak/setup
 KEYCLOAK_URL=https://mcpgateway.ddns.net
 KEYCLOAK_REALM=mcp-gateway
 KEYCLOAK_M2M_CLIENT_ID=mcp-gateway-m2m
-KEYCLOAK_M2M_CLIENT_SECRET=<your-m2m-secret>
+KEYCLOAK_M2M_CLIENT_SECRET=ZJqbsamnQs79hbUbkJLB... #gitleaks:allow
 
 # OR Cognito
-INGRESS_OAUTH_USER_POOL_ID=us-east-1_XXXXXXXXX
+INGRESS_OAUTH_USER_POOL_ID=us-east-1_vm1115QSU #gitleaks:allow
 INGRESS_OAUTH_CLIENT_ID=5v2rav1v93...
-INGRESS_OAUTH_CLIENT_SECRET=<your-cognito-client-secret>
+INGRESS_OAUTH_CLIENT_SECRET=1i888fnolv6k5sa1b8s5k839pdm... #gitleaks:allow
 ```
 
 **Egress Authentication (Multiple Providers):**

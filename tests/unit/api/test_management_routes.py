@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -397,12 +396,13 @@ class TestManagementCreateGroup:
             "attributes": None,
         }
 
-        with patch(
-            "registry.api.management_routes.scope_service.import_group",
-            new_callable=AsyncMock,
-            return_value=True,
-        ) as mock_import_group, patch(
-            "registry.api.management_routes.AUTH_PROVIDER", "keycloak"
+        with (
+            patch(
+                "registry.api.management_routes.scope_service.import_group",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_import_group,
+            patch("registry.api.management_routes.AUTH_PROVIDER", "keycloak"),
         ):
             # Act
             response = client.post(
@@ -427,6 +427,7 @@ class TestManagementCreateGroup:
                 group_mappings=["new-group"],
                 server_access=[],
                 ui_permissions={},
+                agent_access=[],
             )
 
     def test_create_group_success_entra(self, test_client_admin):
@@ -441,12 +442,13 @@ class TestManagementCreateGroup:
             "attributes": None,
         }
 
-        with patch(
-            "registry.api.management_routes.scope_service.import_group",
-            new_callable=AsyncMock,
-            return_value=True,
-        ) as mock_import_group, patch(
-            "registry.api.management_routes.AUTH_PROVIDER", "entra"
+        with (
+            patch(
+                "registry.api.management_routes.scope_service.import_group",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_import_group,
+            patch("registry.api.management_routes.AUTH_PROVIDER", "entra"),
         ):
             # Act
             response = client.post(
@@ -471,6 +473,7 @@ class TestManagementCreateGroup:
                 group_mappings=[entra_group_id],
                 server_access=[],
                 ui_permissions={},
+                agent_access=[],
             )
 
     def test_create_group_requires_admin(self, test_client_regular):
@@ -531,12 +534,13 @@ class TestManagementCreateGroup:
             "attributes": None,
         }
 
-        with patch(
-            "registry.api.management_routes.scope_service.import_group",
-            new_callable=AsyncMock,
-            return_value=False,
-        ), patch(
-            "registry.api.management_routes.AUTH_PROVIDER", "keycloak"
+        with (
+            patch(
+                "registry.api.management_routes.scope_service.import_group",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch("registry.api.management_routes.AUTH_PROVIDER", "keycloak"),
         ):
             # Act
             response = client.post(
@@ -560,12 +564,13 @@ class TestManagementCreateGroup:
             "attributes": None,
         }
 
-        with patch(
-            "registry.api.management_routes.scope_service.import_group",
-            new_callable=AsyncMock,
-            return_value=True,
-        ) as mock_import_group, patch(
-            "registry.api.management_routes.AUTH_PROVIDER", "keycloak"
+        with (
+            patch(
+                "registry.api.management_routes.scope_service.import_group",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_import_group,
+            patch("registry.api.management_routes.AUTH_PROVIDER", "keycloak"),
         ):
             # Act
             response = client.post(
@@ -584,6 +589,7 @@ class TestManagementCreateGroup:
                 group_mappings=["minimal-group"],
                 server_access=[],
                 ui_permissions={},
+                agent_access=[],
             )
 
 

@@ -6,8 +6,7 @@ Extracts all file I/O logic from ServerService while maintaining identical behav
 
 import json
 import logging
-from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any
 
 from ...core.config import settings
 from ..interfaces import ServerRepositoryBase
@@ -19,8 +18,8 @@ class FileServerRepository(ServerRepositoryBase):
     """File-based implementation of server repository."""
 
     def __init__(self):
-        self._servers: Dict[str, Dict[str, Any]] = {}
-        self._state: Dict[str, bool] = {}
+        self._servers: dict[str, dict[str, Any]] = {}
+        self._state: dict[str, bool] = {}
 
     async def load_all(self) -> None:
         """Load server definitions and state from disk."""
@@ -37,10 +36,14 @@ class FileServerRepository(ServerRepositoryBase):
                 continue
 
             try:
-                with open(server_file, "r") as f:
+                with open(server_file) as f:
                     server_info = json.load(f)
 
-                    if isinstance(server_info, dict) and "path" in server_info and "server_name" in server_info:
+                    if (
+                        isinstance(server_info, dict)
+                        and "path" in server_info
+                        and "server_name" in server_info
+                    ):
                         server_path = server_info["path"]
                         if server_path in temp_servers:
                             logger.warning(f"Duplicate server path in {server_file}: {server_path}")
@@ -48,8 +51,6 @@ class FileServerRepository(ServerRepositoryBase):
                         server_info.setdefault("description", "")
                         server_info.setdefault("tags", [])
                         server_info.setdefault("num_tools", 0)
-                        server_info.setdefault("num_stars", 0)
-                        server_info.setdefault("is_python", False)
                         server_info.setdefault("license", "N/A")
                         server_info.setdefault("proxy_pass_url", None)
                         server_info.setdefault("tool_list", [])
@@ -72,7 +73,7 @@ class FileServerRepository(ServerRepositoryBase):
 
         try:
             if settings.state_file_path.exists():
-                with open(settings.state_file_path, "r") as f:
+                with open(settings.state_file_path) as f:
                     loaded_state = json.load(f)
                 if not isinstance(loaded_state, dict):
                     logger.warning("Invalid state format, resetting")
@@ -89,10 +90,10 @@ class FileServerRepository(ServerRepositoryBase):
         for path in self._servers.keys():
             value = loaded_state.get(path)
             if value is None:
-                if path.endswith('/'):
-                    value = loaded_state.get(path.rstrip('/'), False)
+                if path.endswith("/"):
+                    value = loaded_state.get(path.rstrip("/"), False)
                 else:
-                    value = loaded_state.get(path + '/', False)
+                    value = loaded_state.get(path + "/", False)
             self._state[path] = value
 
         logger.info(f"Initial service state loaded: {self._state}")
@@ -118,7 +119,7 @@ class FileServerRepository(ServerRepositoryBase):
 
     async def _save_to_file(
         self,
-        server_info: Dict[str, Any],
+        server_info: dict[str, Any],
     ) -> bool:
         """Save server data to individual file."""
         try:
@@ -140,26 +141,44 @@ class FileServerRepository(ServerRepositoryBase):
     async def get(
         self,
         path: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get server by path."""
         server_info = self._servers.get(path)
         if server_info:
             return server_info
 
-        if path.endswith('/'):
-            alternate_path = path.rstrip('/')
+        if path.endswith("/"):
+            alternate_path = path.rstrip("/")
         else:
-            alternate_path = path + '/'
+            alternate_path = path + "/"
 
         return self._servers.get(alternate_path)
 
-    async def list_all(self) -> Dict[str, Dict[str, Any]]:
+    async def list_all(self) -> dict[str, dict[str, Any]]:
         """List all servers."""
         return self._servers.copy()
 
+    async def list_by_source(
+        self,
+        source: str,
+    ) -> dict[str, dict[str, Any]]:
+        """List all servers from a specific federation source.
+
+        Args:
+            source: Federation source identifier (e.g., "anthropic")
+
+        Returns:
+            Dictionary mapping server path to server info
+        """
+        return {
+            path: info
+            for path, info in self._servers.items()
+            if info.get("source") == source
+        }
+
     async def create(
         self,
-        server_info: Dict[str, Any],
+        server_info: dict[str, Any],
     ) -> bool:
         """Create a new server."""
         path = server_info["path"]
@@ -182,7 +201,7 @@ class FileServerRepository(ServerRepositoryBase):
     async def update(
         self,
         path: str,
-        server_info: Dict[str, Any],
+        server_info: dict[str, Any],
     ) -> bool:
         """Update an existing server."""
         if path not in self._servers:
@@ -218,7 +237,7 @@ class FileServerRepository(ServerRepositoryBase):
             else:
                 logger.warning(f"Server file not found: {file_path}")
 
-            server_name = self._servers[path].get('server_name', 'Unknown')
+            server_name = self._servers[path].get("server_name", "Unknown")
             del self._servers[path]
 
             if path in self._state:
@@ -289,10 +308,10 @@ class FileServerRepository(ServerRepositoryBase):
         result = self._state.get(path)
 
         if result is None:
-            if path.endswith('/'):
-                result = self._state.get(path.rstrip('/'), False)
+            if path.endswith("/"):
+                result = self._state.get(path.rstrip("/"), False)
             else:
-                result = self._state.get(path + '/', False)
+                result = self._state.get(path + "/", False)
 
         if result is None:
             result = False
@@ -316,3 +335,11 @@ class FileServerRepository(ServerRepositoryBase):
         logger.info(f"Toggled '{server_name}' ({path}) to {enabled}")
 
         return True
+
+    async def count(self) -> int:
+        """Get total count of servers.
+
+        Returns:
+            Total number of servers in the repository.
+        """
+        return len(self._servers)

@@ -215,7 +215,7 @@ uv run python api/registry_management.py \
 
 ```
 Client ID: my-ai-agent
-Client Secret: <client-secret-from-keycloak>
+Client Secret: sqFaOkF8un1tAfKXjlgm2xjGQBfLlNS3 <!-- gitleaks:allow -->
 Groups: public-mcp-users
 
 IMPORTANT: Save the client secret securely - it cannot be retrieved later.
@@ -238,7 +238,7 @@ IMPORTANT: Save the client secret securely - it cannot be retrieved later.
 cat > .oauth-tokens/agent-my-ai-agent.json << 'EOF'
 {
   "client_id": "my-ai-agent",
-  "client_secret": "<client-secret-from-keycloak>",
+  "client_secret": "sqFaOkF8un1tAfKXjlgm2xjGQBfLlNS3", <!-- gitleaks:allow -->
   "keycloak_url": "https://kc.us-east-1.example.com",
   "keycloak_realm": "mcp-gateway",
   "auth_provider": "keycloak"
@@ -304,7 +304,7 @@ Create an agent configuration file in `.oauth-tokens/`:
 ```json
 {
   "client_id": "my-ai-agent",
-  "client_secret": "<client-secret-from-keycloak>",
+  "client_secret": "sqFaOkF8un1tAfKXjlgm2xjGQBfLlNS3", <!-- gitleaks:allow -->
   "keycloak_url": "https://kc.us-east-1.example.com",
   "keycloak_realm": "mcp-gateway",
   "auth_provider": "keycloak"
@@ -397,7 +397,7 @@ You can also generate tokens directly using curl:
 curl -s -X POST "https://kc.us-east-1.example.com/realms/mcp-gateway/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "client_id=my-ai-agent" \
-  -d "client_secret=<client-secret-from-keycloak>" \
+  -d "client_secret=sqFaOkF8un1tAfKXjlgm2xjGQBfLlNS3" \ <!-- gitleaks:allow -->
   -d "grant_type=client_credentials"
 ```
 

@@ -209,7 +209,7 @@ After importing, verify the server was registered:
 # Via API
 curl http://localhost/mcpgw/mcp -X POST \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <your-token>" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}'
 ```
 

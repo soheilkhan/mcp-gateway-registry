@@ -33,6 +33,19 @@ fi
 # --- Environment Variable Setup ---
 echo "Setting up environment variables..."
 
+# Get deployment mode (default: with-gateway)
+DEPLOYMENT_MODE="${DEPLOYMENT_MODE:-with-gateway}"
+REGISTRY_MODE="${REGISTRY_MODE:-full}"
+
+echo "============================================================"
+echo "Starting MCP Gateway Registry"
+echo "  DEPLOYMENT_MODE: ${DEPLOYMENT_MODE}"
+echo "  REGISTRY_MODE: ${REGISTRY_MODE}"
+if [ "$DEPLOYMENT_MODE" = "registry-only" ]; then
+    echo "  Note: Dynamic MCP server location blocks will NOT be generated"
+fi
+echo "============================================================"
+
 # Generate secret key if not provided
 if [ -z "$SECRET_KEY" ]; then
     SECRET_KEY=$(python -c 'import secrets; print(secrets.token_hex(32))')
@@ -93,28 +106,31 @@ fi
 echo "Setting up Lua support for nginx..."
 LUA_SCRIPTS_DIR="/etc/nginx/lua"
 mkdir -p "$LUA_SCRIPTS_DIR"
+mkdir -p "$LUA_SCRIPTS_DIR/virtual_mappings"
 
-cat > "$LUA_SCRIPTS_DIR/capture_body.lua" << 'EOF'
--- capture_body.lua: Read request body and encode it in X-Body header for auth_request
-local cjson = require "cjson"
+# Copy Lua scripts from the docker/lua directory (standalone files, not heredocs)
+LUA_SOURCE_DIR="/app/docker/lua"
+cp "$LUA_SOURCE_DIR/capture_body.lua" "$LUA_SCRIPTS_DIR/capture_body.lua"
+cp "$LUA_SOURCE_DIR/virtual_router.lua" "$LUA_SCRIPTS_DIR/virtual_router.lua"
 
--- Read the request body
-ngx.req.read_body()
-local body_data = ngx.req.get_body_data()
+cp "$LUA_SOURCE_DIR/emit_metrics.lua" "$LUA_SCRIPTS_DIR/emit_metrics.lua"
+cp "$LUA_SOURCE_DIR/flush_metrics.lua" "$LUA_SCRIPTS_DIR/flush_metrics.lua"
 
-if body_data then
-    -- Set the X-Body header with the raw body data
-    ngx.req.set_header("X-Body", body_data)
-    ngx.log(ngx.INFO, "Captured request body (" .. string.len(body_data) .. " bytes) for auth validation")
-else
-    ngx.log(ngx.INFO, "No request body found")
-end
-EOF
-
-echo "Lua script created."
+echo "Lua scripts copied from $LUA_SOURCE_DIR to $LUA_SCRIPTS_DIR."
 
 # --- Nginx Configuration ---
 echo "Preparing Nginx configuration..."
+
+# Pass environment variables through to Lua workers (nginx strips them by default)
+for envvar in METRICS_API_KEY METRICS_SERVICE_URL; do
+    grep -q "^env ${envvar};" /etc/nginx/nginx.conf 2>/dev/null || \
+        sed -i "1i env ${envvar};" /etc/nginx/nginx.conf
+done
+
+# Raise main-context error_log to 'warn' so Lua init_worker/timer messages
+# (e.g. flush_metrics.lua startup confirmation and connection errors) are visible.
+# The default nginx.conf ships with 'error' level which suppresses WARN/INFO.
+sed -i 's|error_log /var/log/nginx/error.log;|error_log /var/log/nginx/error.log warn;|' /etc/nginx/nginx.conf
 
 # Remove default nginx site to prevent conflicts with our config
 echo "Removing default nginx site configuration..."
@@ -201,22 +217,26 @@ export EMBEDDINGS_PROVIDER=$EMBEDDINGS_PROVIDER
 export EMBEDDINGS_MODEL_NAME=$EMBEDDINGS_MODEL_NAME
 export EMBEDDINGS_MODEL_DIMENSIONS=$EMBEDDINGS_MODEL_DIMENSIONS
 
+BIND_HOST="${BIND_HOST:-::}"
+
 echo "Starting MCP Registry in the background..."
 cd /app
 source /app/.venv/bin/activate
-uvicorn registry.main:app --host 0.0.0.0 --port 7860 &
-echo "MCP Registry started."
+uvicorn registry.main:app --host "$BIND_HOST" --port 7860 --proxy-headers --forwarded-allow-ips='*' &
+UVICORN_PID=$!
+echo "MCP Registry started (PID=$UVICORN_PID, host=$BIND_HOST)."
 
 # Wait for nginx config to be generated (check that placeholders are replaced)
 echo "Waiting for nginx configuration to be generated..."
 WAIT_TIME=0
-MAX_WAIT=120
+MAX_WAIT=${NGINX_CONFIG_WAIT_SECONDS:-60}
 while [ $WAIT_TIME -lt $MAX_WAIT ]; do
     if [ -f "/etc/nginx/conf.d/nginx_rev_proxy.conf" ]; then
         # Check if placeholders have been replaced
         if ! grep -q "{{ADDITIONAL_SERVER_NAMES}}" "/etc/nginx/conf.d/nginx_rev_proxy.conf" && \
            ! grep -q "{{ANTHROPIC_API_VERSION}}" "/etc/nginx/conf.d/nginx_rev_proxy.conf" && \
-           ! grep -q "{{LOCATION_BLOCKS}}" "/etc/nginx/conf.d/nginx_rev_proxy.conf"; then
+           ! grep -q "{{LOCATION_BLOCKS}}" "/etc/nginx/conf.d/nginx_rev_proxy.conf" && \
+           ! grep -q "{{VIRTUAL_SERVER_BLOCKS}}" "/etc/nginx/conf.d/nginx_rev_proxy.conf"; then
             echo "Nginx configuration generated successfully"
             break
         fi
@@ -229,9 +249,42 @@ if [ $WAIT_TIME -ge $MAX_WAIT ]; then
     echo "WARNING: Timeout waiting for nginx configuration. Starting nginx anyway..."
 fi
 
+# Resolve METRICS_SERVICE_URL hostname to IPv4 before nginx starts.
+# Lua cosockets use the nginx resolver (VPC DNS 169.254.169.253), which cannot
+# resolve Service Connect names (only the Envoy sidecar can).  By substituting
+# the hostname with its IPv4 Service Connect VIP (127.255.0.x) in the env var,
+# flush_metrics.lua connects directly to the IP, bypassing DNS entirely.
+if [ -n "$METRICS_SERVICE_URL" ]; then
+    metrics_host=$(echo "$METRICS_SERVICE_URL" | sed 's|http://||;s|:.*||')
+    if ! echo "$metrics_host" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+        resolved=$(getent ahostsv4 "$metrics_host" 2>/dev/null | head -1 | awk '{print $1}')
+        if [ -n "$resolved" ]; then
+            export METRICS_SERVICE_URL=$(echo "$METRICS_SERVICE_URL" | sed "s|$metrics_host|$resolved|")
+            echo "Resolved METRICS_SERVICE_URL: $metrics_host -> $resolved ($METRICS_SERVICE_URL)"
+        else
+            echo "WARNING: Could not resolve $metrics_host to IPv4 -- metrics flush may fail"
+        fi
+    fi
+fi
+
+# Add FQDN aliases for Service Connect entries in /etc/hosts.
+# Service Connect only registers short names (e.g., "auth-server"), but servers
+# may be registered with Cloud Map FQDNs (e.g., "auth-server.mcp-gateway.local").
+# The Python health checker resolves proxy_pass_url hostnames via system DNS,
+# which only finds /etc/hosts entries.  Adding FQDN aliases ensures both short
+# names and FQDNs resolve to the IPv4 Service Connect VIP.
+# Gated on SERVICE_CONNECT_NAMESPACE -- only set in ECS Terraform deployments.
+if [ -n "${SERVICE_CONNECT_NAMESPACE:-}" ]; then
+    fqdn_count=0
+    grep '^127\.255\.0\.' /etc/hosts | while read -r ip name _rest; do
+        echo "$ip ${name}.${SERVICE_CONNECT_NAMESPACE}" >> /etc/hosts
+        fqdn_count=$((fqdn_count + 1))
+    done
+    echo "Added FQDN aliases for Service Connect entries (namespace: ${SERVICE_CONNECT_NAMESPACE})"
+fi
+
 echo "Starting Nginx..."
 nginx
 
-echo "Registry service fully started. Keeping container alive..."
-# Keep the container running indefinitely
-tail -f /dev/null 
+echo "Registry service fully started. Waiting on uvicorn (PID=$UVICORN_PID)..."
+wait $UVICORN_PID
