@@ -156,9 +156,13 @@ services:
       - REGISTRY_API_TOKEN=${REGISTRY_API_TOKEN:-}
       - MAX_TOKENS_PER_USER_PER_HOUR=${MAX_TOKENS_PER_USER_PER_HOUR:-100}
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:8080"   # Map host 80 to container 8080 (non-root nginx)
+      - "443:8443"  # Map host 443 to container 8443 (non-root nginx)
       - "7860:7860"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     volumes:
       - ${HOME}/mcp-gateway/servers:/app/registry/servers
       - ${HOME}/mcp-gateway/agents:/app/registry/agents
@@ -198,6 +202,10 @@ services:
     ports:
       - "8890:8890"
       - "9465:9465"  # Prometheus metrics endpoint
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     volumes:
       - metrics-db-data:/var/lib/sqlite
       - ${HOME}/mcp-gateway/logs:/app/logs
@@ -272,6 +280,10 @@ services:
       - OAUTH_STORE_TOKENS_IN_SESSION=${OAUTH_STORE_TOKENS_IN_SESSION:-false}
     ports:
       - "8888:8888"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     volumes:
       - ${HOME}/mcp-gateway/logs:/app/logs
       # - ${HOME}/mcp-gateway/auth_server/scopes.yml:/app/scopes.yml
@@ -352,6 +364,10 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.metrics-db
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     volumes:
       - metrics-db-data:/var/lib/sqlite
     restart: unless-stopped
@@ -444,6 +460,10 @@ services:
       
     ports:
       - "8080:8080"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     depends_on:
       keycloak-db:
         condition: service_healthy
