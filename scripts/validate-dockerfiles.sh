@@ -29,7 +29,7 @@ WARNINGS=0
 for dockerfile in "${DOCKERFILES[@]}"; do
     if [ ! -f "$dockerfile" ]; then
         echo "❌ ERROR: $dockerfile not found"
-        ((ERRORS++))
+        ERRORS=$((ERRORS + 1))
         continue
     fi
 
@@ -43,7 +43,7 @@ for dockerfile in "${DOCKERFILES[@]}"; do
         echo "✓ Has USER directive: $USER_LINE"
     else
         echo "❌ ERROR: Missing USER directive"
-        ((ERRORS++))
+        ERRORS=$((ERRORS + 1))
     fi
 
     # Check for HEALTHCHECK directive
@@ -51,23 +51,23 @@ for dockerfile in "${DOCKERFILES[@]}"; do
         echo "✓ Has HEALTHCHECK directive"
     else
         echo "⚠ WARNING: Missing HEALTHCHECK directive"
-        ((WARNINGS++))
+        WARNINGS=$((WARNINGS + 1))
     fi
 
     # Check for PIP_NO_CACHE_DIR (Python images only)
-    if grep -q "FROM.*python" "$dockerfile"; then
+    if grep -q "FROM.*python" "$dockerfile" 2>/dev/null; then
         if grep -q "PIP_NO_CACHE_DIR" "$dockerfile"; then
             echo "✓ Has PIP_NO_CACHE_DIR set"
         else
             echo "⚠ WARNING: Python image but missing PIP_NO_CACHE_DIR"
-            ((WARNINGS++))
+            WARNINGS=$((WARNINGS + 1))
         fi
     fi
 
     # Check for sudo package (should be removed)
     if grep -q "sudo" "$dockerfile"; then
         echo "❌ ERROR: Contains 'sudo' package (security risk)"
-        ((ERRORS++))
+        ERRORS=$((ERRORS + 1))
     else
         echo "✓ No sudo package found"
     fi
@@ -75,7 +75,7 @@ for dockerfile in "${DOCKERFILES[@]}"; do
     # Check for low-numbered ports in EXPOSE (< 1024 requires root)
     if grep -E "^EXPOSE.*(^| )(80|443|22|21)( |$)" "$dockerfile"; then
         echo "⚠ WARNING: Exposes privileged port (< 1024), requires root or port mapping"
-        ((WARNINGS++))
+        WARNINGS=$((WARNINGS + 1))
     fi
 done
 
