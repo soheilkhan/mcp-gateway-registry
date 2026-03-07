@@ -21,8 +21,8 @@ COPY create_api_key.py ./
 # Create data directory
 RUN mkdir -p /var/lib/sqlite
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Create non-root user for security (UID 1000 to match metrics-db)
+RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser appuser
 
 # Set ownership of application files and data directory
 RUN chown -R appuser:appuser /app /var/lib/sqlite

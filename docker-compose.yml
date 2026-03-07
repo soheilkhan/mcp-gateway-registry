@@ -349,10 +349,11 @@ services:
 
   # SQLite container for metrics database
   metrics-db:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.metrics-db
     volumes:
       - metrics-db-data:/var/lib/sqlite
-    command: ["sh", "-c", "apk add --no-cache sqlite && mkdir -p /var/lib/sqlite && sqlite3 /var/lib/sqlite/metrics.db 'CREATE TABLE IF NOT EXISTS _health (id INTEGER);' && tail -f /dev/null"]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "sqlite3", "/var/lib/sqlite/metrics.db", ".tables"]
