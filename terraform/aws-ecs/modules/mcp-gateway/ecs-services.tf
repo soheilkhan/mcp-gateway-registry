@@ -400,7 +400,7 @@ module "ecs_service_registry" {
     namespace = aws_service_discovery_private_dns_namespace.mcp.arn
     service = [{
       client_alias = {
-        port     = 80
+        port     = 8080  # Non-root nginx listens on 8080
         dns_name = "registry"
       }
       port_name      = "http"
@@ -421,12 +421,12 @@ module "ecs_service_registry" {
       portMappings = [
         {
           name          = "http"
-          containerPort = 80
+          containerPort = 8080  # Non-root nginx listens on 8080
           protocol      = "tcp"
         },
         {
           name          = "https"
-          containerPort = 443
+          containerPort = 8443  # Non-root nginx listens on 8443
           protocol      = "tcp"
         },
         {
@@ -769,7 +769,7 @@ module "ecs_service_registry" {
     http = {
       target_group_arn = module.alb.target_groups["registry"].arn
       container_name   = "registry"
-      container_port   = 80
+      container_port   = 8080  # Non-root nginx listens on 8080
     }
     gradio = {
       target_group_arn = module.alb.target_groups["gradio"].arn
@@ -780,17 +780,17 @@ module "ecs_service_registry" {
 
   subnet_ids = var.private_subnet_ids
   security_group_ingress_rules = {
-    alb_80 = {
-      description                  = "HTTP port"
-      from_port                    = 80
-      to_port                      = 80
+    alb_8080 = {
+      description                  = "HTTP port (non-root nginx)"
+      from_port                    = 8080
+      to_port                      = 8080
       ip_protocol                  = "tcp"
       referenced_security_group_id = module.alb.security_group_id
     }
-    alb_443 = {
-      description                  = "HTTPS port"
-      from_port                    = 443
-      to_port                      = 443
+    alb_8443 = {
+      description                  = "HTTPS port (non-root nginx)"
+      from_port                    = 8443
+      to_port                      = 8443
       ip_protocol                  = "tcp"
       referenced_security_group_id = module.alb.security_group_id
     }
@@ -802,9 +802,9 @@ module "ecs_service_registry" {
       referenced_security_group_id = module.alb.security_group_id
     }
     mcpgw_internal = {
-      description                  = "HTTP from mcpgw for internal API calls"
-      from_port                    = 80
-      to_port                      = 80
+      description                  = "HTTP from mcpgw for internal API calls (non-root nginx)"
+      from_port                    = 8080
+      to_port                      = 8080
       ip_protocol                  = "tcp"
       referenced_security_group_id = module.ecs_service_mcpgw.security_group_id
     }
