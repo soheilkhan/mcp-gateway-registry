@@ -17,16 +17,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Create non-root user early (before creating any app files)
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
 WORKDIR /app
 
-# Copy server files - handle both build contexts
-# If SERVER_DIR is set (building from root), copy from that directory
-# Otherwise copy from current context (building from server directory)
-COPY ${SERVER_DIR:-.}/ /app/
+# Install uv as root (global tool)
+RUN pip install uv
 
-# Install uv and setup Python environment
-RUN pip install uv && \
-    uv venv .venv --python 3.12
+# Create /app with correct ownership
+RUN chown appuser:appuser /app
+
+# Switch to appuser for venv creation (avoids need to chown .venv later)
+USER appuser
+
+# Setup Python environment as appuser
+RUN uv venv .venv --python 3.12
+
+# Switch back to root for COPY operations
+USER root
+
+# Copy server files with correct ownership
+COPY --chown=appuser:appuser ${SERVER_DIR:-.}/ /app/
+
+# Switch to appuser for package installation
+USER appuser
 
 # Install dependencies from pyproject.toml
 RUN . .venv/bin/activate && \
@@ -40,6 +55,9 @@ EXPOSE 8000
 # Health check (generic for all MCP servers)
 HEALTHCHECK --interval=500s --timeout=10s --start-period=30s --retries=3 \
     CMD nc -z localhost ${PORT:-8000} || exit 1
+
+# Switch to root to create entrypoint script
+USER root
 
 # Create entrypoint script that handles environment setup and runs server.py
 RUN echo '#!/bin/bash\n\
@@ -56,15 +74,10 @@ fi\n\
 # Activate virtual environment and run the server\n\
 source .venv/bin/activate\n\
 exec python server.py --port $SERVER_PORT' > /entrypoint.sh && \
-    chmod +x /entrypoint.sh
+    chmod +x /entrypoint.sh && \
+    chown appuser:appuser /entrypoint.sh
 
-# Create non-root user for security (CIS Docker Benchmark 4.1)
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-
-# Set ownership of application files and virtual environment
-RUN chown -R appuser:appuser /app /app/.venv
-
-# Switch to non-root user
+# Switch to non-root user for runtime (no chown needed - files already owned by appuser)
 USER appuser
 
 ENTRYPOINT ["/entrypoint.sh"]
