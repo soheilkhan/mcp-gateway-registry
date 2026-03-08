@@ -164,15 +164,17 @@ services:
     cap_drop:
       - ALL
     volumes:
+      # User-managed content (bind mounts)
       - ${HOME}/mcp-gateway/servers:/app/registry/servers
       - ${HOME}/mcp-gateway/agents:/app/registry/agents
       - ${HOME}/mcp-gateway/models:/app/registry/models
-      - ${HOME}/mcp-gateway/logs:/app/logs
-      - ${HOME}/mcp-gateway/security_scans:/app/security_scans
       - ${HOME}/mcp-gateway/auth_server/scopes.yml:/app/auth_server/scopes.yml
       - ${HOME}/mcp-gateway/federation.json:/app/config/federation.json
       - ${HOME}/mcp-gateway/ssl:/etc/ssl:ro
       - ${HOME}/.aws:/root/.aws:ro
+      # Application-managed (named volumes with proper permissions)
+      - registry-logs:/app/logs
+      - registry-scans:/app/security_scans
     depends_on:
       auth-server:
         condition: service_started
@@ -208,7 +210,8 @@ services:
       - ALL
     volumes:
       - metrics-db-data:/var/lib/sqlite
-      - ${HOME}/mcp-gateway/logs:/app/logs
+      # Application-managed (named volume with proper permissions)
+      - metrics-logs:/app/logs
     depends_on:
       - metrics-db
     restart: unless-stopped
@@ -285,7 +288,8 @@ services:
     cap_drop:
       - ALL
     volumes:
-      - ${HOME}/mcp-gateway/logs:/app/logs
+      # Application-managed (named volume with proper permissions)
+      - auth-logs:/app/logs
       # - ${HOME}/mcp-gateway/auth_server/scopes.yml:/app/scopes.yml
     depends_on:
       metrics-service:
@@ -487,3 +491,8 @@ volumes:
   grafana-data:
   mongodb-data:
   mongodb-config:
+  # Application logs and scans (managed by containers, proper permissions)
+  registry-logs:
+  registry-scans:
+  auth-logs:
+  metrics-logs:
