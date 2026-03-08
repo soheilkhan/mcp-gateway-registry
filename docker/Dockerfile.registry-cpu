@@ -83,7 +83,10 @@ RUN mkdir -p /app/logs
 
 # Create nginx lua directories and remove default sites (needed by entrypoint script)
 RUN mkdir -p /etc/nginx/lua/virtual_mappings && \
-    rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default
+    rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default && \
+    mkdir -p /var/lib/nginx/body /var/lib/nginx/proxy /var/lib/nginx/fastcgi /var/lib/nginx/uwsgi /var/lib/nginx/scgi && \
+    mkdir -p /var/log/nginx && \
+    mkdir -p /run/nginx
 
 # Expose ports for nginx (HTTP/HTTPS on high ports for non-root) and registry
 EXPOSE 8080 8443 7860
@@ -100,7 +103,7 @@ RUN chmod +x /app/registry-entrypoint.sh
 RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser appuser
 
 # Set ownership of application files, venv, logs, nginx configs, and entrypoint
-RUN chown -R appuser:appuser /app /app/.venv /app/logs /etc/nginx /app/registry-entrypoint.sh
+RUN chown -R appuser:appuser /app /app/.venv /app/logs /etc/nginx /var/log/nginx /run/nginx /app/registry-entrypoint.sh
 
 # Switch to non-root user
 USER appuser

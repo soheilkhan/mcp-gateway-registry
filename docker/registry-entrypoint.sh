@@ -270,6 +270,10 @@ if [ -n "${SERVICE_CONNECT_NAMESPACE:-}" ]; then
 fi
 
 echo "Starting Nginx..."
+# Create /run/nginx directory for pid file (tmpfs mount overwrites Dockerfile creation)
+mkdir -p /run/nginx
+# Change pid file location to writable directory for non-root user
+sed -i 's|pid /run/nginx.pid;|pid /run/nginx/nginx.pid;|' /etc/nginx/nginx.conf
 nginx
 
 echo "Registry service fully started. Keeping container alive..."

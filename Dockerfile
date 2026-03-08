@@ -38,7 +38,10 @@ RUN chmod +x /app/docker/entrypoint.sh
 
 # Create nginx lua directories and remove default sites (needed by entrypoint script)
 RUN mkdir -p /etc/nginx/lua/virtual_mappings && \
-    rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default
+    rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default && \
+    mkdir -p /var/lib/nginx/body /var/lib/nginx/proxy /var/lib/nginx/fastcgi /var/lib/nginx/uwsgi /var/lib/nginx/scgi && \
+    mkdir -p /var/log/nginx && \
+    mkdir -p /run/nginx
 
 # Expose ports for Nginx (HTTP/HTTPS on high ports for non-root) and the Registry
 EXPOSE 8080 8443 7860
@@ -65,7 +68,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser appuser
 
 # Set ownership of application files, nginx configs, and entrypoint
-RUN chown -R appuser:appuser /app /etc/nginx /app/docker/entrypoint.sh
+RUN chown -R appuser:appuser /app /etc/nginx /var/log/nginx /run/nginx /app/docker/entrypoint.sh
 
 # Switch to non-root user
 USER appuser
