@@ -1,0 +1,28 @@
+apiVersion: v2
+name: mcp-gateway-registry
+description: Helm Chart to manage mcp-gateway-registry
+type: application
+
+# version is the main chart version, appVersion is the code version
+version: 0.1.0
+appVersion: "0.1.0"
+
+home: https://gitlab.infr.zglbl.net/devops/tools/starter
+sources:
+  - https://gitlab.infr.zglbl.net/devops/tools/starter
+
+dependencies:
+  - name: base
+    version: 0.1.0
+  - name: registry
+    version: 0.1.0
+  - name: auth-server
+    version: 0.1.0
+  - name: mcpgw
+    version: 0.1.0
+
+maintainers:
+  - name: Antonio Carella
+    email: acarella@zetaglobal.com
+  - name: Kevin Carroll
+    email: kcarroll@zetaglobal.com

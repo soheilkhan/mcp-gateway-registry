@@ -1,0 +1,224 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mcp-gateway-registry
+  namespace: mcp-gateway
+spec:
+  chart:
+    spec:
+      chart: mcp-gateway-registry
+      reconcileStrategy: ChartVersion
+      version: 0.1.0
+      sourceRef:
+        kind: HelmRepository
+        name: mcp-gateway-registry
+  interval: 60m
+  values:
+    # Global settings for preprod
+    global:
+      accountId: "636347950933"
+      defaultEcrAccount: 636347950933
+      clusterKey: j
+      region: us-east-1
+      regionCode: use1
+      businessUnit: zmp
+      environment: preprod
+      tags:
+        CostCenter: crm
+        Environment: preprod
+        Feature: mcp-gateway
+        FeatureType: mcp-gateway-registry
+        Team: gen-ai
+
+    # --- Subchart: registry (API + UI + nginx) ---
+    registry:
+      image:
+        repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-registry
+        tag: "0.1.0"
+        internal: true
+        pullPolicy: IfNotPresent
+      service:
+        healthCheck: /health
+        port: 8080
+      ingress:
+        enabled: true
+        className: alb
+        scheme: internet-facing
+        annotations:
+          external-dns.alpha.kubernetes.io/hostname: mcp-gateway-registry.eks-j.zmp-preprod-use1.zetaglobal.io
+          alb.ingress.kubernetes.io/tags: Project=mcp-gateway-registry, Feature=mcp-gateway, FeatureType=registry, Namespace=mcp-gateway, Service=registry, Team=gen-ai
+        hosts:
+          - host: mcp-gateway-registry.eks-j.zmp-preprod-use1.zetaglobal.io
+            paths:
+              - path: /*
+                pathType: ImplementationSpecific
+          - host: svc-mcp-gateway-registry.static.zmp-preprod-use1.zetaglobal.io
+            paths:
+              - path: /*
+                pathType: ImplementationSpecific
+      autoscaling:
+        enabled: true
+        minReplicas: 2
+        maxReplicas: 6
+        targetCPUUtilizationPercentage: 75
+        targetMemoryUtilizationPercentage: 75
+      resources:
+        requests:
+          cpu: 400m
+          memory: 512M
+        limits:
+          cpu: "1"
+          memory: 512M
+      config:
+        autoReload: true
+        envs:
+          REGISTRY_MODE: gateway
+          DEPLOYMENT_MODE: with-gateway
+          STORAGE_BACKEND: file
+          ENVIRONMENT: preprod
+          LOG_LEVEL: INFO
+      serviceMonitor:
+        enabled: true
+      serviceAccount:
+        create: true
+        name: registry
+      karpenter:
+        nodeClass:
+          ami: bottlerocket@latest
+          ephemeralStorage: 5Gi
+        nodePool:
+          instance:
+            generation:
+              operator: Gt
+              values:
+                - "6"
+
+    # --- Subchart: auth-server (OAuth/OIDC) ---
+    auth-server:
+      image:
+        repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-auth-server
+        tag: "0.1.0"
+        internal: true
+        pullPolicy: IfNotPresent
+      service:
+        healthCheck: /health
+        port: 8080
+      ingress:
+        enabled: true
+        className: alb
+        scheme: internet-facing
+        annotations:
+          external-dns.alpha.kubernetes.io/hostname: mcp-auth-server.eks-j.zmp-preprod-use1.zetaglobal.io
+          alb.ingress.kubernetes.io/tags: Project=mcp-gateway-registry, Feature=mcp-gateway, FeatureType=auth-server, Namespace=mcp-gateway, Service=auth-server, Team=gen-ai
+        hosts:
+          - host: mcp-auth-server.eks-j.zmp-preprod-use1.zetaglobal.io
+            paths:
+              - path: /*
+                pathType: ImplementationSpecific
+      autoscaling:
+        enabled: true
+        minReplicas: 2
+        maxReplicas: 4
+        targetCPUUtilizationPercentage: 75
+        targetMemoryUtilizationPercentage: 75
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256M
+        limits:
+          cpu: 500m
+          memory: 256M
+      config:
+        autoReload: true
+        envs:
+          ENVIRONMENT: preprod
+          LOG_LEVEL: INFO
+      serviceAccount:
+        create: true
+        name: auth-server
+      karpenter:
+        nodeClass:
+          ami: bottlerocket@latest
+        nodePool:
+          instance:
+            generation:
+              operator: Gt
+              values:
+                - "6"
+
+    # --- Subchart: mcpgw (MCP gateway proxy, internal only) ---
+    mcpgw:
+      image:
+        repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-mcpgw
+        tag: "0.1.0"
+        internal: true
+        pullPolicy: IfNotPresent
+      service:
+        healthCheck: /health
+        port: 8003
+      ingress:
+        enabled: false
+      autoscaling:
+        enabled: true
+        minReplicas: 2
+        maxReplicas: 6
+        targetCPUUtilizationPercentage: 75
+        targetMemoryUtilizationPercentage: 75
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256M
+        limits:
+          cpu: 500m
+          memory: 256M
+      config:
+        autoReload: true
+        envs:
+          ENVIRONMENT: preprod
+          LOG_LEVEL: INFO
+      serviceAccount:
+        create: true
+        name: mcpgw
+      karpenter:
+        nodeClass:
+          ami: bottlerocket@latest
+        nodePool:
+          instance:
+            generation:
+              operator: Gt
+              values:
+                - "6"
+
+    # Shared Karpenter node pool and EC2 node class (preprod)
+    nodePool:
+      name: mcp-gateway.mcp-gateway-registry
+      labels:
+        vpc.amazonaws.com/has-trunk-attached: "false"
+        opentelemetry.io/enabled: "true"
+      limits:
+        cpu: 12
+      disruption:
+        consolidateAfter: 0s
+        consolidationPolicy: WhenEmptyOrUnderutilized
+      expireAfter: 168h0m0s
+
+    ec2NodeClass:
+      name: mcp-gateway.mcp-gateway-registry
+      role: zmp-preprod-use1-eks-karpenter_nodes
+      tags:
+        CostCenter: crm
+        Environment: preprod
+        Feature: mcp-gateway
+        FeatureType: mcp-gateway-registry
+        Role: mcp-gateway-registry
+        Team: gen-ai
+      securityGroupSelectorTerms:
+        - tags:
+            karpenter.sh/discovery: zmp-preprod-j
+            kubernetes.io/cluster/zmp-preprod-j: owned
+            EC2NodeClass: mcp-gateway.mcp-gateway-registry
+      subnetSelectorTerms:
+        - tags:
+            Tier: private
+            kubernetes.io/cluster/zmp-preprod-j: shared

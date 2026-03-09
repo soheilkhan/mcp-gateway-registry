@@ -1,0 +1,13 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: mcp-gateway-registry
+  namespace: mcp-gateway
+spec:
+  secretRef:
+    name: ecr-credentials
+  interval: 60m
+  type: oci
+  url: oci://636347950933.dkr.ecr.us-east-1.amazonaws.com/zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/charts
+  provider: aws

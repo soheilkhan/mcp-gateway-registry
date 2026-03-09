@@ -1,0 +1,15 @@
+---
+global:
+  defaultEcrAccount: 636347950933 # used in dev to find image in ECR
+  accountId: 123456789012 # fake account id
+  clusterKey: local # local, j, l, a, b
+  region: us-east-1 # us-east-1, us-west-1
+  regionCode: use1 # use1, euw1
+  businessUnit: zmp # zmp, zme
+  environment: &env development # development,test,preprod,qa,prod
+  tags:
+    CostCenter: dev
+    Environment: *env
+    Feature: dev
+    FeatureType: dev
+    Team: dev

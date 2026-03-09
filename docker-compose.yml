@@ -67,6 +67,8 @@ services:
       args:
         BUILD_VERSION: ${BUILD_VERSION:-1.0.0}
     environment:
+      # Bind uvicorn to IPv4 so nginx (proxy_pass 127.0.0.1:7860) can reach it on Docker Desktop
+      - BIND_HOST=127.0.0.1
       # Deployment Mode Configuration
       - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-with-gateway}
       - REGISTRY_MODE=${REGISTRY_MODE:-full}
@@ -228,6 +230,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.auth
     environment:
+      - BIND_HOST=0.0.0.0
       - REGISTRY_URL=${REGISTRY_URL}
       - SECRET_KEY=${SECRET_KEY}
       - ADMIN_USER=${ADMIN_USER:-admin}

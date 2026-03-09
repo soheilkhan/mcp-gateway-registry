@@ -1,0 +1,128 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mcp-gateway-registry
+  namespace: mcp-gateway
+spec:
+  chart:
+    spec:
+      chart: mcp-gateway-registry
+      reconcileStrategy: ChartVersion
+      version: 0.1.0
+      sourceRef:
+        kind: HelmRepository
+        name: mcp-gateway-registry
+  interval: 10m0s
+  values:
+    fullnameOverride: mcp-gateway-registry
+
+    global:
+      accountId: 636347950933
+      defaultEcrAccount: 636347950933
+      clusterKey: local
+      region: us-east-1
+      regionCode: use1
+      businessUnit: zmp
+      environment: development
+      tags:
+        CostCenter: dev
+        Environment: development
+        Feature: mcp-gateway
+        FeatureType: mcp-gateway-registry
+        Team: gen-ai
+
+    # --- Subchart: registry (API + UI + nginx) ---
+    registry:
+      image:
+        repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-registry
+        tag: "latest"
+        pullPolicy: IfNotPresent
+        internal: true
+      service:
+        healthCheck: /health
+        port: 8080
+      ingress:
+        enabled: true
+        className: nginx
+        hosts:
+          - host: mcp-gateway-registry.labs.zetaglobal.io
+            paths:
+              - path: /
+                pathType: Prefix
+      autoscaling:
+        enabled: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256M
+        limits:
+          cpu: 500m
+          memory: 256M
+      config:
+        autoReload: true
+        envs:
+          REGISTRY_MODE: gateway
+          DEPLOYMENT_MODE: with-gateway
+          STORAGE_BACKEND: file
+      serviceMonitor:
+        enabled: false
+      serviceAccount:
+        create: true
+        name: registry
+
+    # --- Subchart: auth-server (OAuth/OIDC) ---
+    auth-server:
+      image:
+        repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-auth-server
+        tag: "latest"
+        pullPolicy: IfNotPresent
+        internal: true
+      service:
+        healthCheck: /health
+        port: 8080
+      ingress:
+        enabled: false
+      autoscaling:
+        enabled: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256M
+        limits:
+          cpu: 500m
+          memory: 256M
+      config:
+        autoReload: true
+        envs: {}
+      serviceAccount:
+        create: true
+        name: auth-server
+
+    # --- Subchart: mcpgw (MCP gateway proxy, internal only) ---
+    mcpgw:
+      image:
+        repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-mcpgw
+        tag: "latest"
+        pullPolicy: IfNotPresent
+        internal: true
+      service:
+        healthCheck: /health
+        port: 8003
+      ingress:
+        enabled: false
+      autoscaling:
+        enabled: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256M
+        limits:
+          cpu: 500m
+          memory: 256M
+      config:
+        autoReload: true
+        envs: {}
+      serviceAccount:
+        create: true
+        name: mcpgw
