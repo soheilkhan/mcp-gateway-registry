@@ -1,0 +1,19 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "template.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "template.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "template.selectorLabels" . | nindent 6}}
+  endpoints:
+  {{- if .Values.serviceMonitor.portName }}
+     - port: {{ .Values.serviceMonitor.portName | default "prom" }}
+  {{- else }}
+     - port: {{ .Values.service.portName | default "http" }}
+  {{- end }}
+{{- end }}

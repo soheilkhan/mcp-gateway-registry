@@ -1,0 +1,47 @@
+{{- if .Values.autoscaling.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "template.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "template.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "template.fullname" . }}
+  pollingInterval: {{ .Values.autoscaling.pollingInterval | default 30 }}
+  minReplicaCount: {{ .Values.autoscaling.minReplicas | default 0 }}
+  maxReplicaCount: {{ .Values.autoscaling.maxReplicas | default 100 }}
+  {{- if .Values.autoscaling.hpaConfig }}
+  advanced:
+    horizontalPodAutoscalerConfig:
+    {{- with .Values.autoscaling.hpaConfig }}
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+  {{- with .Values.autoscaling.triggers }}
+  triggers:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if hasKey .Values "consumerConfig" }}
+    - type: kafka
+      metadata:
+        bootstrapServers: {{ join "," .Values.consumerConfig.brokers }}
+        consumerGroup: {{ .Values.consumerConfig.group }}
+        topic: {{ .Values.consumerConfig.topic }}
+        lagThreshold: {{ .Values.consumerConfig.lagThreshold | int64 | quote }}
+        offsetResetPolicy: {{ .Values.consumerConfig.offsetResetPolicy }}
+  {{- end }}
+  {{- if .Values.autoscaling.targetCpu }}
+    - type: cpu
+      metadata:
+        value: {{ .Values.autoscaling.targetCpu | quote }}
+      metricType: Utilization
+  {{- end }}
+  {{- if .Values.autoscaling.targetMem }}
+    - type: memory
+      metadata:
+        value: {{ .Values.autoscaling.targetMem | quote }}
+      metricType: Utilization
+  {{- end }}
+{{- end }}

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: base
+description: contains base templates for use by subcharts
+type: library
+version: 0.1.0

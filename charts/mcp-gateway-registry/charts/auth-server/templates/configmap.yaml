@@ -1,0 +1,16 @@
+{{- if and (.Values.config) (or .Values.config.plainFiles .Values.config.flatFiles) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "template.fullname" . }}-config-map
+  namespace: {{ .Release.Namespace }}
+data:
+{{- range .Values.config.plainFiles -}}
+  {{- .name | nindent 2 -}}: |+
+    {{- toYaml .value | nindent 4 }}
+{{- end -}}
+{{- range .Values.config.flatFiles -}}
+  {{- .name | nindent 2 -}}: |+
+    {{- .value | nindent 4 }}
+{{- end -}}
+{{- end }}

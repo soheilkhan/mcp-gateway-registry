@@ -1,0 +1,89 @@
+{{- if and .Values.ingress.enabled (or (eq .Values.global.environment "development") (eq .Values.global.environment "test") (and (ne .Values.ingress.className "nlb") (ne .Values.ingress.className "canary")) ) -}}
+{{- $className := .Values.ingress.className -}}
+{{- if or (eq .Values.global.environment "development") (eq .Values.global.environment "test") }}
+{{- $className = "nginx" -}}
+{{- end }}
+{{- $fullName := include "template.fullname" . -}}
+{{- $svcPort := .Values.service.port -}}
+{{- $exHost := include "template.externalHostname" . }}
+{{- if and $className (not (semverCompare ">=1.18-0" .Capabilities.KubeVersion.GitVersion)) }}
+  {{- if not (hasKey .Values.ingress.annotations "kubernetes.io/ingress.class") }}
+  {{- $_ := set .Values.ingress.annotations "kubernetes.io/ingress.class" $className}}
+  {{- end }}
+{{- end }}
+{{- if semverCompare ">=1.19-0" .Capabilities.KubeVersion.GitVersion -}}
+apiVersion: networking.k8s.io/v1
+{{- else if semverCompare ">=1.14-0" .Capabilities.KubeVersion.GitVersion -}}
+apiVersion: networking.k8s.io/v1beta1
+{{- else -}}
+apiVersion: extensions/v1beta1
+{{- end }}
+kind: Ingress
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "template.labels" . | nindent 4 }}
+  annotations:
+    {{- if eq $className "alb" }}
+    alb.ingress.kubernetes.io/actions.response-403: |
+      {"type":"fixed-response","fixedResponseConfig":{"contentType":"text/plain","statusCode":"403","messageBody":"403 External access to endpoint not allowed"}}
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: {{ .Values.service.healthCheck | default "" }}
+    alb.ingress.kubernetes.io/ip-address-type: dualstack
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
+    alb.ingress.kubernetes.io/scheme: {{ .Values.ingress.scheme | default "internal" }}
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/tags: {{ include "template.ingressTags" .Values.global.tags }}
+    alb.ingress.kubernetes.io/target-type: ip
+    {{- end }}
+    external-dns.alpha.kubernetes.io/hostname: {{ $exHost }}
+    kubernetes.io/ingress.class: {{ $className }}
+  {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if and $className (semverCompare ">=1.18-0" .Capabilities.KubeVersion.GitVersion) }}
+  ingressClassName: {{ $className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- range .Values.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- $extraPaths := .Values.ingress.extraPaths -}}
+    {{- $hosts := .Values.ingress.hosts }}
+    {{- $hosts = append $hosts (dict "host" $exHost) }}
+    {{- range $hosts }}
+    {{- $currHost := .host }}
+      - host: {{ .host | quote }}
+        http:
+          paths:
+            {{- range .paths }}
+            - path: {{ .path }}
+              pathType: {{ .pathType }}
+              backend:
+                service:
+                  name: {{ .serviceName | default $fullName }}
+                  port:
+                    number: {{ .servicePort | default $svcPort }}
+            {{- end }}
+            {{- range $extraPaths }}
+            {{- if or (not .scope) (and (eq $currHost $exHost) (eq .scope "cluster"))}}
+            - path: {{ .path }}
+              pathType: {{ .pathType }}
+              backend:
+                service:
+                  name: {{ .serviceName | default $fullName }}
+                  port:
+                    number: {{ .servicePort | default $svcPort }}
+            {{- end }}
+        {{- end }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+{{- if and (.Values.ingress.enabled) (ne .Values.global.environment "development") (ne .Values.global.environment "test") (ne .Values.ingress.className "alb") }}
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: {{ include "template.externalHostname" . }}
+    service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: {{ include "template.ingressTags" .Values.global.tags }}
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "5"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-ip-address-type: dualstack
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-scheme: {{ .Values.ingress.scheme | default "internal" }}
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+{{- end }}
+  name: {{ include "template.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "template.labels" . | nindent 4 }}
+spec:
+  type: {{ if eq .Values.ingress.className  "nlb" }}{{ "LoadBalancer" }}{{ else }}{{ .Values.service.type }}{{ end }}
+  ports:
+  {{- if .Values.serviceMonitor.port }}
+    - port: {{ .Values.serviceMonitor.port }}
+      targetPort: {{ .Values.serviceMonitor.portName | default "prom" }}
+      protocol: TCP
+      name: {{ .Values.serviceMonitor.portName | default "prom" }}
+  {{- end }}
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.portName | default "http" }}
+      protocol: TCP
+      name: {{ .Values.service.portName | default "http" }}
+  selector:
+    {{- include "template.selectorLabels" . | nindent 4 }}

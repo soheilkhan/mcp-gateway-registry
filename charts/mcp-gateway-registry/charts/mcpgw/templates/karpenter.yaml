@@ -1,0 +1,86 @@
+{{- if not (or (eq .Values.global.environment "development") (eq .Values.global.environment "test")) }}
+---
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: {{ include "template.fullname" . }}
+spec:
+  # https://karpenter.sh/v1.3/concepts/nodeclasses/#specblockdevicemappings
+  {{- if .Values.karpenter.nodeClass.ephemeralStorage }}
+  blockDeviceMappings:
+  {{- if hasPrefix "al2" .Values.karpenter.nodeClass.ami }}
+    - deviceName: /dev/xvda
+  {{- else if hasPrefix  "bottlerocket" .Values.karpenter.nodeClass.ami }}
+    - deviceName: /dev/xvdb
+  {{- else }}
+    {{- fail "Unsupported AMI for emphemeralStorage configuration!" }}
+  {{- end }}
+      ebs:
+        volumeSize: {{ .Values.karpenter.nodeClass.ephemeralStorage | default "20Gi" }}
+        volumeType: gp3
+        encrypted: true
+  {{- end }}
+  amiSelectorTerms:
+    - alias: {{ .Values.karpenter.nodeClass.ami }}
+  kubelet:
+    maxPods: 110
+  role: {{ .Values.global.businessUnit }}-{{ .Values.global.environment }}-{{ .Values.global.regionCode }}-eks-karpenter_nodes
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: {{ include "template.clusterName" . }}
+  subnetSelectorTerms:
+    - tags:
+        Tier: private
+        kubernetes.io/cluster/{{ include "template.clusterName" . }}: shared
+  tags: {{ .Values.global.tags | toYaml | nindent 4 }}
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: {{ include "template.fullname" . }}
+spec:
+  disruption:
+    consolidateAfter: 0s
+    consolidationPolicy: WhenEmptyOrUnderutilized
+  template:
+    metadata:
+      {{- with .Values.karpenter.nodePool.labels }}
+      labels:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      expireAfter: {{ .Values.karpenter.nodePool.expireHours | default 168 }}h0m0s
+      nodeClassRef:
+        name: {{ include "template.fullname" . }}
+        kind: EC2NodeClass
+        group: karpenter.k8s.aws
+      requirements:
+        {{- $capacityType := .Values.karpenter.nodePool.capacityType }}
+        {{- if $capacityType }}
+        - key: karpenter.sh/capacity-type
+          operator: {{ $capacityType.operator }}
+          values:
+          {{- range $val := $capacityType.values }}
+            - {{ $val | quote }}
+          {{- end }}
+        {{- end }}
+        {{- range $key, $value := .Values.karpenter.nodePool.kubernetes }}
+        - key: kubernetes.io/{{ $key }}
+          operator: {{ $value.operator }}
+          values:
+          {{- range $val := $value.values }}
+            - {{ $val | quote }}
+          {{- end }}
+        {{- end }}
+        {{- range $key, $value := .Values.karpenter.nodePool.instance }}
+        - key: karpenter.k8s.aws/instance-{{ $key }}
+          operator: {{ $value.operator }}
+          values:
+          {{- range $val := $value.values }}
+            - {{ $val | quote }}
+          {{- end }}
+        {{- end }}
+  {{- if .Values.karpenter.nodePool.limits }}
+  limits: {{- toYaml .Values.karpenter.nodePool.limits | nindent 4 }}
+  {{- end }}
+{{- end }}

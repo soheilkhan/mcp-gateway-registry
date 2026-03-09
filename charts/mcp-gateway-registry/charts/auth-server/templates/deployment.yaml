@@ -1,0 +1,225 @@
+{{- if .Values.image }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "template.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "template.labels" . | nindent 4 }}
+  {{- if and .Values.config .Values.config.autoReload }}
+  annotations:
+    reloader.stakater.com/auto: "true"
+  {{- end }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "template.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "template.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "template.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ include "template.name" . }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "template.imageResolver" (dict "image" .Values.image "global" .Values.global) }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+          {{- if and .Values.serviceMonitor.port (not .Values.statsdExporter.enabled) }}
+            - name: {{ .Values.serviceMonitor.portName | default "prom" }}
+              containerPort: {{ .Values.serviceMonitor.port }}
+              protocol: TCP
+          {{- end }}
+            - name: {{ .Values.service.portName | default "http" }}
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          {{- with .Values.image.command }}
+          command:
+            {{- toYaml . | nindent 12}}
+          {{- end }}
+          {{- with .Values.image.args }}
+          args:
+            {{- toYaml . | nindent 12}}
+          {{- end }}
+          env:
+          {{- if .Values.config.envs }}
+            {{- $refName := include "template.fullname" . }}
+            {{- range $name, $value := .Values.config.envs }}
+            {{- if hasPrefix "ssm:" $value }}
+            - name: {{ $name | upper }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $refName }}-external-secrets
+                  key: {{ include "template.hashString" $name | printf "SECRET_REF_%s" }}
+                  optional: false
+            {{- else }}
+            - name: {{ $name | upper }}
+              value: {{ $value | quote }}
+            {{- end}}
+            {{- end }}
+            {{- end }}
+            {{- if or (eq .Values.global.environment "development") (eq .Values.global.environment "test") }}
+            - name: AWS_ENDPOINT_URL
+              value: {{ .Values.local.aws.endpoint_url }}
+            - name: AWS_ACCESS_KEY_ID
+              value: {{ .Values.local.aws.access_key_id }}
+            - name: AWS_SECRET_ACCESS_KEY
+              value: {{ .Values.local.aws.secret_access_key }}
+            {{- if .Values.observability }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.observability.otlp_endpoint }}
+            {{- end }}
+          {{- else }}
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://[$(HOST_IP)]:4318"
+          {{- end }}
+          {{- with .Values.probes.liveness }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.probes.readiness }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources}}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if or .Values.config.flatFiles .Values.config.plainFiles .Values.config.secretFiles .Values.config.volumeMounts }}
+          volumeMounts:
+          {{- range .Values.config.volumeMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .path }}
+          {{- end }}
+          {{- range .Values.config.flatFiles }}
+            {{- if .path }}
+            - name: {{ include "template.fullname" $ }}-config-volume
+              mountPath: {{ .path }}
+              subPath: {{ .name }}
+            {{- end }}
+          {{- end }}
+          {{- range .Values.config.plainFiles }}
+            {{- if .path }}
+            - name: {{ include "template.fullname" $ }}-config-volume
+              mountPath: {{ .path }}
+              subPath: {{ .name }}
+            {{- end }}
+          {{- end }}
+          {{- range .Values.config.secretFiles }}
+            {{- if .path }}
+            - name: {{ include "template.fullname" $ }}-secret-volume
+              mountPath: {{ .path }}
+              subPath: {{ .name }}
+            {{- end }}
+          {{- end }}
+          {{- if and .Values.config .Values.config.defaultMountPath }}
+            - name: {{ include "template.fullname" . }}-projected-volume
+              mountPath: {{ .Values.config.defaultMountPath }}
+              readOnly: true
+          {{- end }}
+          {{- end }}
+        {{- if .Values.statsdExporter.enabled }}
+        - name: statsd-exporter
+          image: {{ include "template.imageResolver" (dict "image" .Values.statsdExporter.image "global" .Values.global) }}:{{ .Values.statsdExporter.image.tag | default "latest" }}
+          imagePullPolicy: {{ default .Values.statsdExporter.image.pullPolicy }}
+          args: [ '--statsd.listen-udp=:8125', '--statsd.listen-tcp=:8125' ]
+          ports:
+            - name: statsd
+              containerPort: 9102
+              protocol: TCP
+          env:
+            {{- toYaml .Values.statsdExporter.env | nindent 12 }}
+          resources:
+            {{- toYaml .Values.statsdExporter.resources | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.statsdExporter.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.statsdExporter.readinessProbe | nindent 12 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "base.affinity" . | indent 6 }}
+      {{- include "base.topology" . | indent 6 }}
+      {{- if .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- if or .Values.config.flatFiles .Values.config.plainFiles .Values.config.secretFiles .Values.config.volumeMounts }}
+      volumes:
+        {{- if eq (include "template.rangeHasPath" .Values.config.volumeMounts) "true" }}
+        {{- range .Values.config.volumeMounts }}
+        - name: {{ .name }}
+          emptyDir:
+            sizeLimit: {{ .sizeLimit | default "10Gi" | quote }}
+        {{- end }}
+        {{- end }}
+        {{- if or (eq (include "template.rangeHasPath" .Values.config.flatFiles) "true") (eq (include "template.rangeHasPath" .Values.config.plainFiles) "true") }}
+        - name: {{ include "template.fullname" . }}-config-volume
+          configMap:
+            name: {{ include "template.fullname" . }}-config-map
+            items:
+            {{- range .Values.config.flatFiles }}
+            {{- if .path }}
+              - key: {{ .name }}
+                path: {{ .name }}
+            {{- end }}
+            {{- end }}
+            {{- range .Values.config.plainFiles }}
+            {{- if .path }}
+              - key: {{ .name }}
+                path: {{ .name }}
+            {{- end }}
+            {{- end }}
+        {{- end }}
+        {{- if eq (include "template.rangeHasPath" .Values.config.secretFiles) "true" }}
+        - name: {{ include "template.fullname" . }}-secret-volume
+          secret:
+            secretName: {{ include "template.fullname" . }}-external-secrets
+            items:
+            {{- range .Values.config.secretFiles }}
+            {{- if .path }}
+              - key: {{ .name }}
+                path: {{ .name }}
+            {{- end }}
+            {{- end }}
+        {{- end }}
+        {{- if or .Values.config.plainFiles .Values.config.secretFiles }}
+        - name: {{ include "template.fullname" . }}-projected-volume
+          projected:
+            defaultMode: 420
+            sources:
+            {{- if .Values.config.plainFiles }}
+              - configMap:
+                  name: {{ include "template.fullname" . }}-config-map
+            {{- end }}
+            {{- if .Values.config.secretFiles }}
+              - secret:
+                  name: {{ include "template.fullname" . }}-external-secrets
+            {{- end }}
+         {{- end}}
+      {{- end }}
+{{- end }}
