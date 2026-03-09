@@ -85,9 +85,20 @@ def test_dockerfile_no_sudo(repo_root: Path, dockerfile_path: str):
     ), f"{dockerfile_path}: Contains 'sudo' package (security risk)"
 
 
-@pytest.mark.parametrize("dockerfile_path", DOCKERFILES)
+@pytest.mark.parametrize(
+    "dockerfile_path",
+    [
+        f
+        for f in DOCKERFILES
+        if "scopes-init" not in f  # Exclude one-shot init containers
+    ],
+)
 def test_dockerfile_has_healthcheck(repo_root: Path, dockerfile_path: str):
-    """Test that Dockerfile has HEALTHCHECK directive."""
+    """Test that Dockerfile has HEALTHCHECK directive.
+
+    Note: One-shot init containers (scopes-init) are excluded as they
+    don't need health checks - they run once and exit.
+    """
     dockerfile = repo_root / dockerfile_path
     assert dockerfile.exists(), f"Dockerfile not found: {dockerfile}"
 
