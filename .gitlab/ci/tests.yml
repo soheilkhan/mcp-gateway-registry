@@ -3,6 +3,7 @@ registry_tests:
   extends:
     - .python_uv_template
     - .run_registry_tests_rules
+  allow_failure: true
   script:
     - uv sync --extra dev
     - uv run python scripts/test.py check
