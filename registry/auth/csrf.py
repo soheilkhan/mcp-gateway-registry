@@ -102,3 +102,56 @@ async def verify_csrf_token(
         )
 
     logger.debug("CSRF token verified via dependency")
+
+
+async def verify_csrf_token_flexible(
+    request: Request,
+) -> None:
+    """FastAPI dependency that validates CSRF token from multiple sources.
+
+    Accepts CSRF token from:
+    - Form data (for traditional HTML forms)
+    - X-CSRF-Token header (for React/SPA applications)
+
+    Args:
+        request: The incoming FastAPI request.
+
+    Raises:
+        HTTPException: If the CSRF token is missing, invalid, or the session
+            cookie is not present.
+    """
+    # Try to get token from header first (for JSON requests)
+    csrf_token = request.headers.get("X-CSRF-Token")
+
+    # If not in header, try form data (for HTML form requests)
+    if not csrf_token:
+        try:
+            form_data = await request.form()
+            csrf_token = form_data.get("csrf_token")
+        except Exception:
+            # Not form data, continue without token
+            pass
+
+    if not csrf_token:
+        logger.warning("CSRF validation failed: no token provided")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF validation failed: no token provided",
+        )
+
+    session_id = request.cookies.get(settings.session_cookie_name)
+    if not session_id:
+        logger.warning("CSRF validation failed: no session cookie present")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF validation failed: no session",
+        )
+
+    if not validate_csrf_token(csrf_token, session_id):
+        logger.warning("CSRF validation failed: invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF validation failed: invalid token",
+        )
+
+    logger.debug("CSRF token verified via flexible dependency")

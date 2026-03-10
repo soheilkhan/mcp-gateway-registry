@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from ..audit import set_audit_action
-from ..auth.csrf import generate_csrf_token, verify_csrf_token
+from ..auth.csrf import generate_csrf_token, verify_csrf_token, verify_csrf_token_flexible
 from ..auth.dependencies import enhanced_auth, nginx_proxied_auth
 from ..auth.internal import validate_internal_auth
 from ..constants import VALID_AUTH_SCHEMES
@@ -401,7 +401,7 @@ async def toggle_service_route(
     service_path: str,
     enabled: Annotated[str | None, Form()] = None,
     user_context: Annotated[dict, Depends(enhanced_auth)] = None,
-    _csrf: Annotated[None, Depends(verify_csrf_token)] = None,
+    _csrf: Annotated[None, Depends(verify_csrf_token_flexible)] = None,
 ):
     """Toggle a service on/off (requires toggle_service UI permission)."""
     from ..auth.dependencies import user_has_ui_permission_for_service

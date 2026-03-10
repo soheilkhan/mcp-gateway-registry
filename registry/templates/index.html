@@ -1687,6 +1687,15 @@
 
             // Prepare form data
             const formData = new FormData();
+
+            // Get CSRF token from the form's hidden input
+            const csrfTokenInput = form.querySelector('input[name="csrf_token"]');
+            if (csrfTokenInput && csrfTokenInput.value) {
+                formData.append('csrf_token', csrfTokenInput.value);
+            } else {
+                console.error('CSRF token not found in form');
+            }
+
             if (isEnabling) {
                 formData.append('enabled', 'on');
             }
@@ -2603,6 +2612,15 @@
 
                 // Prepare form data
                 const formData = new FormData();
+
+                // Get CSRF token from the form's hidden input
+                const csrfTokenInput = form.querySelector('input[name="csrf_token"]');
+                if (csrfTokenInput && csrfTokenInput.value) {
+                    formData.append('csrf_token', csrfTokenInput.value);
+                } else {
+                    console.error('CSRF token not found in form');
+                }
+
                 if (isEnabling) {
                     formData.append('enabled', 'on');
                 }
