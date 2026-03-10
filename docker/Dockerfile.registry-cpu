@@ -80,7 +80,8 @@ RUN mkdir -p /app/registry/models && \
 
 # Create logs and certs directories
 RUN mkdir -p /app/logs && \
-    mkdir -p /app/certs
+    mkdir -p /app/certs && \
+    mkdir -p /app/security_scans
 
 # Create nginx lua directories and remove default sites (needed by entrypoint script)
 RUN mkdir -p /etc/nginx/lua/virtual_mappings && \
@@ -106,7 +107,7 @@ RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser appuser
 # Set ownership for runtime-writable directories and entrypoint
 # Note: Use targeted chown instead of chown -R /app to avoid slow recursive
 # ownership change on .venv (thousands of files that don't need write access)
-RUN chown -R appuser:appuser /app/logs /app/certs /app/registry /etc/nginx /var/log/nginx /var/lib/nginx /run/nginx && \
+RUN chown -R appuser:appuser /app/logs /app/certs /app/security_scans /app/registry /etc/nginx /var/log/nginx /var/lib/nginx /run/nginx && \
     chown appuser:appuser /app /app/registry-entrypoint.sh
 
 # Switch to non-root user
