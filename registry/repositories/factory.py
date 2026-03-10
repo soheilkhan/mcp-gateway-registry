@@ -232,11 +232,9 @@ def get_skill_repository() -> SkillRepositoryBase:
 
         _skill_repo = DocumentDBSkillRepository()
     else:
-        # File-based skill repository not implemented yet
-        # Fall back to DocumentDB repository for now
-        from .documentdb.skill_repository import DocumentDBSkillRepository
+        from .file.skill_repository import FileSkillRepository
 
-        _skill_repo = DocumentDBSkillRepository()
+        _skill_repo = FileSkillRepository()
 
     return _skill_repo
 
@@ -278,11 +276,9 @@ def get_virtual_server_repository() -> VirtualServerRepositoryBase:
 
         _virtual_server_repo = DocumentDBVirtualServerRepository()
     else:
-        # File-based virtual server repository not implemented
-        # Fall back to DocumentDB repository
-        from .documentdb.virtual_server_repository import DocumentDBVirtualServerRepository
+        from .file.virtual_server_repository import FileVirtualServerRepository
 
-        _virtual_server_repo = DocumentDBVirtualServerRepository()
+        _virtual_server_repo = FileVirtualServerRepository()
 
     return _virtual_server_repo
 

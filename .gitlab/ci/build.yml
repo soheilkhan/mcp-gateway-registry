@@ -1,4 +1,47 @@
-# --- Registry image (multi-arch) ---
+# --- Dev image builds (manual, on MR/branch) ---
+
+.dev-build-image:
+  extends: .build-docker-image
+  stage: image
+  when: manual
+
+dev registry image:
+  extends: .dev-build-image
+  variables:
+    IMAGE_NAME: mcp-gateway-registry
+    IMAGE_PREFIX: "$REGISTRY_IMAGE_PREFIX/$IMAGE_NAME"
+    REGISTRY_IMAGE: "$AWS_PREPROD_ECR_URL/$IMAGE_PREFIX"
+  script:
+    - BUILD_TAG="${CI_COMMIT_SHORT_SHA}"
+    - docker build -f docker/Dockerfile.registry -t $REGISTRY_IMAGE:$BUILD_TAG -t $REGISTRY_IMAGE:latest .
+    - docker push $REGISTRY_IMAGE:$BUILD_TAG
+    - docker push $REGISTRY_IMAGE:latest
+
+dev auth-server image:
+  extends: .dev-build-image
+  variables:
+    IMAGE_NAME: mcp-gateway-auth-server
+    IMAGE_PREFIX: "$REGISTRY_IMAGE_PREFIX/$IMAGE_NAME"
+    REGISTRY_IMAGE: "$AWS_PREPROD_ECR_URL/$IMAGE_PREFIX"
+  script:
+    - BUILD_TAG="${CI_COMMIT_SHORT_SHA}"
+    - docker build -f docker/Dockerfile.auth -t $REGISTRY_IMAGE:$BUILD_TAG -t $REGISTRY_IMAGE:latest .
+    - docker push $REGISTRY_IMAGE:$BUILD_TAG
+    - docker push $REGISTRY_IMAGE:latest
+
+dev mcpgw image:
+  extends: .dev-build-image
+  variables:
+    IMAGE_NAME: mcp-gateway-mcpgw
+    IMAGE_PREFIX: "$REGISTRY_IMAGE_PREFIX/$IMAGE_NAME"
+    REGISTRY_IMAGE: "$AWS_PREPROD_ECR_URL/$IMAGE_PREFIX"
+  script:
+    - BUILD_TAG="${CI_COMMIT_SHORT_SHA}"
+    - docker build -f docker/Dockerfile.mcp-server --build-arg SERVER_DIR=servers/mcpgw -t $REGISTRY_IMAGE:$BUILD_TAG -t $REGISTRY_IMAGE:latest .
+    - docker push $REGISTRY_IMAGE:$BUILD_TAG
+    - docker push $REGISTRY_IMAGE:latest
+
+# --- Release image builds (multi-arch, on rel/* tags) ---
 
 .build registry image:
   extends: .build-docker-image
@@ -33,8 +76,6 @@ build registry image arm64:
   tags:
     - crm-preprod-arm64-runner
 
-# --- Auth server image (multi-arch) ---
-
 .build auth-server image:
   extends: .build-docker-image
   stage: image
@@ -63,6 +104,37 @@ build auth-server image amd64:
 
 build auth-server image arm64:
   extends: .build auth-server image
+  variables:
+    ARCH: arm64
+  tags:
+    - crm-preprod-arm64-runner
+
+.build mcpgw image:
+  extends: .build-docker-image
+  stage: image
+  variables:
+    IMAGE_NAME: mcp-gateway-mcpgw
+    IMAGE_PREFIX: "$REGISTRY_IMAGE_PREFIX/$IMAGE_NAME"
+    REGISTRY_IMAGE: "$AWS_PREPROD_ECR_URL/$IMAGE_PREFIX"
+    REGISTRY_PROD_IMAGE: "$AWS_PROD_ECR_URL/$IMAGE_PREFIX"
+  script:
+    - VERSION=$(echo $CI_COMMIT_TAG | sed 's#rel/\(.*\)$#\1#')
+    - BUILD_TAG="$VERSION-$ARCH"
+    - REGISTRY_IMAGE_TAG="$REGISTRY_IMAGE:$BUILD_TAG"
+    - docker build -f docker/Dockerfile.mcp-server --build-arg SERVER_DIR=servers/mcpgw -t $REGISTRY_IMAGE_TAG .
+    - docker push $REGISTRY_IMAGE_TAG
+  only:
+    - /^rel\//
+
+build mcpgw image amd64:
+  extends: .build mcpgw image
+  variables:
+    ARCH: amd64
+  tags:
+    - crm-preprod-runner
+
+build mcpgw image arm64:
+  extends: .build mcpgw image
   variables:
     ARCH: arm64
   tags:

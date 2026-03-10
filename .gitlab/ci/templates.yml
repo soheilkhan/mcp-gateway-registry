@@ -1,7 +1,7 @@
 # --- Shared variables ---
 
 variables:
-  REGISTRY_IMAGE_PREFIX: "zeta-aiml/gen-ai/ai-assistants/images"
+  REGISTRY_IMAGE_PREFIX: "zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images"
 
 # --- Reusable templates ---
 

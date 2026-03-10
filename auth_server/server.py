@@ -366,9 +366,14 @@ async def validate_session_cookie(cookie_value: str) -> dict[str, any]:
         # Extract user info
         username = data.get("username")
         groups = data.get("groups", [])
+        embedded_scopes = data.get("scopes", [])
 
         # Map groups to scopes (async call to query DocumentDB)
         scopes = await map_groups_to_scopes(groups)
+
+        # Preserve scopes embedded in the session cookie when DB mapping returns empty
+        if not scopes and embedded_scopes:
+            scopes = embedded_scopes
 
         logger.info(f"Session cookie validated for user: {hash_username(username)}")
 
