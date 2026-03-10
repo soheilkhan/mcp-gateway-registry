@@ -3,7 +3,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: mcp-gateway-registry
-  namespace: mcp-gateway
+  namespace: assistants
 spec:
   chart:
     spec:
@@ -27,7 +27,7 @@ spec:
       tags:
         CostCenter: crm
         Environment: preprod
-        Feature: mcp-gateway
+        Feature: assistants
         FeatureType: mcp-gateway-registry
         Team: gen-ai
 
@@ -46,14 +46,14 @@ spec:
         className: alb
         scheme: internet-facing
         annotations:
-          external-dns.alpha.kubernetes.io/hostname: mcp-gateway-registry.eks-j.zmp-preprod-use1.zetaglobal.io
-          alb.ingress.kubernetes.io/tags: Project=mcp-gateway-registry, Feature=mcp-gateway, FeatureType=registry, Namespace=mcp-gateway, Service=registry, Team=gen-ai
+          external-dns.alpha.kubernetes.io/hostname: assistants-mcp-gateway-registry.eks-j.zmp-preprod-use1.zetaglobal.io
+          alb.ingress.kubernetes.io/tags: Project=mcp-gateway-registry, Feature=assistants, FeatureType=registry, Namespace=assistants, Service=registry, Team=gen-ai
         hosts:
-          - host: mcp-gateway-registry.eks-j.zmp-preprod-use1.zetaglobal.io
+          - host: assistants-mcp-gateway-registry.eks-j.zmp-preprod-use1.zetaglobal.io
             paths:
               - path: /*
                 pathType: ImplementationSpecific
-          - host: svc-mcp-gateway-registry.static.zmp-preprod-use1.zetaglobal.io
+          - host: svc-assistants-mcp-gateway-registry-rest.static.zmp-preprod-use1.zetaglobal.io
             paths:
               - path: /*
                 pathType: ImplementationSpecific
@@ -109,10 +109,10 @@ spec:
         className: alb
         scheme: internet-facing
         annotations:
-          external-dns.alpha.kubernetes.io/hostname: mcp-auth-server.eks-j.zmp-preprod-use1.zetaglobal.io
-          alb.ingress.kubernetes.io/tags: Project=mcp-gateway-registry, Feature=mcp-gateway, FeatureType=auth-server, Namespace=mcp-gateway, Service=auth-server, Team=gen-ai
+          external-dns.alpha.kubernetes.io/hostname: assistants-mcp-auth-server.eks-j.zmp-preprod-use1.zetaglobal.io
+          alb.ingress.kubernetes.io/tags: Project=mcp-gateway-registry, Feature=assistants, FeatureType=auth-server, Namespace=assistants, Service=auth-server, Team=gen-ai
         hosts:
-          - host: mcp-auth-server.eks-j.zmp-preprod-use1.zetaglobal.io
+          - host: assistants-mcp-auth-server.eks-j.zmp-preprod-use1.zetaglobal.io
             paths:
               - path: /*
                 pathType: ImplementationSpecific
@@ -192,7 +192,7 @@ spec:
 
     # Shared Karpenter node pool and EC2 node class (preprod)
     nodePool:
-      name: mcp-gateway.mcp-gateway-registry
+      name: assistants.mcp-gateway-registry
       labels:
         vpc.amazonaws.com/has-trunk-attached: "false"
         opentelemetry.io/enabled: "true"
@@ -204,12 +204,12 @@ spec:
       expireAfter: 168h0m0s
 
     ec2NodeClass:
-      name: mcp-gateway.mcp-gateway-registry
+      name: assistants.mcp-gateway-registry
       role: zmp-preprod-use1-eks-karpenter_nodes
       tags:
         CostCenter: crm
         Environment: preprod
-        Feature: mcp-gateway
+        Feature: assistants
         FeatureType: mcp-gateway-registry
         Role: mcp-gateway-registry
         Team: gen-ai
@@ -217,7 +217,7 @@ spec:
         - tags:
             karpenter.sh/discovery: zmp-preprod-j
             kubernetes.io/cluster/zmp-preprod-j: owned
-            EC2NodeClass: mcp-gateway.mcp-gateway-registry
+            EC2NodeClass: assistants.mcp-gateway-registry
       subnetSelectorTerms:
         - tags:
             Tier: private

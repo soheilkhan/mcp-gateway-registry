@@ -3,7 +3,7 @@ apiVersion: source.toolkit.fluxcd.io/v1beta2
 kind: HelmRepository
 metadata:
   name: mcp-gateway-registry
-  namespace: mcp-gateway
+  namespace: assistants
 spec:
   secretRef:
     name: ecr-credentials

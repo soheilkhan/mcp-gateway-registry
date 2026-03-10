@@ -3,7 +3,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: mcp-gateway-registry
-  namespace: mcp-gateway
+  namespace: assistants
 spec:
   chart:
     spec:
@@ -28,7 +28,7 @@ spec:
       tags:
         CostCenter: dev
         Environment: development
-        Feature: mcp-gateway
+        Feature: assistants
         FeatureType: mcp-gateway-registry
         Team: gen-ai
 

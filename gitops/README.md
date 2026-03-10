@@ -84,10 +84,10 @@ Select the guide that matches your deployment target:
 
 ## Namespace
 
-All resources deploy into the `mcp-gateway` namespace. Create it before deploying:
+All resources deploy into the `assistants` namespace. Create it before deploying:
 
 ```bash
-kubectl create namespace mcp-gateway
+kubectl create namespace assistants
 ```
 
 ## Customizing Values
