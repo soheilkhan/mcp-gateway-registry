@@ -8,7 +8,7 @@ if [[ "${DOCUMENTDB_HOST}" == *"docdb-elastic.amazonaws.com"* ]]; then
     echo "Detected DocumentDB Elastic cluster"
     echo "Downloading DocumentDB Elastic CA bundle..."
     CA_BUNDLE_URL="https://www.amazontrust.com/repository/SFSRootCAG2.pem"
-    CA_BUNDLE_PATH="/app/global-bundle.pem"
+    CA_BUNDLE_PATH="/app/certs/global-bundle.pem"
     if [ ! -f "$CA_BUNDLE_PATH" ]; then
         curl -fsSL "$CA_BUNDLE_URL" -o "$CA_BUNDLE_PATH"
         echo "DocumentDB Elastic CA bundle (SFSRootCAG2.pem) downloaded successfully to $CA_BUNDLE_PATH"
@@ -17,7 +17,7 @@ elif [[ "${DOCUMENTDB_HOST}" == *"docdb.amazonaws.com"* ]]; then
     echo "Detected regular DocumentDB cluster"
     echo "Downloading regular DocumentDB CA bundle..."
     CA_BUNDLE_URL="https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
-    CA_BUNDLE_PATH="/app/global-bundle.pem"
+    CA_BUNDLE_PATH="/app/certs/global-bundle.pem"
     if [ ! -f "$CA_BUNDLE_PATH" ]; then
         curl -fsSL "$CA_BUNDLE_URL" -o "$CA_BUNDLE_PATH"
         echo "DocumentDB CA bundle (global-bundle.pem) downloaded successfully to $CA_BUNDLE_PATH"
