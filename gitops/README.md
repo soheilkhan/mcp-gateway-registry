@@ -29,7 +29,7 @@ Select the guide that matches your deployment target:
 - Single ingress for the registry service
 
 **Quick start:**
-1. Copy `helmrelease-local.yaml` to your Flux config repo
+1. Copy `helmrelease-local.yaml` and `helmrepository.yaml` to your Flux config repo (e.g. under `assistants/mcp-gateway-registry/`). The HelmRelease is named `mcp-gateway-registry-local` and references the HelmRepository `mcp-gateway-registry-local`.
 2. Update image tags and hostnames as needed
 3. Add hostname to `/etc/hosts`:
    ```
@@ -63,9 +63,9 @@ Select the guide that matches your deployment target:
 
 | File | Purpose |
 |------|---------|
-| `helmrelease-local.yaml` | HelmRelease for local/dev deployments |
+| `helmrelease-local.yaml` | HelmRelease `mcp-gateway-registry-local` for local/dev deployments |
 | `helmrelease-preprod.yaml` | HelmRelease for AWS preprod/QA deployments |
-| `helmrepository.yaml` | OCI Helm repository (ECR) configuration |
+| `helmrepository.yaml` | HelmRepository `mcp-gateway-registry-local` (OCI ECR) for local chart source |
 | `README.md` | This guide |
 
 ## Key Differences Between Local and Preprod
