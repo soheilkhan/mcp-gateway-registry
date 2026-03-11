@@ -57,10 +57,19 @@ async def initialize_airegistry_server() -> bool:
         True if initialization succeeded, False otherwise
     """
     try:
+        import os
+
         logger.info("Initializing AI Registry Tools server...")
 
         # Load configuration from file
         config = _load_server_config("cli/examples/airegistry.json")
+
+        # Allow overriding the mcpgw proxy URL via environment variable so the
+        # hostname works in any deployment (docker-compose, K8s, etc.)
+        mcpgw_url = os.environ.get("MCPGW_URL")
+        if mcpgw_url:
+            config["proxy_pass_url"] = mcpgw_url
+            logger.info(f"Using MCPGW_URL override: {mcpgw_url}")
 
         # Get server repository (works with any backend: DocumentDB, MongoDB, or file)
         from registry.repositories.factory import get_server_repository

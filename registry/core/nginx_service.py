@@ -447,6 +447,17 @@ class NginxConfigService:
             else:
                 version_map = ""
 
+            # Derive auth-server upstream from AUTH_SERVER_URL (defaults to docker-compose name)
+            auth_server_url = os.environ.get("AUTH_SERVER_URL", "http://auth-server:8888")
+            try:
+                parsed_auth = urlparse(auth_server_url)
+                auth_host = parsed_auth.hostname or "auth-server"
+                auth_port = parsed_auth.port or 8888
+                auth_server_upstream = f"{auth_host}:{auth_port}"
+            except Exception:
+                auth_server_upstream = "auth-server:8888"
+            logger.info(f"Auth server upstream for Nginx: {auth_server_upstream}")
+
             # Replace placeholders in template
             config_content = template_content.replace("{{VERSION_MAP}}", version_map)
             config_content = config_content.replace(
@@ -456,6 +467,7 @@ class NginxConfigService:
                 "{{ADDITIONAL_SERVER_NAMES}}", additional_server_names
             )
             config_content = config_content.replace("{{ANTHROPIC_API_VERSION}}", api_version)
+            config_content = config_content.replace("{{AUTH_SERVER_UPSTREAM}}", auth_server_upstream)
             config_content = config_content.replace("{{KEYCLOAK_SCHEME}}", keycloak_scheme)
             config_content = config_content.replace("{{KEYCLOAK_HOST}}", keycloak_host)
             config_content = config_content.replace("{{KEYCLOAK_PORT}}", keycloak_port)
