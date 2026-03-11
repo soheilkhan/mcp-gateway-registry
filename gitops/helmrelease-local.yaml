@@ -34,14 +34,16 @@ spec:
 
     # --- Subchart: registry (API + UI + nginx) ---
     registry:
+      imagePullSecrets:
+        - name: ecr-credentials
       image:
         repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-registry
         tag: "latest"
-        pullPolicy: IfNotPresent
+        pullPolicy: Always
         internal: true
       service:
         healthCheck: /health
-        port: 8080
+        port: 80
       ingress:
         enabled: true
         className: nginx
@@ -54,17 +56,44 @@ spec:
         enabled: false
       resources:
         requests:
-          cpu: 100m
-          memory: 256M
+          cpu: 250m
+          memory: 1Gi
         limits:
-          cpu: 500m
-          memory: 256M
+          cpu: "1"
+          memory: 2Gi
       config:
         autoReload: true
         envs:
-          REGISTRY_MODE: gateway
+          REGISTRY_MODE: full
           DEPLOYMENT_MODE: with-gateway
           STORAGE_BACKEND: file
+          ADMIN_USER: admin
+          ADMIN_PASSWORD: localdev123
+          SECRET_KEY: local-dev-signing-key-do-not-use-in-production
+          BIND_HOST: "0.0.0.0"
+          AUTH_SERVER_URL: http://mcp-gateway-registry-auth-server:8888
+          AUTH_SERVER_EXTERNAL_URL: http://mcp-gateway-registry-auth-server:8888
+          AUTH_PROVIDER: none
+          MCPGW_URL: http://mcp-gateway-registry-mcpgw:8003/
+          DOCUMENTDB_USE_TLS: "false"
+          DOCUMENTDB_HOST: "none"
+      probes:
+        liveness:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 90
+          periodSeconds: 60
+          timeoutSeconds: 30
+          failureThreshold: 5
+        readiness:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 90
+          periodSeconds: 30
+          timeoutSeconds: 15
+          failureThreshold: 5
       serviceMonitor:
         enabled: false
       serviceAccount:
@@ -73,14 +102,16 @@ spec:
 
     # --- Subchart: auth-server (OAuth/OIDC) ---
     auth-server:
+      imagePullSecrets:
+        - name: ecr-credentials
       image:
         repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-auth-server
         tag: "latest"
-        pullPolicy: IfNotPresent
+        pullPolicy: Always
         internal: true
       service:
         healthCheck: /health
-        port: 8080
+        port: 8888
       ingress:
         enabled: false
       autoscaling:
@@ -94,17 +125,21 @@ spec:
           memory: 256M
       config:
         autoReload: true
-        envs: {}
+        envs:
+          BIND_HOST: "0.0.0.0"
+          SECRET_KEY: local-dev-signing-key-do-not-use-in-production
       serviceAccount:
         create: true
         name: auth-server
 
     # --- Subchart: mcpgw (MCP gateway proxy, internal only) ---
     mcpgw:
+      imagePullSecrets:
+        - name: ecr-credentials
       image:
         repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-mcpgw
         tag: "latest"
-        pullPolicy: IfNotPresent
+        pullPolicy: Always
         internal: true
       service:
         healthCheck: /health
@@ -120,9 +155,26 @@ spec:
         limits:
           cpu: 500m
           memory: 256M
+      probes:
+        liveness:
+          httpGet: null
+          tcpSocket:
+            port: http
+          periodSeconds: 60
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readiness:
+          httpGet: null
+          tcpSocket:
+            port: http
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
       config:
         autoReload: true
-        envs: {}
+        envs:
+          PORT: "8003"
+          HOST: "0.0.0.0"
       serviceAccount:
         create: true
         name: mcpgw
