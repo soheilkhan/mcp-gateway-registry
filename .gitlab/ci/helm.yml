@@ -101,7 +101,8 @@ dev helm chart:
       when: manual
     - when: never
   needs:
-    - helm-lint
+    - job: helm-lint
+      optional: true
 
 release helm chart:
   extends: .helm
@@ -117,7 +118,8 @@ release helm chart:
   only:
     - /^rel\//
   needs:
-    - helm-lint
+    - job: helm-lint
+      optional: true
 
 # --- Helm promote (to prod ECR) ---
 
