@@ -28,10 +28,9 @@ dev registry image:
     REGISTRY_IMAGE: "$AWS_PREPROD_ECR_URL/$IMAGE_PREFIX"
   script:
     - BUILD_TAG="${CI_COMMIT_SHORT_SHA}"
-    - docker build -f docker/Dockerfile.registry -t $REGISTRY_IMAGE:$BUILD_TAG -t $REGISTRY_IMAGE:latest .
+    - docker build -f docker/Dockerfile.registry -t $REGISTRY_IMAGE:$BUILD_TAG .
     - docker push $REGISTRY_IMAGE:$BUILD_TAG
-    - aws ecr batch-delete-image --repository-name $IMAGE_PREFIX --image-ids imageTag=latest --region $REGION 2>/dev/null || true
-    - docker push $REGISTRY_IMAGE:latest
+    - echo "Pushed $REGISTRY_IMAGE:$BUILD_TAG"
 
 dev auth-server image:
   extends: .dev-build-image
@@ -41,10 +40,9 @@ dev auth-server image:
     REGISTRY_IMAGE: "$AWS_PREPROD_ECR_URL/$IMAGE_PREFIX"
   script:
     - BUILD_TAG="${CI_COMMIT_SHORT_SHA}"
-    - docker build -f docker/Dockerfile.auth -t $REGISTRY_IMAGE:$BUILD_TAG -t $REGISTRY_IMAGE:latest .
+    - docker build -f docker/Dockerfile.auth -t $REGISTRY_IMAGE:$BUILD_TAG .
     - docker push $REGISTRY_IMAGE:$BUILD_TAG
-    - aws ecr batch-delete-image --repository-name $IMAGE_PREFIX --image-ids imageTag=latest --region $REGION 2>/dev/null || true
-    - docker push $REGISTRY_IMAGE:latest
+    - echo "Pushed $REGISTRY_IMAGE:$BUILD_TAG"
 
 dev mcpgw image:
   extends: .dev-build-image
@@ -54,10 +52,9 @@ dev mcpgw image:
     REGISTRY_IMAGE: "$AWS_PREPROD_ECR_URL/$IMAGE_PREFIX"
   script:
     - BUILD_TAG="${CI_COMMIT_SHORT_SHA}"
-    - docker build -f docker/Dockerfile.mcp-server --build-arg SERVER_DIR=servers/mcpgw -t $REGISTRY_IMAGE:$BUILD_TAG -t $REGISTRY_IMAGE:latest .
+    - docker build -f docker/Dockerfile.mcp-server --build-arg SERVER_DIR=servers/mcpgw -t $REGISTRY_IMAGE:$BUILD_TAG .
     - docker push $REGISTRY_IMAGE:$BUILD_TAG
-    - aws ecr batch-delete-image --repository-name $IMAGE_PREFIX --image-ids imageTag=latest --region $REGION 2>/dev/null || true
-    - docker push $REGISTRY_IMAGE:latest
+    - echo "Pushed $REGISTRY_IMAGE:$BUILD_TAG"
 
 # --- Release image builds (multi-arch, on rel/* tags) ---
 

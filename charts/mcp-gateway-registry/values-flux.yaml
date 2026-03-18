@@ -24,8 +24,8 @@ registry:
   image:
     repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-registry
     internal: true
-    pullPolicy: Always
-    tag: latest
+    pullPolicy: IfNotPresent
+    tag: latest # replace with CI_COMMIT_SHORT_SHA from dev image build
 
   ingress:
     enabled: true
@@ -86,8 +86,8 @@ auth-server:
   image:
     repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-auth-server
     internal: true
-    pullPolicy: Always
-    tag: latest
+    pullPolicy: IfNotPresent
+    tag: latest # replace with CI_COMMIT_SHORT_SHA from dev image build
 
   ingress:
     enabled: false
@@ -132,8 +132,8 @@ mcpgw:
   image:
     repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-mcpgw
     internal: true
-    pullPolicy: Always
-    tag: latest
+    pullPolicy: IfNotPresent
+    tag: latest # replace with CI_COMMIT_SHORT_SHA from dev image build
 
   ingress:
     enabled: false
