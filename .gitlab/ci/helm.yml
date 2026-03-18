@@ -90,7 +90,16 @@ dev helm chart:
     - version=$(grep '^version:' mcp-gateway-registry/Chart.yaml | cut -d ' ' -f2)
     - package_name=$(helm package mcp-gateway-registry --version ${version}-b${CI_JOB_ID} | awk '{print $NF}')
     - helm push $package_name oci://$AWS_PREPROD_ECR_URL/zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/charts
-  when: manual
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - charts/**/*
+    - if: '$CI_COMMIT_BRANCH =~ /^(main|develop)$/'
+      changes:
+        - charts/**/*
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+    - when: never
   needs:
     - helm-lint
 

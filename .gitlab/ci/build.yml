@@ -3,7 +3,22 @@
 .dev-build-image:
   extends: .build-docker-image
   stage: image
-  when: manual
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - registry/**/*
+        - auth_server/**/*
+        - servers/**/*
+        - docker/**/*
+        - pyproject.toml
+        - .gitlab-ci.yml
+        - .gitlab/ci/build.yml
+      when: manual
+    - if: '$CI_COMMIT_BRANCH =~ /^(main|develop)$/'
+      when: manual
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+    - when: never
 
 dev registry image:
   extends: .dev-build-image
@@ -15,6 +30,7 @@ dev registry image:
     - BUILD_TAG="${CI_COMMIT_SHORT_SHA}"
     - docker build -f docker/Dockerfile.registry -t $REGISTRY_IMAGE:$BUILD_TAG -t $REGISTRY_IMAGE:latest .
     - docker push $REGISTRY_IMAGE:$BUILD_TAG
+    - aws ecr batch-delete-image --repository-name $IMAGE_PREFIX --image-ids imageTag=latest --region $REGION 2>/dev/null || true
     - docker push $REGISTRY_IMAGE:latest
 
 dev auth-server image:
@@ -27,6 +43,7 @@ dev auth-server image:
     - BUILD_TAG="${CI_COMMIT_SHORT_SHA}"
     - docker build -f docker/Dockerfile.auth -t $REGISTRY_IMAGE:$BUILD_TAG -t $REGISTRY_IMAGE:latest .
     - docker push $REGISTRY_IMAGE:$BUILD_TAG
+    - aws ecr batch-delete-image --repository-name $IMAGE_PREFIX --image-ids imageTag=latest --region $REGION 2>/dev/null || true
     - docker push $REGISTRY_IMAGE:latest
 
 dev mcpgw image:
@@ -39,6 +56,7 @@ dev mcpgw image:
     - BUILD_TAG="${CI_COMMIT_SHORT_SHA}"
     - docker build -f docker/Dockerfile.mcp-server --build-arg SERVER_DIR=servers/mcpgw -t $REGISTRY_IMAGE:$BUILD_TAG -t $REGISTRY_IMAGE:latest .
     - docker push $REGISTRY_IMAGE:$BUILD_TAG
+    - aws ecr batch-delete-image --repository-name $IMAGE_PREFIX --image-ids imageTag=latest --region $REGION 2>/dev/null || true
     - docker push $REGISTRY_IMAGE:latest
 
 # --- Release image builds (multi-arch, on rel/* tags) ---

@@ -47,6 +47,10 @@ variables:
     - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
 # --- Rule sets ---
+#
+# Each rule set uses `changes:` filters scoped to the relevant source paths.
+# This ensures jobs only run when their specific code area is modified,
+# keeping chart-only or CI-only changes fast.
 
 .run_registry_tests_rules:
   rules:
@@ -56,9 +60,12 @@ variables:
         - tests/**/*
         - pyproject.toml
         - scripts/test.py
-        - .gitlab-ci.yml
-        - .gitlab/ci/**/*
     - if: '$CI_COMMIT_BRANCH =~ /^(main|develop)$/'
+      changes:
+        - registry/**/*
+        - tests/**/*
+        - pyproject.toml
+        - scripts/test.py
     - if: '$CI_PIPELINE_SOURCE == "web"'
       when: manual
     - when: never
@@ -69,14 +76,10 @@ variables:
       changes:
         - auth_server/**/*
         - tests/auth_server/**/*
-        - .gitlab-ci.yml
-        - .gitlab/ci/**/*
     - if: '$CI_COMMIT_BRANCH =~ /^(main|develop)$/'
       changes:
         - auth_server/**/*
         - tests/auth_server/**/*
-        - .gitlab-ci.yml
-        - .gitlab/ci/**/*
     - if: '$CI_PIPELINE_SOURCE == "web"'
       when: manual
     - when: never
@@ -86,13 +89,9 @@ variables:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - metrics-service/**/*
-        - .gitlab-ci.yml
-        - .gitlab/ci/**/*
     - if: '$CI_COMMIT_BRANCH =~ /^(main|develop)$/'
       changes:
         - metrics-service/**/*
-        - .gitlab-ci.yml
-        - .gitlab/ci/**/*
     - if: '$CI_PIPELINE_SOURCE == "web"'
       when: manual
     - when: never
@@ -102,13 +101,9 @@ variables:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - charts/**/*
-        - .gitlab-ci.yml
-        - .gitlab/ci/**/*
     - if: '$CI_COMMIT_BRANCH =~ /^(main|develop)$/'
       changes:
         - charts/**/*
-        - .gitlab-ci.yml
-        - .gitlab/ci/**/*
     - if: '$CI_PIPELINE_SOURCE == "web"'
       when: manual
     - when: never
@@ -118,13 +113,9 @@ variables:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - terraform/**/*
-        - .gitlab-ci.yml
-        - .gitlab/ci/**/*
     - if: '$CI_COMMIT_BRANCH =~ /^(main|develop)$/'
       changes:
         - terraform/**/*
-        - .gitlab-ci.yml
-        - .gitlab/ci/**/*
     - if: '$CI_PIPELINE_SOURCE == "web"'
       when: manual
     - when: never
