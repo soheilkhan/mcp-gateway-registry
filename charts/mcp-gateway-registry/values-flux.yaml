@@ -1,119 +1,73 @@
 ---
 global:
-  accountId: 636347950933 # used in dev to find image in ECR
-  clusterKey: local # local, j, l, a, b
-  region: us-east-1 # us-east-1, us-west-1
-  regionCode: use1 # use1, euw1
-  businessUnit: zmp # zmp, zme
-  environment: &env development # development,test,preprod,qa,prod
+  accountId: 636347950933
+  clusterKey: local
+  region: us-east-1
+  regionCode: use1
+  businessUnit: zmp
+  environment: &env development
   tags:
     CostCenter: dev
     Environment: *env
-    Feature: dev
-    FeatureType: dev
-    Team: dev
+    Feature: assistants
+    FeatureType: mcp-gateway-registry
+    Team: gen-ai
 
 
 registry:
+  replicaCount: 1
+
   service:
     healthCheck: /health
     port: 8080
+
   image:
-    # appropriate values for preprod and higher envs are commented out
-    # current values here are for local development
-    repository: localhost:5000/mylocalimage # zeta-crm/zmp/event-consumers
-    internal: false # true
-    pullPolicy: Always # IfNotPresent
-    tag: latest #1.16.0-3adc605e
-    command:
-      - "sleep"
-    args:
-      - "infinity"
+    repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-registry
+    internal: true
+    pullPolicy: Always
+    tag: latest
+
   ingress:
     enabled: true
-    className: alb # nlb,alb,canary
+    className: alb
     scheme: internet-facing
-    hosts: # cluster host added automatically
-      - host: service1.app.phoenix.api.zetaglobal.net
-        paths: # paths apply only to specific host
-          - path: /route/to/service1
-            pathType: ImplementationSpecific
-            service: service1
-      - host: service2.app.phoenix.api.zetaglobal.net
-        paths:
-          - path: /route/service2
-            pathType: ImplementationSpecific
-            service: service2
+
   autoscaling:
-    enabled: true
-    minReplicas: 1
-    maxReplicas: 10
-    # triggers:
-    #   - type: prometheus
-    #     metricType: Value
-    #     metadata:
-    #       serverAddress: http://kube-prometheus-stack-prometheus.observability-system:9090
-    #       query: rate(server_requests_total{service="application"}[1m])
-    #       threshold: "0.80"
-    #   - type: cron
-    #     metadata:
-    #       timezone: UTC
-    #       start: 30 15 * * *
-    #       end:   40 15 * * *
-    #       desiredReplicas: "12"
+    enabled: false
+
   resources:
     requests:
-      cpu: 100m
-      memory: 256M
+      cpu: 1
+      memory: 1Gi
     limits:
-      cpu: 500m
-      memory: 256M
+      cpu: 2
+      memory: 2Gi
 
   config:
-    autoReload: true # reload app on config changes
-    #defaultMountPath: /opt/application.config  # mounts all configs to this path
-    # mounts these as envs in all containers
+    autoReload: true
     envs:
-      example_secret: ssm:/zeta-global/crm/crm-dev/k8s/application/example_secret
-      example_plaintext: abc123
-    flatFiles:
-      - name: flat.yaml
-        value: |
-          [ini format]
-          can be anything
-          even json { }
-    secretFiles:
-      - name: secret.yaml
-        path: /etc/secret.yaml # needed if not using default mount path
-        value:
-          plainKey: plainValue
-          secretKey: ssm:/zeta-global/crm/crm-dev/k8s/application/secret-value
-    plainFiles:
-      - name: filename.yaml
-        path: /etc/filename.yaml # needed if not using default mount path
-        value:
-          key: value
-          key2: value2
-    volumeMounts: # size limits are per pod, so set your ephemeral storage in karpenter below
+      REGISTRY_MODE: full
+      DEPLOYMENT_MODE: with-gateway
+      STORAGE_BACKEND: file
+      BIND_HOST: "0.0.0.0"
+      AUTH_PROVIDER: none
+      DOCUMENTDB_USE_TLS: "false"
+      DOCUMENTDB_HOST: "none"
+    volumeMounts:
       - name: registry-data
         path: /data
         sizeLimit: 5Gi
+
   serviceMonitor:
     enabled: true
-
 
   serviceAccount:
     create: true
     name: registry
-    # Use this section if you need to annotation with a freeform role-arn
-    #annotations:
-    #  eks.amazonaws.com/role-arn: arn:aws:iam::{{ $root.account_id }}:role/{{ .role_name}}
 
-  # only need to define any overrides here, defaults are already provided
-  karpenter: 
+  karpenter:
     nodeClass:
       ami: bottlerocket@latest
-      # NOTE: if you have multiple pods per node this is shared across them
       ephemeralStorage: 5Gi
     nodePool:
       instance:
@@ -121,97 +75,44 @@ registry:
           operator: Gt
           values:
             - "6"
+
 auth-server:
+  replicaCount: 1
+
   service:
     healthCheck: /health
-    port: 8080
+    port: 8888
+
   image:
-    # appropriate values for preprod and higher envs are commented out
-    # current values here are for local development
-    repository: localhost:5000/mylocalimage # zeta-crm/zmp/event-consumers
-    internal: false # true
-    pullPolicy: Always # IfNotPresent
-    tag: latest #1.16.0-3adc605e
-    command:
-      - "sleep"
-    args:
-      - "infinity"
+    repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-auth-server
+    internal: true
+    pullPolicy: Always
+    tag: latest
+
   ingress:
-    enabled: true
-    className: alb # nlb,alb,canary
-    scheme: internet-facing
-    hosts: # cluster host added automatically
-      - host: service1.app.phoenix.api.zetaglobal.net
-        paths: # paths apply only to specific host
-          - path: /route/to/service1
-            pathType: ImplementationSpecific
-            service: service1
-      - host: service2.app.phoenix.api.zetaglobal.net
-        paths:
-          - path: /route/service2
-            pathType: ImplementationSpecific
-            service: service2
+    enabled: false
+
   autoscaling:
-    enabled: true
-    minReplicas: 1
-    maxReplicas: 10
-    # triggers:
-    #   - type: prometheus
-    #     metricType: Value
-    #     metadata:
-    #       serverAddress: http://kube-prometheus-stack-prometheus.observability-system:9090
-    #       query: rate(server_requests_total{service="application"}[1m])
-    #       threshold: "0.80"
-    #   - type: cron
-    #     metadata:
-    #       timezone: UTC
-    #       start: 30 15 * * *
-    #       end:   40 15 * * *
-    #       desiredReplicas: "12"
+    enabled: false
+
   resources:
     requests:
-      cpu: 100m
-      memory: 256M
-    limits:
       cpu: 500m
-      memory: 256M
+      memory: 512Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
 
   config:
-    autoReload: true # reload app on config changes
-    #defaultMountPath: /opt/application.config  # mounts all configs to this path
-    # mounts these as envs in all containers
+    autoReload: true
     envs:
-      example_secret: ssm:/zeta-global/crm/crm-dev/k8s/application/example_secret
-      example_plaintext: abc123
-    flatFiles:
-      - name: flat.yaml
-        value: |
-          [ini format]
-          can be anything
-          even json { }
-    secretFiles:
-      - name: secret.yaml
-        path: /etc/secret.yaml # needed if not using default mount path
-        value:
-          plainKey: plainValue
-          secretKey: ssm:/zeta-global/crm/crm-dev/k8s/application/secret-value
-    plainFiles:
-      - name: filename.yaml
-        path: /etc/filename.yaml # needed if not using default mount path
-        value:
-          key: value
-          key2: value2
-
+      BIND_HOST: "0.0.0.0"
 
   serviceAccount:
     create: true
     name: auth-server
-    # Use this section if you need to annotation with a freeform role-arn
-    #annotations:
-    #  eks.amazonaws.com/role-arn: arn:aws:iam::{{ $root.account_id }}:role/{{ .role_name}}
 
-  # only need to define any overrides here, defaults are already provided
-  karpenter: 
+  karpenter:
     nodeClass:
       ami: bottlerocket@latest
     nodePool:
@@ -220,82 +121,59 @@ auth-server:
           operator: Gt
           values:
             - "6"
+
 mcpgw:
+  replicaCount: 1
+
   service:
-    healthCheck: 
-    port: 8080
+    healthCheck: ""
+    port: 8003
+
   image:
-    # appropriate values for preprod and higher envs are commented out
-    # current values here are for local development
-    repository: localhost:5000/mylocalimage # zeta-crm/zmp/event-consumers
-    internal: false # true
-    pullPolicy: Always # IfNotPresent
-    tag: latest #1.16.0-3adc605e
-    command:
-      - "sleep"
-    args:
-      - "infinity"
+    repository: zeta-aiml/gen-ai/ai-assistants/mcp-gateway-registry/images/mcp-gateway-mcpgw
+    internal: true
+    pullPolicy: Always
+    tag: latest
+
+  ingress:
+    enabled: false
+
   autoscaling:
-    enabled: true
-    minReplicas: 1
-    maxReplicas: 10
-    # triggers:
-    #   - type: prometheus
-    #     metricType: Value
-    #     metadata:
-    #       serverAddress: http://kube-prometheus-stack-prometheus.observability-system:9090
-    #       query: rate(server_requests_total{service="application"}[1m])
-    #       threshold: "0.80"
-    #   - type: cron
-    #     metadata:
-    #       timezone: UTC
-    #       start: 30 15 * * *
-    #       end:   40 15 * * *
-    #       desiredReplicas: "12"
+    enabled: false
+
   resources:
     requests:
-      cpu: 100m
-      memory: 256M
-    limits:
       cpu: 500m
-      memory: 256M
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+
+  probes:
+    liveness:
+      httpGet: null
+      tcpSocket:
+        port: http
+      periodSeconds: 60
+      timeoutSeconds: 10
+    readiness:
+      httpGet: null
+      tcpSocket:
+        port: http
+      periodSeconds: 30
+      timeoutSeconds: 10
 
   config:
-    autoReload: true # reload app on config changes
-    #defaultMountPath: /opt/application.config  # mounts all configs to this path
-    # mounts these as envs in all containers
+    autoReload: true
     envs:
-      example_secret: ssm:/zeta-global/crm/crm-dev/k8s/application/example_secret
-      example_plaintext: abc123
-    flatFiles:
-      - name: flat.yaml
-        value: |
-          [ini format]
-          can be anything
-          even json { }
-    secretFiles:
-      - name: secret.yaml
-        path: /etc/secret.yaml # needed if not using default mount path
-        value:
-          plainKey: plainValue
-          secretKey: ssm:/zeta-global/crm/crm-dev/k8s/application/secret-value
-    plainFiles:
-      - name: filename.yaml
-        path: /etc/filename.yaml # needed if not using default mount path
-        value:
-          key: value
-          key2: value2
-
+      PORT: "8003"
+      HOST: "0.0.0.0"
 
   serviceAccount:
     create: true
     name: mcpgw
-    # Use this section if you need to annotation with a freeform role-arn
-    #annotations:
-    #  eks.amazonaws.com/role-arn: arn:aws:iam::{{ $root.account_id }}:role/{{ .role_name}}
 
-  # only need to define any overrides here, defaults are already provided
-  karpenter: 
+  karpenter:
     nodeClass:
       ami: bottlerocket@latest
     nodePool:

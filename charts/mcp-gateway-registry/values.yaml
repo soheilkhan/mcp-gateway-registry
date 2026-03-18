@@ -1,15 +1,158 @@
 ---
 global:
-  defaultEcrAccount: 636347950933 # used in dev to find image in ECR
-  accountId: 123456789012 # fake account id
-  clusterKey: local # local, j, l, a, b
-  region: us-east-1 # us-east-1, us-west-1
-  regionCode: use1 # use1, euw1
-  businessUnit: zmp # zmp, zme
-  environment: &env development # development,test,preprod,qa,prod
+  defaultEcrAccount: 636347950933
+  accountId: 123456789012
+  clusterKey: local
+  region: us-east-1
+  regionCode: use1
+  businessUnit: zmp
+  environment: &env development
   tags:
     CostCenter: dev
     Environment: *env
-    Feature: dev
-    FeatureType: dev
-    Team: dev
+    Feature: assistants
+    FeatureType: mcp-gateway-registry
+    Team: gen-ai
+
+# --- Subchart: registry (API + UI + nginx) ---
+registry:
+  serviceAccount:
+    create: true
+    name: registry
+
+  service:
+    healthCheck: /health
+    port: 8080
+
+  resources:
+    requests:
+      cpu: 1
+      memory: 1Gi
+    limits:
+      cpu: 2
+      memory: 2Gi
+
+  autoscaling:
+    enabled: false
+
+  config:
+    autoReload: true
+    envs:
+      REGISTRY_MODE: full
+      DEPLOYMENT_MODE: with-gateway
+      STORAGE_BACKEND: file
+      BIND_HOST: "0.0.0.0"
+      AUTH_PROVIDER: none
+      AUTH_SERVER_URL: http://mcp-gateway-registry-auth-server:8888
+      AUTH_SERVER_EXTERNAL_URL: http://mcp-gateway-registry-auth-server:8888
+      MCPGW_URL: http://mcp-gateway-registry-mcpgw:8003/
+      DOCUMENTDB_USE_TLS: "false"
+      DOCUMENTDB_HOST: "none"
+    volumeMounts:
+      - name: registry-data
+        path: /data
+        sizeLimit: 5Gi
+
+  karpenter:
+    nodeClass:
+      ami: bottlerocket@latest
+      ephemeralStorage: 5Gi
+    nodePool:
+      instance:
+        generation:
+          operator: Gt
+          values:
+            - "6"
+
+# --- Subchart: auth-server (OAuth/OIDC) ---
+auth-server:
+  serviceAccount:
+    create: true
+    name: auth-server
+
+  service:
+    healthCheck: /health
+    port: 8888
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+
+  autoscaling:
+    enabled: false
+
+  config:
+    autoReload: true
+    envs:
+      BIND_HOST: "0.0.0.0"
+
+  ingress:
+    enabled: false
+
+  karpenter:
+    nodeClass:
+      ami: bottlerocket@latest
+    nodePool:
+      instance:
+        generation:
+          operator: Gt
+          values:
+            - "6"
+
+# --- Subchart: mcpgw (MCP gateway proxy, internal only) ---
+mcpgw:
+  serviceAccount:
+    create: true
+    name: mcpgw
+
+  service:
+    healthCheck: ""
+    port: 8003
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+
+  probes:
+    liveness:
+      httpGet: null
+      tcpSocket:
+        port: http
+      periodSeconds: 60
+      timeoutSeconds: 10
+    readiness:
+      httpGet: null
+      tcpSocket:
+        port: http
+      periodSeconds: 30
+      timeoutSeconds: 10
+
+  autoscaling:
+    enabled: false
+
+  config:
+    autoReload: true
+    envs:
+      PORT: "8003"
+      HOST: "0.0.0.0"
+
+  ingress:
+    enabled: false
+
+  karpenter:
+    nodeClass:
+      ami: bottlerocket@latest
+    nodePool:
+      instance:
+        generation:
+          operator: Gt
+          values:
+            - "6"
