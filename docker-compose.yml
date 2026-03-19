@@ -232,6 +232,7 @@ services:
     environment:
       - BIND_HOST=0.0.0.0
       - REGISTRY_URL=${REGISTRY_URL}
+      - AUTH_SERVER_EXTERNAL_URL=${AUTH_SERVER_EXTERNAL_URL:-http://localhost:8888}
       - SECRET_KEY=${SECRET_KEY}
       - ADMIN_USER=${ADMIN_USER:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
@@ -265,6 +266,15 @@ services:
       - ENTRA_CLIENT_ID=${ENTRA_CLIENT_ID}
       - ENTRA_CLIENT_SECRET=${ENTRA_CLIENT_SECRET}
       - ENTRA_ENABLED=${ENTRA_ENABLED:-false}
+      # Auth0 configuration
+      - AUTH0_DOMAIN=${AUTH0_DOMAIN}
+      - AUTH0_CLIENT_ID=${AUTH0_CLIENT_ID}
+      - AUTH0_CLIENT_SECRET=${AUTH0_CLIENT_SECRET}
+      - AUTH0_AUDIENCE=${AUTH0_AUDIENCE:-}
+      - AUTH0_GROUPS_CLAIM=${AUTH0_GROUPS_CLAIM:-https://mcp-gateway/groups}
+      - AUTH0_ENABLED=${AUTH0_ENABLED:-false}
+      - AUTH0_M2M_CLIENT_ID=${AUTH0_M2M_CLIENT_ID:-}
+      - AUTH0_M2M_CLIENT_SECRET=${AUTH0_M2M_CLIENT_SECRET:-}
       # Storage Backend Configuration
       - STORAGE_BACKEND=${STORAGE_BACKEND:-file}
       # DocumentDB/MongoDB Configuration (when STORAGE_BACKEND=documentdb or mongodb-ce)
