@@ -364,6 +364,14 @@ async def register_agent(
 
     tag_list = [tag.strip() for tag in request.tags.split(",") if tag.strip()]
 
+    # Parse external_tags
+    external_tag_list = []
+    if request.external_tags:
+        if isinstance(request.external_tags, str):
+            external_tag_list = [tag.strip() for tag in request.external_tags.split(",") if tag.strip()]
+        elif isinstance(request.external_tags, list):
+            external_tag_list = [tag.strip() for tag in request.external_tags if tag.strip()]
+
     # Convert provider dict to AgentProvider object if provided
     provider_obj = None
     if request.provider:
@@ -371,6 +379,21 @@ async def register_agent(
             organization=request.provider.get("organization", ""),
             url=request.provider.get("url", ""),
         )
+
+    # Parse source timestamps
+    source_created_dt = None
+    if request.source_created_at:
+        try:
+            source_created_dt = datetime.fromisoformat(request.source_created_at.replace('Z', '+00:00'))
+        except ValueError:
+            logger.warning(f"Invalid source_created_at format: {request.source_created_at}")
+
+    source_updated_dt = None
+    if request.source_updated_at:
+        try:
+            source_updated_dt = datetime.fromisoformat(request.source_updated_at.replace('Z', '+00:00'))
+        except ValueError:
+            logger.warning(f"Invalid source_updated_at format: {request.source_updated_at}")
 
     try:
         from ..utils.agent_validator import agent_validator
@@ -382,6 +405,7 @@ async def register_agent(
             url=request.url,
             path=path,
             version=request.version,
+            status=request.status,
             provider=provider_obj,
             security_schemes=request.security_schemes or {},
             skills=request.skills or [],
@@ -390,6 +414,9 @@ async def register_agent(
             license=request.license,
             visibility=request.visibility,
             registered_by=user_context["username"],
+            source_created_at=source_created_dt,
+            source_updated_at=source_updated_dt,
+            external_tags=external_tag_list,
         )
 
         validation_result = await agent_validator.validate_agent_card(
@@ -546,6 +573,13 @@ async def list_agents(
                 trust_level=agent.trust_level,
                 sync_metadata=agent.sync_metadata,
                 registered_by=agent.registered_by,
+                status=agent.status.value if hasattr(agent, 'status') and agent.status else "active",
+                provider_organization=agent.provider.organization if agent.provider else None,
+                provider_url=agent.provider.url if agent.provider else None,
+                source_created_at=agent.source_created_at.isoformat() if agent.source_created_at else None,
+                source_updated_at=agent.source_updated_at.isoformat() if agent.source_updated_at else None,
+                registered_at=agent.registered_at.isoformat() if agent.registered_at else None,
+                updated_at=agent.updated_at.isoformat() if agent.updated_at else None,
             )
             filtered_agents.append(agent_info)
 

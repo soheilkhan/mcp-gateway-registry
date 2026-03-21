@@ -198,6 +198,37 @@ All example files include the complete A2A agent schema:
 - `registered_by`: Username who registered (auto-set)
 - `signature`: JWS signature for integrity
 
+**Federation & Lifecycle Metadata (New):**
+- `status`: Lifecycle status - "active", "beta", "draft", or "deprecated"
+- `provider`: Provider information object with:
+  - `organization`: Provider organization name
+  - `url`: Provider website or documentation URL
+- `source_created_at`: Original creation timestamp from source system (ISO 8601 format)
+- `source_updated_at`: Last update timestamp from source system (ISO 8601 format)
+
+### Complete Examples with All Fields
+
+For reference implementations showing all available fields including the new federation and lifecycle metadata:
+
+**complete-server-example.json**
+- Shows all server configuration fields
+- Includes lifecycle status, provider info, federation timestamps
+- Demonstrates custom metadata usage
+
+**complete-agent-example.json**
+- Shows all agent configuration fields
+- Includes lifecycle status, provider info, federation timestamps
+- Full agent card schema example
+
+**Usage:**
+```bash
+# Register server with all fields
+uv run python cli/registry_mgmt.py register cli/examples/complete-server-example.json
+
+# Register agent with all fields
+uv run python cli/agent_mgmt.py register cli/examples/complete-agent-example.json
+```
+
 ## Creating Your Own Agent File
 
 Copy an example and modify the fields:

@@ -129,6 +129,32 @@ class Settings(BaseSettings):
         description="Workday OAuth token endpoint URL for ASOR federation (must use HTTPS in production)",
     )
 
+    # Registry Card configuration
+    registry_url: str = Field(
+        default="http://localhost:8000",
+        description="Base URL of this registry instance (HTTPS required in production)",
+    )
+    registry_organization_name: str = Field(
+        default="ACME Inc.",
+        description="Organization that operates this registry",
+    )
+    registry_name: str = Field(
+        default="AI Registry",
+        description="Human-readable display name for this registry instance",
+    )
+    registry_description: str | None = Field(
+        default=None,
+        description="Description of this registry instance",
+    )
+    registry_contact_email: str | None = Field(
+        default=None,
+        description="Contact email for registry operators",
+    )
+    registry_contact_url: str | None = Field(
+        default=None,
+        description="Documentation or support URL",
+    )
+
     # Audit Logging Configuration
     audit_log_enabled: bool = True  # Enable/disable audit logging globally
     audit_log_dir: str = "logs/audit"  # Directory for local audit log files

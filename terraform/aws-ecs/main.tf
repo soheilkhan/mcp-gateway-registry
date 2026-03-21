@@ -154,6 +154,13 @@ module "mcp_gateway" {
   federation_static_token              = var.federation_static_token
   federation_encryption_key            = var.federation_encryption_key
 
+  # Registry card configuration (federation metadata)
+  registry_name              = var.registry_name
+  registry_organization_name = var.registry_organization_name
+  registry_description       = var.registry_description
+  registry_contact_email     = var.registry_contact_email
+  registry_contact_url       = var.registry_contact_url
+
   # Audit logging configuration
   audit_log_enabled  = var.audit_log_enabled
   audit_log_ttl_days = var.audit_log_ttl_days

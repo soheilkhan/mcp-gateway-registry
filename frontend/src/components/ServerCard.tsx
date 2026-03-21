@@ -14,6 +14,7 @@ import {
   ShieldCheckIcon,
   ShieldExclamationIcon,
   TrashIcon,
+  InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 import ServerConfigModal from './ServerConfigModal';
 import SecurityScanModal from './SecurityScanModal';
@@ -21,7 +22,10 @@ import StarRatingWidget from './StarRatingWidget';
 import VersionBadge from './VersionBadge';
 import VersionSelectorModal from './VersionSelectorModal';
 import DeleteConfirmation from './DeleteConfirmation';
+import StatusBadge from './StatusBadge';
+import ServerDetailsModal from './ServerDetailsModal';
 import useEscapeKey from '../hooks/useEscapeKey';
+import { formatRelativeTime } from '../utils/dateUtils';
 
 interface ServerVersion {
   version: string;
@@ -70,6 +74,10 @@ export interface Server {
   // Backend authentication
   auth_scheme?: string;
   auth_header_name?: string;
+  // Lifecycle status
+  lifecycle_status?: 'active' | 'deprecated' | 'draft' | 'beta';
+  source_created_at?: string;
+  source_updated_at?: string;
 }
 
 interface ServerCardProps {
@@ -144,6 +152,7 @@ const ServerCard: React.FC<ServerCardProps> = React.memo(({ server, onToggle, on
   const [loadingSecurityScan, setLoadingSecurityScan] = useState(false);
   const [showVersionSelector, setShowVersionSelector] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
 
   const closeToolsModal = useCallback(() => {
@@ -388,6 +397,9 @@ const ServerCard: React.FC<ServerCardProps> = React.memo(({ server, onToggle, on
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate">
                   {server.name}
                 </h3>
+                {server.lifecycle_status && (
+                  <StatusBadge status={server.lifecycle_status} />
+                )}
                 {server.official && (
                   <span className="px-2 py-0.5 text-xs font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full flex-shrink-0">
                     OFFICIAL
@@ -615,10 +627,20 @@ const ServerCard: React.FC<ServerCardProps> = React.memo(({ server, onToggle, on
 
             {/* Controls */}
             <div className="flex items-center gap-3">
+              {/* Last Updated (source timestamp) */}
+              {server.source_updated_at && (
+                <div className="text-xs text-gray-500 dark:text-gray-300 flex items-center gap-1.5">
+                  <ClockIcon className="h-3.5 w-3.5" />
+                  <span title={new Date(server.source_updated_at).toLocaleString()}>
+                    {formatRelativeTime(server.source_updated_at)}
+                  </span>
+                </div>
+              )}
+
               {/* Last Checked */}
               {(() => {
                 const timeText = formatTimeSince(server.last_checked_time);
-                return server.last_checked_time && timeText ? (
+                return server.last_checked_time && timeText && !server.source_updated_at ? (
                   <div className="text-xs text-gray-500 dark:text-gray-300 flex items-center gap-1.5">
                     <ClockIcon className="h-3.5 w-3.5" />
                     <span>{timeText}</span>
@@ -793,6 +815,13 @@ const ServerCard: React.FC<ServerCardProps> = React.memo(({ server, onToggle, on
         onShowToast={onShowToast}
         authToken={authToken}
         canModify={canModify}
+      />
+
+      <ServerDetailsModal
+        server={server}
+        isOpen={showDetails}
+        onClose={() => setShowDetails(false)}
+        fullDetails={server}
       />
 
     </>

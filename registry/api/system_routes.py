@@ -196,6 +196,39 @@ async def _get_database_status() -> dict:
         }
 
 
+async def _get_registry_card_status() -> dict:
+    """Get registry card initialization status.
+
+    Returns:
+        Dictionary with registry card status information
+    """
+    try:
+        from registry.repositories.factory import get_registry_card_repository
+
+        repo = get_registry_card_repository()
+        card = await repo.get()
+
+        if card:
+            return {
+                "initialized": True,
+                "registry_id": str(card.id),
+                "name": card.name,
+            }
+        else:
+            return {
+                "initialized": False,
+                "registry_id": None,
+                "name": None,
+            }
+    except Exception as e:
+        logger.error(f"Failed to get registry card status: {e}")
+        return {
+            "initialized": False,
+            "registry_id": None,
+            "name": None,
+        }
+
+
 async def _get_cached_stats() -> dict:
     """Get system stats with caching to reduce load.
 
@@ -220,6 +253,7 @@ async def _get_cached_stats() -> dict:
     registry_stats = await _get_registry_stats()
     database_status = await _get_database_status()
     auth_status = await _get_auth_status()
+    registry_card_status = await _get_registry_card_status()
 
     # Calculate uptime
     if _server_start_time:
@@ -239,6 +273,7 @@ async def _get_cached_stats() -> dict:
         "registry_stats": registry_stats,
         "database_status": database_status,
         "auth_status": auth_status,
+        "registry_card_status": registry_card_status,
     }
 
     # Update cache
@@ -267,6 +302,7 @@ async def get_system_stats():
     - Deployment environment and mode
     - Registry resource counts (servers, agents, skills)
     - Database health status
+    - Registry card initialization status
 
     Response is cached for 30 seconds to reduce load.
 
@@ -280,6 +316,7 @@ async def get_system_stats():
         - registry_stats: Object with servers, agents, skills counts
         - database_status: Object with backend, status, host
         - auth_status: Object with provider, status, url
+        - registry_card_status: Object with initialized, registry_id, name
     """
     try:
         stats = await _get_cached_stats()

@@ -581,6 +581,40 @@ variable "audit_log_ttl_days" {
 }
 
 # =============================================================================
+# REGISTRY CARD CONFIGURATION (Federation Metadata)
+# =============================================================================
+
+variable "registry_name" {
+  description = "Human-readable registry name for federation and discovery. If not set, a random Docker-style name will be generated."
+  type        = string
+  default     = ""
+}
+
+variable "registry_organization_name" {
+  description = "Organization that operates this registry. Defaults to 'ACME Inc.' if not set."
+  type        = string
+  default     = ""
+}
+
+variable "registry_description" {
+  description = "Registry description for federation discovery."
+  type        = string
+  default     = ""
+}
+
+variable "registry_contact_email" {
+  description = "Contact email for registry administrators. Leave empty if not publicly shared."
+  type        = string
+  default     = ""
+}
+
+variable "registry_contact_url" {
+  description = "Documentation or support URL for this registry. Leave empty if not available."
+  type        = string
+  default     = ""
+}
+
+# =============================================================================
 # DEPLOYMENT MODE CONFIGURATION
 # =============================================================================
 

@@ -377,6 +377,7 @@ async def get_servers_json(
 
             service_data.append(
                 {
+                    "id": server_info.get("id"),
                     "display_name": server_name,
                     "path": path,
                     "description": server_info.get("description", ""),
@@ -401,6 +402,22 @@ async def get_servers_json(
                     "auth_scheme": server_info.get("auth_scheme", "none"),
                     "auth_header_name": server_info.get("auth_header_name"),
                     "tool_list": server_info.get("tool_list"),
+                    # Federation and lifecycle metadata
+                    "status": server_info.get("status", "active"),
+                    "provider_organization": (
+                        server_info.get("provider", {}).get("organization")
+                        if isinstance(server_info.get("provider"), dict)
+                        else None
+                    ),
+                    "provider_url": (
+                        server_info.get("provider", {}).get("url")
+                        if isinstance(server_info.get("provider"), dict)
+                        else None
+                    ),
+                    "source_created_at": server_info.get("source_created_at"),
+                    "source_updated_at": server_info.get("source_updated_at"),
+                    "registered_at": server_info.get("registered_at"),
+                    "updated_at": server_info.get("updated_at"),
                 }
             )
 
@@ -532,6 +549,11 @@ async def register_service(
     auth_scheme: Annotated[str, Form()] = "none",
     auth_credential: Annotated[str | None, Form()] = None,
     auth_header_name: Annotated[str | None, Form()] = None,
+    status: Annotated[str | None, Form()] = None,
+    provider_organization: Annotated[str | None, Form()] = None,
+    provider_url: Annotated[str | None, Form()] = None,
+    source_created_at: Annotated[str | None, Form()] = None,
+    source_updated_at: Annotated[str | None, Form()] = None,
     user_context: Annotated[dict, Depends(enhanced_auth)] = None,
 ):
     """Register a new service (requires register_service UI permission)."""
@@ -582,8 +604,11 @@ async def register_service(
             detail="group-restricted visibility requires at least one allowed_group",
         )
 
-    # Create server entry
+    # Create server entry with auto-generated UUID
+    from uuid import uuid4
+
     server_entry = {
+        "id": str(uuid4()),
         "server_name": name,
         "description": description,
         "path": path,
@@ -629,6 +654,39 @@ async def register_service(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to encrypt credential",
             )
+
+    # Add lifecycle and federation fields
+    if status:
+        server_entry["status"] = status
+
+    # Add provider information (stored as nested AgentProvider object)
+    if provider_organization or provider_url:
+        from registry.schemas.agent_models import AgentProvider
+
+        server_entry["provider"] = AgentProvider(
+            organization=provider_organization,
+            url=provider_url,
+        ).model_dump()
+
+    # Add source timestamps
+    if source_created_at:
+        try:
+            from datetime import datetime
+
+            # Validate ISO format
+            datetime.fromisoformat(source_created_at.replace("Z", "+00:00"))
+            server_entry["source_created_at"] = source_created_at
+        except ValueError:
+            logger.warning(f"Invalid source_created_at format: {source_created_at}")
+
+    if source_updated_at:
+        try:
+            from datetime import datetime
+
+            datetime.fromisoformat(source_updated_at.replace("Z", "+00:00"))
+            server_entry["source_updated_at"] = source_updated_at
+        except ValueError:
+            logger.warning(f"Invalid source_updated_at format: {source_updated_at}")
 
     # Register the server (or new version if path exists with different version)
     result = await server_service.register_server(server_entry)
@@ -796,8 +854,11 @@ async def internal_register_service(
             },
         )
 
-    # Create server entry
+    # Create server entry with auto-generated UUID
+    from uuid import uuid4
+
     server_entry = {
+        "id": str(uuid4()),
         "server_name": name,
         "description": description,
         "path": path,
@@ -2249,6 +2310,11 @@ async def register_service_api(
     metadata: Annotated[str | None, Form()] = None,
     version: Annotated[str | None, Form()] = None,
     status: Annotated[str | None, Form()] = None,
+    provider_organization: Annotated[str | None, Form()] = None,
+    provider_url: Annotated[str | None, Form()] = None,
+    source_created_at: Annotated[str | None, Form()] = None,
+    source_updated_at: Annotated[str | None, Form()] = None,
+    external_tags: Annotated[str | None, Form()] = None,
 ):
     """
     Register a service via JWT Bearer Token authentication (External API).
@@ -2279,7 +2345,12 @@ async def register_service_api(
     - `mcp_endpoint` (optional): Full URL for custom MCP endpoint (overrides /mcp suffix)
     - `sse_endpoint` (optional): Full URL for custom SSE endpoint (overrides /sse suffix)
     - `version` (optional): Server version (e.g., v1.0.0, v2.0.0)
-    - `status` (optional): Version status (stable, beta, deprecated)
+    - `status` (optional): Lifecycle status (active, deprecated, draft, beta)
+    - `provider_organization` (optional): Provider organization name
+    - `provider_url` (optional): Provider URL
+    - `source_created_at` (optional): Original creation timestamp (ISO format)
+    - `source_updated_at` (optional): Last update timestamp (ISO format)
+    - `external_tags` (optional): Comma-separated tags from external system
 
     **Response:**
     - `201 Created`: Service registered successfully
@@ -2364,8 +2435,11 @@ async def register_service_api(
             },
         )
 
-    # Create server entry
+    # Create server entry with auto-generated UUID
+    from uuid import uuid4
+
     server_entry = {
+        "id": str(uuid4()),
         "server_name": name,
         "description": description,
         "path": path,
@@ -2393,6 +2467,38 @@ async def register_service_api(
         server_entry["version"] = version
     if status:
         server_entry["status"] = status
+
+    # Add provider information
+    if provider_organization or provider_url:
+        from registry.schemas.agent_models import AgentProvider
+        server_entry["provider"] = AgentProvider(
+            organization=provider_organization,
+            url=provider_url,
+        ).model_dump()
+
+    # Add source timestamps
+    if source_created_at:
+        try:
+            from datetime import datetime
+            # Validate ISO format
+            datetime.fromisoformat(source_created_at.replace('Z', '+00:00'))
+            server_entry["source_created_at"] = source_created_at
+        except ValueError:
+            logger.warning(f"Invalid source_created_at format: {source_created_at}")
+
+    if source_updated_at:
+        try:
+            from datetime import datetime
+            datetime.fromisoformat(source_updated_at.replace('Z', '+00:00'))
+            server_entry["source_updated_at"] = source_updated_at
+        except ValueError:
+            logger.warning(f"Invalid source_updated_at format: {source_updated_at}")
+
+    # Add external tags
+    if external_tags:
+        external_tags_list = [tag.strip() for tag in external_tags.split(",") if tag.strip()]
+        if external_tags_list:
+            server_entry["external_tags"] = external_tags_list
 
     # Encrypt credential before storage (if provided)
     if auth_credential and auth_scheme != "none":

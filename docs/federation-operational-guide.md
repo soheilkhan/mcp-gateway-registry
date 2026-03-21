@@ -500,6 +500,76 @@ Set up alerts for:
 5. **Monitor sync activity**: Review sync logs for unexpected patterns
 6. **Network isolation**: Use private networks or VPNs between registries when possible
 
+## Registry Card Configuration
+
+The Registry Card is a discovery document that provides metadata about your registry instance, including its capabilities, authentication endpoints, and contact information. It is essential for federation discovery and is accessed via the `.well-known` endpoint:
+
+```
+GET /.well-known/registry-card
+```
+
+### Viewing and Editing the Registry Card
+
+Navigate to **Settings > Registry Card** to view and edit your registry's metadata:
+
+![Registry Card Settings](img/reg-card.png)
+
+The Registry Card settings page shows:
+
+1. **Registry Information** (read-only):
+   - Registry ID (UUID)
+   - Name
+   - Organization
+   - Registry URL
+   - Federation Endpoint
+   - API Version
+
+2. **Authentication Configuration** (read-only):
+   - Supported authentication schemes
+   - OAuth2 issuer URL
+   - OAuth2 token endpoint
+   - Supported scopes
+
+3. **Editable Information**:
+   - Description (up to 1000 characters)
+   - Contact Email
+   - Contact URL
+
+4. **Capabilities** (configured via feature flags):
+   - Servers, Agents, Skills management
+   - Security scans
+   - Incremental sync (future)
+   - Webhooks (future)
+
+### Auto-Initialization
+
+The Registry Card is automatically initialized on first startup using environment variables. Configure these in your `.env` file:
+
+```bash
+# Registry Identity (Required)
+REGISTRY_URL=https://registry.example.com
+REGISTRY_NAME=My Registry
+REGISTRY_ORGANIZATION_NAME=ACME Corporation
+
+# Optional
+REGISTRY_DESCRIPTION=Enterprise MCP Gateway Registry
+REGISTRY_CONTACT_EMAIL=mcp-support@example.com
+REGISTRY_CONTACT_URL=https://example.com/support
+```
+
+For a complete list of configuration options, see the [Configuration Reference](configuration.md).
+
+### Authentication Provider Examples
+
+The Registry Card automatically configures authentication endpoints based on your `AUTH_PROVIDER` setting:
+
+- **Entra ID**: Uses Microsoft login endpoints
+- **Keycloak**: Uses your Keycloak realm endpoints
+- **Okta**: Uses your Okta domain endpoints
+- **Cognito**: Uses AWS Cognito endpoints
+
+The authentication configuration is read-only and updates automatically when you change authentication providers.
+
 ## Related Documentation
 
 - [Federation Architecture](design/federation-architecture.md) - Technical architecture

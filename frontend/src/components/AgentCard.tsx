@@ -20,6 +20,8 @@ import AgentDetailsModal from './AgentDetailsModal';
 import SecurityScanModal from './SecurityScanModal';
 import StarRatingWidget from './StarRatingWidget';
 import DeleteConfirmation from './DeleteConfirmation';
+import StatusBadge from './StatusBadge';
+import { formatRelativeTime } from '../utils/dateUtils';
 
 interface SyncMetadata {
   is_federated?: boolean;
@@ -51,6 +53,10 @@ export interface Agent {
   status?: 'healthy' | 'healthy-auth-expired' | 'unhealthy' | 'unknown';
   // Federation sync metadata
   sync_metadata?: SyncMetadata;
+  // Lifecycle status
+  lifecycle_status?: 'active' | 'deprecated' | 'draft' | 'beta';
+  source_created_at?: string;
+  source_updated_at?: string;
 }
 
 /**
@@ -353,6 +359,9 @@ const AgentCard: React.FC<AgentCardProps> = React.memo(({
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate">
                       {agent.name}
                     </h3>
+                    {agent.lifecycle_status && (
+                      <StatusBadge status={agent.lifecycle_status} />
+                    )}
                     <span className="px-2 py-0.5 text-xs font-semibold bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 dark:from-cyan-900/30 dark:to-blue-900/30 dark:text-cyan-300 rounded-full flex-shrink-0 border border-cyan-200 dark:border-cyan-600">
                       AGENT
                     </span>
@@ -560,10 +569,20 @@ const AgentCard: React.FC<AgentCardProps> = React.memo(({
 
                 {/* Controls */}
                 <div className="flex items-center gap-3">
+                  {/* Last Updated (source timestamp) */}
+                  {agent.source_updated_at && (
+                    <div className="text-xs text-gray-500 dark:text-gray-300 flex items-center gap-1.5">
+                      <ClockIcon className="h-3.5 w-3.5" />
+                      <span title={new Date(agent.source_updated_at).toLocaleString()}>
+                        {formatRelativeTime(agent.source_updated_at)}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Last Checked */}
                   {(() => {
                     const timeText = formatTimeSince(agent.last_checked_time);
-                    return agent.last_checked_time && timeText ? (
+                    return agent.last_checked_time && timeText && !agent.source_updated_at ? (
                       <div className="text-xs text-gray-500 dark:text-gray-300 flex items-center gap-1.5">
                         <ClockIcon className="h-3.5 w-3.5" />
                         <span>{timeText}</span>

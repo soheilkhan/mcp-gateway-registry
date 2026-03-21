@@ -65,11 +65,7 @@ interface ServerFormData {
   path: string;
   proxy_pass_url: string;
   tags: string;
-  num_tools: number;
-  license: string;
   visibility: string;
-  author: string;
-  homepage: string;
   repository_url: string;
   mcp_endpoint: string;
   sse_endpoint: string;
@@ -77,6 +73,11 @@ interface ServerFormData {
   auth_scheme: string;
   auth_credential: string;
   auth_header_name: string;
+  status: string;
+  provider_organization: string;
+  provider_url: string;
+  source_created_at: string;
+  source_updated_at: string;
 }
 
 
@@ -89,12 +90,14 @@ interface AgentFormData {
   version: string;
   tags: string;
   capabilities: string;
-  license: string;
   visibility: string;
-  author: string;
-  homepage: string;
   repository_url: string;
   streaming: boolean;
+  status: string;
+  provider_organization: string;
+  provider_url: string;
+  source_created_at: string;
+  source_updated_at: string;
 }
 
 
@@ -109,11 +112,7 @@ const initialServerForm: ServerFormData = {
   path: '',
   proxy_pass_url: '',
   tags: '',
-  num_tools: 0,
-  license: 'MIT',
   visibility: 'public',
-  author: '',
-  homepage: '',
   repository_url: '',
   mcp_endpoint: '',
   sse_endpoint: '',
@@ -121,6 +120,11 @@ const initialServerForm: ServerFormData = {
   auth_scheme: 'none',
   auth_credential: '',
   auth_header_name: 'X-API-Key',
+  status: 'active',
+  provider_organization: '',
+  provider_url: '',
+  source_created_at: '',
+  source_updated_at: '',
 };
 
 
@@ -133,12 +137,14 @@ const initialAgentForm: AgentFormData = {
   version: '1.0.0',
   tags: '',
   capabilities: '',
-  license: 'MIT',
   visibility: 'public',
-  author: '',
-  homepage: '',
   repository_url: '',
   streaming: false,
+  status: 'active',
+  provider_organization: '',
+  provider_url: '',
+  source_created_at: '',
+  source_updated_at: '',
 };
 
 
@@ -261,6 +267,17 @@ const RegisterPage: React.FC = () => {
 
         // Auto-populate form fields from JSON
         if (registrationType === 'server') {
+          // Helper to convert ISO timestamp to datetime-local format
+          const toDatetimeLocal = (isoString: string) => {
+            if (!isoString) return '';
+            try {
+              const date = new Date(isoString);
+              return date.toISOString().slice(0, 16);
+            } catch {
+              return '';
+            }
+          };
+
           setServerForm(prev => ({
             ...prev,
             name: parsed.server_name || parsed.name || prev.name,
@@ -268,17 +285,29 @@ const RegisterPage: React.FC = () => {
             path: parsed.path || prev.path,
             proxy_pass_url: parsed.proxy_pass_url || parsed.proxyPassUrl || prev.proxy_pass_url,
             tags: Array.isArray(parsed.tags) ? parsed.tags.join(',') : (parsed.tags || prev.tags),
-            num_tools: parsed.num_tools || parsed.numTools || prev.num_tools,
-            license: parsed.license || prev.license,
             visibility: parsed.visibility || prev.visibility,
-            author: parsed.author || prev.author,
-            homepage: parsed.homepage || prev.homepage,
             repository_url: parsed.repository_url || parsed.repositoryUrl || prev.repository_url,
             mcp_endpoint: parsed.mcp_endpoint || parsed.mcpEndpoint || prev.mcp_endpoint,
             sse_endpoint: parsed.sse_endpoint || parsed.sseEndpoint || prev.sse_endpoint,
             metadata: parsed.metadata ? JSON.stringify(parsed.metadata, null, 2) : prev.metadata,
+            status: parsed.status || prev.status,
+            provider_organization: parsed.provider_organization || prev.provider_organization,
+            provider_url: parsed.provider_url || prev.provider_url,
+            source_created_at: toDatetimeLocal(parsed.source_created_at) || prev.source_created_at,
+            source_updated_at: toDatetimeLocal(parsed.source_updated_at) || prev.source_updated_at,
           }));
         } else {
+          // Helper to convert ISO timestamp to datetime-local format
+          const toDatetimeLocal = (isoString: string) => {
+            if (!isoString) return '';
+            try {
+              const date = new Date(isoString);
+              return date.toISOString().slice(0, 16);
+            } catch {
+              return '';
+            }
+          };
+
           setAgentForm(prev => ({
             ...prev,
             name: parsed.name || prev.name,
@@ -289,12 +318,14 @@ const RegisterPage: React.FC = () => {
             version: parsed.version || prev.version,
             tags: Array.isArray(parsed.tags) ? parsed.tags.join(',') : (parsed.tags || prev.tags),
             capabilities: parsed.capabilities ? JSON.stringify(parsed.capabilities) : prev.capabilities,
-            license: parsed.license || prev.license,
             visibility: parsed.visibility || prev.visibility,
-            author: parsed.author || parsed.provider?.organization || prev.author,
-            homepage: parsed.homepage || parsed.provider?.url || prev.homepage,
             repository_url: parsed.repository_url || parsed.repositoryUrl || prev.repository_url,
             streaming: parsed.streaming || parsed.capabilities?.streaming || prev.streaming,
+            status: parsed.status || prev.status,
+            provider_organization: parsed.provider?.organization || parsed.provider_organization || prev.provider_organization,
+            provider_url: parsed.provider?.url || parsed.provider_url || prev.provider_url,
+            source_created_at: toDatetimeLocal(parsed.source_created_at) || prev.source_created_at,
+            source_updated_at: toDatetimeLocal(parsed.source_updated_at) || prev.source_updated_at,
           }));
         }
 
@@ -322,8 +353,6 @@ const RegisterPage: React.FC = () => {
       formData.append('path', serverForm.path);
       formData.append('proxy_pass_url', serverForm.proxy_pass_url);
       formData.append('tags', serverForm.tags);
-      formData.append('num_tools', serverForm.num_tools.toString());
-      formData.append('license', serverForm.license);
       if (serverForm.mcp_endpoint) {
         formData.append('mcp_endpoint', serverForm.mcp_endpoint);
       }
@@ -341,6 +370,23 @@ const RegisterPage: React.FC = () => {
         if (serverForm.auth_scheme === 'api_key' && serverForm.auth_header_name) {
           formData.append('auth_header_name', serverForm.auth_header_name);
         }
+      }
+
+      // Add new lifecycle and federation fields
+      if (serverForm.status) {
+        formData.append('status', serverForm.status);
+      }
+      if (serverForm.provider_organization) {
+        formData.append('provider_organization', serverForm.provider_organization);
+      }
+      if (serverForm.provider_url) {
+        formData.append('provider_url', serverForm.provider_url);
+      }
+      if (serverForm.source_created_at) {
+        formData.append('source_created_at', serverForm.source_created_at);
+      }
+      if (serverForm.source_updated_at) {
+        formData.append('source_updated_at', serverForm.source_updated_at);
       }
 
       await axios.post('/api/register', formData, {
@@ -381,13 +427,15 @@ const RegisterPage: React.FC = () => {
         protocolVersion: agentForm.protocol_version,
         version: agentForm.version,
         tags: agentForm.tags,
-        license: agentForm.license,
         visibility: agentForm.visibility,
         streaming: agentForm.streaming,
-        provider: agentForm.author ? {
-          organization: agentForm.author,
-          url: agentForm.homepage || agentForm.url,
+        status: agentForm.status || 'active',
+        provider: agentForm.provider_organization ? {
+          organization: agentForm.provider_organization,
+          url: agentForm.provider_url || agentForm.url,
         } : undefined,
+        source_created_at: agentForm.source_created_at || undefined,
+        source_updated_at: agentForm.source_updated_at || undefined,
       };
 
       await axios.post('/api/agents/register', payload, {
@@ -505,32 +553,6 @@ const RegisterPage: React.FC = () => {
         </div>
 
         <div>
-          <label className={labelClass}>Number of Tools</label>
-          <input
-            type="number"
-            min="0"
-            className={inputClass}
-            value={serverForm.num_tools}
-            onChange={(e) => setServerForm(prev => ({ ...prev, num_tools: parseInt(e.target.value) || 0 }))}
-          />
-        </div>
-
-        <div>
-          <label className={labelClass}>License</label>
-          <select
-            className={inputClass}
-            value={serverForm.license}
-            onChange={(e) => setServerForm(prev => ({ ...prev, license: e.target.value }))}
-          >
-            <option value="MIT">MIT</option>
-            <option value="Apache-2.0">Apache 2.0</option>
-            <option value="GPL-3.0">GPL 3.0</option>
-            <option value="BSD-3-Clause">BSD 3-Clause</option>
-            <option value="N/A">N/A</option>
-          </select>
-        </div>
-
-        <div>
           <label className={labelClass}>Visibility</label>
           <select
             className={inputClass}
@@ -541,28 +563,6 @@ const RegisterPage: React.FC = () => {
             <option value="private">Private</option>
             <option value="group-restricted">Group Restricted</option>
           </select>
-        </div>
-
-        <div>
-          <label className={labelClass}>Author</label>
-          <input
-            type="text"
-            className={inputClass}
-            value={serverForm.author}
-            onChange={(e) => setServerForm(prev => ({ ...prev, author: e.target.value }))}
-            placeholder="Your name or organization"
-          />
-        </div>
-
-        <div>
-          <label className={labelClass}>Homepage</label>
-          <input
-            type="url"
-            className={inputClass}
-            value={serverForm.homepage}
-            onChange={(e) => setServerForm(prev => ({ ...prev, homepage: e.target.value }))}
-            placeholder="https://example.com"
-          />
         </div>
 
         <div className="md:col-span-2">
@@ -685,6 +685,55 @@ const RegisterPage: React.FC = () => {
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Custom key-value pairs for organization, compliance, or integration purposes</p>
         </div>
+      </div>
+
+      {/* Lifecycle & Provider Information */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="md:col-span-2">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            Lifecycle & Provider Information
+          </h3>
+        </div>
+
+        <div>
+          <label className={labelClass}>Status</label>
+          <select
+            className={inputClass}
+            value={serverForm.status}
+            onChange={(e) => setServerForm(prev => ({ ...prev, status: e.target.value }))}
+          >
+            <option value="active">Active</option>
+            <option value="beta">Beta</option>
+            <option value="draft">Draft</option>
+            <option value="deprecated">Deprecated</option>
+          </select>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Lifecycle status of this server</p>
+        </div>
+
+        <div>
+          <label className={labelClass}>Provider Organization</label>
+          <input
+            type="text"
+            className={inputClass}
+            value={serverForm.provider_organization}
+            onChange={(e) => setServerForm(prev => ({ ...prev, provider_organization: e.target.value }))}
+            placeholder="ACME Inc."
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Organization providing this server</p>
+        </div>
+
+        <div>
+          <label className={labelClass}>Provider URL</label>
+          <input
+            type="url"
+            className={inputClass}
+            value={serverForm.provider_url}
+            onChange={(e) => setServerForm(prev => ({ ...prev, provider_url: e.target.value }))}
+            placeholder="https://example.com"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Provider's website or documentation URL</p>
+        </div>
+
       </div>
 
       <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -814,21 +863,6 @@ const RegisterPage: React.FC = () => {
         </div>
 
         <div>
-          <label className={labelClass}>License</label>
-          <select
-            className={inputClass}
-            value={agentForm.license}
-            onChange={(e) => setAgentForm(prev => ({ ...prev, license: e.target.value }))}
-          >
-            <option value="MIT">MIT</option>
-            <option value="Apache-2.0">Apache 2.0</option>
-            <option value="GPL-3.0">GPL 3.0</option>
-            <option value="BSD-3-Clause">BSD 3-Clause</option>
-            <option value="N/A">N/A</option>
-          </select>
-        </div>
-
-        <div>
           <label className={labelClass}>Visibility</label>
           <select
             className={inputClass}
@@ -853,28 +887,6 @@ const RegisterPage: React.FC = () => {
           </label>
         </div>
 
-        <div>
-          <label className={labelClass}>Author / Organization</label>
-          <input
-            type="text"
-            className={inputClass}
-            value={agentForm.author}
-            onChange={(e) => setAgentForm(prev => ({ ...prev, author: e.target.value }))}
-            placeholder="Your name or organization"
-          />
-        </div>
-
-        <div>
-          <label className={labelClass}>Homepage</label>
-          <input
-            type="url"
-            className={inputClass}
-            value={agentForm.homepage}
-            onChange={(e) => setAgentForm(prev => ({ ...prev, homepage: e.target.value }))}
-            placeholder="https://example.com"
-          />
-        </div>
-
         <div className="md:col-span-2">
           <label className={labelClass}>Repository URL</label>
           <input
@@ -885,6 +897,55 @@ const RegisterPage: React.FC = () => {
             placeholder="https://github.com/username/repo"
           />
         </div>
+      </div>
+
+      {/* Lifecycle & Provider Information */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="md:col-span-2">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            Lifecycle & Provider Information
+          </h3>
+        </div>
+
+        <div>
+          <label className={labelClass}>Status</label>
+          <select
+            className={inputClass}
+            value={agentForm.status}
+            onChange={(e) => setAgentForm(prev => ({ ...prev, status: e.target.value }))}
+          >
+            <option value="active">Active</option>
+            <option value="beta">Beta</option>
+            <option value="draft">Draft</option>
+            <option value="deprecated">Deprecated</option>
+          </select>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Lifecycle status of this agent</p>
+        </div>
+
+        <div>
+          <label className={labelClass}>Provider Organization</label>
+          <input
+            type="text"
+            className={inputClass}
+            value={agentForm.provider_organization}
+            onChange={(e) => setAgentForm(prev => ({ ...prev, provider_organization: e.target.value }))}
+            placeholder="ACME Inc."
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Organization providing this agent</p>
+        </div>
+
+        <div>
+          <label className={labelClass}>Provider URL</label>
+          <input
+            type="url"
+            className={inputClass}
+            value={agentForm.provider_url}
+            onChange={(e) => setAgentForm(prev => ({ ...prev, provider_url: e.target.value }))}
+            placeholder="https://example.com"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Provider's website or documentation URL</p>
+        </div>
+
       </div>
 
       <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">

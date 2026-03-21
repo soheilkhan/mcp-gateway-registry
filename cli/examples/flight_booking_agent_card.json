@@ -13,6 +13,7 @@
     "organization": "Example Corp",
     "url": "https://example-corp.com"
   },
+  "status": "active",
   "skills": [
     {
       "id": "check_availability",

@@ -1,6 +1,7 @@
 """Unit tests for skill models."""
 
 import pytest
+from uuid import uuid4
 
 from registry.schemas.skill_models import (
     CompatibilityRequirement,
@@ -229,6 +230,7 @@ class TestSkillInfo:
     def test_skill_info_minimal(self):
         """Test minimal SkillInfo."""
         info = SkillInfo(
+            id=uuid4(),
             path="/skills/test",
             name="test",
             description="Test skill",
@@ -241,6 +243,7 @@ class TestSkillInfo:
     def test_skill_info_with_author(self):
         """Test SkillInfo with author."""
         info = SkillInfo(
+            id=uuid4(),
             path="/skills/test",
             name="test",
             description="Test skill",

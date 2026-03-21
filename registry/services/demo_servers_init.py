@@ -11,6 +11,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,10 @@ async def initialize_airegistry_server() -> bool:
             config["updated_at"] = datetime.utcnow().isoformat()
             config["is_enabled"] = True  # Enable by default
             config["source"] = "builtin"  # Mark as built-in server
+
+            # Ensure UUID id field exists
+            if "id" not in config or not config["id"]:
+                config["id"] = str(uuid4())
 
             success = await server_repo.create(config)
             if success:

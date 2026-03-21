@@ -2,44 +2,35 @@ import React from 'react';
 import { ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import DetailsModal from './DetailsModal';
 
-interface AgentLike {
-  name: string;
-  path: string;
-  description?: string;
-  version?: string;
-  visibility?: string;
-  trust_level?: string;
-  enabled: boolean;
-  tags?: string[];
-}
-
-interface AgentDetailsModalProps {
-  agent: AgentLike & { [key: string]: any };
+interface ServerDetailsModalProps {
+  server: any;
   isOpen: boolean;
   onClose: () => void;
-  loading: boolean;
+  loading?: boolean;
+  error?: string | null;
   fullDetails?: any;
   onCopy?: (data: any) => Promise<void> | void;
 }
 
 /**
- * AgentDetailsModal displays the complete agent JSON schema.
+ * ServerDetailsModal displays the complete server JSON schema.
  *
  * Features:
  * - Uses shared DetailsModal component
  * - Copy to clipboard functionality
  * - Field reference documentation
- * - Loading states handled by parent DetailsModal
+ * - Loading and error states
  */
-const AgentDetailsModal: React.FC<AgentDetailsModalProps> = ({
-  agent,
+const ServerDetailsModal: React.FC<ServerDetailsModalProps> = ({
+  server,
   isOpen,
   onClose,
-  loading,
+  loading = false,
+  error = null,
   fullDetails,
   onCopy,
 }) => {
-  const dataToCopy = fullDetails || agent;
+  const dataToCopy = fullDetails || server;
 
   const handleCopy = async () => {
     try {
@@ -48,31 +39,34 @@ const AgentDetailsModal: React.FC<AgentDetailsModalProps> = ({
       } else {
         await navigator.clipboard.writeText(JSON.stringify(dataToCopy, null, 2));
       }
-    } catch (error) {
-      console.error('Failed to copy agent JSON:', error);
+    } catch (err) {
+      console.error('Failed to copy server JSON:', err);
     }
   };
 
   return (
     <DetailsModal
-      title={`${agent.name} - Full Details (JSON)`}
+      title={`${server?.name || 'Server'} - Full Details (JSON)`}
       isOpen={isOpen}
       onClose={onClose}
       loading={loading}
+      error={error}
       maxWidth="4xl"
     >
       <div className="space-y-4">
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Complete Agent Schema</h4>
+          <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
+            Complete Server Schema
+          </h4>
           <p className="text-sm text-blue-800 dark:text-blue-200">
-            This is the complete A2A agent definition stored in the registry. It includes all metadata, skills,
-            security schemes, and configuration details.
+            This is the complete MCP server definition stored in the registry. It includes all
+            metadata, tools, authentication configuration, and runtime details.
           </p>
         </div>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="font-medium text-gray-900 dark:text-white">Agent JSON Schema:</h4>
+            <h4 className="font-medium text-gray-900 dark:text-white">Server JSON Schema:</h4>
             <button
               onClick={handleCopy}
               className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200"
@@ -94,20 +88,24 @@ const AgentDetailsModal: React.FC<AgentDetailsModalProps> = ({
               <h5 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Core Fields</h5>
               <ul className="space-y-1 text-gray-600 dark:text-gray-400">
                 <li>
-                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">protocol_version</code> - A2A protocol
-                  version
+                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">name</code> - Server
+                  display name
                 </li>
                 <li>
-                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">name</code> - Agent display name
+                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">path</code> - Registry
+                  path
                 </li>
                 <li>
-                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">description</code> - Agent purpose
+                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">description</code> -
+                  Server purpose
                 </li>
                 <li>
-                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">url</code> - Agent endpoint URL
+                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">mcp_endpoint</code> -
+                  MCP endpoint URL
                 </li>
                 <li>
-                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">path</code> - Registry path
+                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">status</code> -
+                  Lifecycle status (active/deprecated/draft/beta)
                 </li>
               </ul>
             </div>
@@ -115,19 +113,24 @@ const AgentDetailsModal: React.FC<AgentDetailsModalProps> = ({
               <h5 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Metadata Fields</h5>
               <ul className="space-y-1 text-gray-600 dark:text-gray-400">
                 <li>
-                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">skills</code> - Agent capabilities
+                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">enabled</code> -
+                  Server enabled state
                 </li>
                 <li>
-                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">security_schemes</code> - Auth methods
+                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">tags</code> -
+                  Categorization tags
                 </li>
                 <li>
-                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">tags</code> - Categorization
+                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">num_tools</code> -
+                  Number of tools
                 </li>
                 <li>
-                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">trust_level</code> - Verification status
+                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">provider</code> -
+                  Source registry information
                 </li>
                 <li>
-                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">status</code> - Lifecycle status
+                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">source_created_at</code>{' '}
+                  - Creation timestamp
                 </li>
               </ul>
             </div>
@@ -138,4 +141,4 @@ const AgentDetailsModal: React.FC<AgentDetailsModalProps> = ({
   );
 };
 
-export default AgentDetailsModal;
+export default ServerDetailsModal;

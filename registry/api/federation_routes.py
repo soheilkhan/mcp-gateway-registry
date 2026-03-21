@@ -7,6 +7,7 @@ Provides endpoints to manage federation configurations.
 import logging
 from datetime import UTC
 from typing import Annotated, Any
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -643,6 +644,10 @@ async def sync_federation(
                         )
                         continue
 
+                    # Ensure UUID id field exists for federation sync
+                    if "id" not in server_data or not server_data["id"]:
+                        server_data["id"] = str(uuid4())
+
                     # Register server
                     # server_data already includes the "path" field
                     result = await server_service.register_server(server_data)
@@ -652,6 +657,9 @@ async def sync_federation(
                         logger.warning(
                             f"Server already exists or failed to register: {server_path}"
                         )
+                        # Ensure UUID exists before updating (for servers registered before UUID feature)
+                        if "id" not in server_data or not server_data["id"]:
+                            server_data["id"] = str(uuid4())
                         # Try updating instead
                         success = await server_service.update_server(server_path, server_data)
 

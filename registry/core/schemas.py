@@ -1,6 +1,11 @@
 from typing import Any
+from datetime import datetime
+from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from registry.schemas.agent_models import AgentProvider
+from registry.schemas.registry_card import LifecycleStatus
 
 
 class ServerVersion(BaseModel):
@@ -28,6 +33,10 @@ class ServerVersion(BaseModel):
 class ServerInfo(BaseModel):
     """Server information model."""
 
+    id: UUID = Field(
+        default_factory=uuid4,
+        description="Unique identifier (UUID) for this server",
+    )
     server_name: str
     description: str = ""
     path: str
@@ -125,6 +134,28 @@ class ServerInfo(BaseModel):
         default=None, description="ISO timestamp of last credential update."
     )
 
+    # Lifecycle and federation metadata fields
+    status: LifecycleStatus = Field(
+        default=LifecycleStatus.ACTIVE,
+        description="Lifecycle status",
+    )
+    provider: AgentProvider | None = Field(
+        default=None,
+        description="Provider organization and URL",
+    )
+    source_created_at: datetime | None = Field(
+        default=None,
+        description="Original creation timestamp from source system",
+    )
+    source_updated_at: datetime | None = Field(
+        default=None,
+        description="Last update timestamp from source system",
+    )
+    external_tags: list[str] = Field(
+        default_factory=list,
+        description="Tags from external/source system (separate from local tags)",
+    )
+
     @field_validator("visibility")
     @classmethod
     def _validate_visibility(
@@ -136,6 +167,18 @@ class ServerInfo(BaseModel):
         if v not in valid_values:
             raise ValueError(f"Visibility must be one of: {', '.join(valid_values)}")
         return v
+
+    @model_validator(mode="after")
+    def _populate_provider_default(self) -> "ServerInfo":
+        """Populate default provider from config if not set."""
+        if self.provider is None:
+            from registry.core.config import settings
+
+            self.provider = AgentProvider(
+                organization=settings.registry_organization_name,
+                url=settings.registry_url,
+            )
+        return self
 
 
 class ToolDescription(BaseModel):
@@ -220,6 +263,10 @@ class ServiceRegistrationRequest(BaseModel):
     )
     auth_header_name: str | None = Field(
         default=None, description="Custom header name for API key auth. Default: X-API-Key"
+    )
+    status: LifecycleStatus = Field(
+        default=LifecycleStatus.ACTIVE,
+        description="Lifecycle status: active, deprecated, draft, or beta",
     )
 
 

@@ -9,6 +9,7 @@ from typing import Any
 
 from ..schemas.agent_models import AgentCard
 from ..schemas.federation_schema import FederationConfig
+from ..schemas.registry_card import RegistryCard
 
 # Import skill models with try/except to avoid circular import issues
 try:
@@ -1328,4 +1329,26 @@ class VirtualServerRepositoryBase(ABC):
         Returns:
             True if updated, False if not found
         """
+        pass
+
+
+class RegistryCardRepositoryBase(ABC):
+    """Interface for Registry Card persistence."""
+
+    @abstractmethod
+    async def get(self) -> RegistryCard | None:
+        """Retrieve the Registry Card."""
+        pass
+
+    @abstractmethod
+    async def save(
+        self,
+        card: RegistryCard,
+    ) -> RegistryCard:
+        """Save or update the Registry Card."""
+        pass
+
+    @abstractmethod
+    async def exists(self) -> bool:
+        """Check if Registry Card exists."""
         pass

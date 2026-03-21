@@ -1334,6 +1334,10 @@ class PeerFederationService:
                 server_data["path"] = prefixed_path
                 server_data["sync_metadata"] = sync_metadata
 
+                # Ensure UUID id field exists - use from peer if present, generate if not
+                if "id" not in server_data or not server_data["id"]:
+                    server_data["id"] = str(uuid.uuid4())
+
                 # Check if server already exists and store
                 try:
                     existing_server = await server_service.get_server_info(prefixed_path)
@@ -1425,6 +1429,10 @@ class PeerFederationService:
                 agent_data = agent.copy()
                 agent_data["path"] = prefixed_path
                 agent_data["sync_metadata"] = sync_metadata
+
+                # Ensure UUID id field exists - use from peer if present, generate if not
+                if "id" not in agent_data or not agent_data["id"]:
+                    agent_data["id"] = str(uuid.uuid4())
 
                 # Check if agent already exists and store
                 try:

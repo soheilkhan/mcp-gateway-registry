@@ -17,6 +17,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 from urllib.parse import quote
+from uuid import UUID
 
 import requests
 from pydantic import BaseModel, ConfigDict, Field
@@ -81,6 +82,11 @@ class InternalServiceRegistration(BaseModel):
         default_factory=dict,
         description="Additional custom metadata for organization, compliance, or integration purposes",
     )
+    provider_organization: str | None = Field(None, description="Provider organization name")
+    provider_url: str | None = Field(None, description="Provider URL")
+    source_created_at: str | None = Field(None, description="Original creation timestamp (ISO format)")
+    source_updated_at: str | None = Field(None, description="Last update timestamp (ISO format)")
+    external_tags: list[str] | None = Field(None, description="Tags from external/source system")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -106,6 +112,15 @@ class ServerDetail(BaseModel):
     num_tools: int = Field(..., description="Number of tools")
     health_status: str = Field(..., description="Health status")
     last_health_check: datetime | None = Field(None, description="Last health check timestamp")
+    status: str = Field(default="active", description="Server status (active, deprecated, draft, beta)")
+    provider: dict[str, str] | None = Field(
+        None, description="Provider information (organization, url)"
+    )
+    source_created_at: str | None = Field(None, description="Creation timestamp in source system")
+    source_updated_at: str | None = Field(None, description="Last update timestamp in source system")
+    external_tags: list[str] = Field(
+        default_factory=list, description="Tags from external source"
+    )
 
 
 class ServerListResponse(BaseModel):
@@ -437,6 +452,19 @@ class AgentCard(BaseModel):
     num_skills: int = Field(..., description="Number of skills")
     registered_at: datetime | None = Field(None, description="Registration timestamp")
     is_enabled: bool = Field(..., description="Whether agent is enabled")
+    status: str = Field(default="active", description="Agent status (active, deprecated, draft, beta)")
+    source_created_at: str | None = Field(
+        None, alias="sourceCreatedAt", description="Creation timestamp in source system"
+    )
+    source_updated_at: str | None = Field(
+        None, alias="sourceUpdatedAt", description="Last update timestamp in source system"
+    )
+    external_tags: list[str] = Field(
+        default_factory=list, alias="externalTags", description="Tags from external source"
+    )
+
+    class Config:
+        populate_by_name = True  # Allow both snake_case and camelCase on input
 
 
 class AgentRegistrationResponse(BaseModel):
@@ -551,6 +579,16 @@ class AgentDetail(BaseModel):
     )
     trust_level: str = Field("unverified", alias="trustLevel", description="Trust level")
     signature: str | None = Field(None, description="JWS signature for card integrity")
+    status: str = Field(default="active", description="Agent status (active, deprecated, draft, beta)")
+    source_created_at: str | None = Field(
+        None, alias="sourceCreatedAt", description="Creation timestamp in source system"
+    )
+    source_updated_at: str | None = Field(
+        None, alias="sourceUpdatedAt", description="Last update timestamp in source system"
+    )
+    external_tags: list[str] = Field(
+        default_factory=list, alias="externalTags", description="Tags from external source"
+    )
 
     class Config:
         populate_by_name = True  # Allow both snake_case and camelCase on input
@@ -1032,6 +1070,61 @@ class AnthropicErrorResponse(BaseModel):
     error: str = Field(..., description="Error message")
 
 
+# Registry Card Models
+
+
+class RegistryCapabilitiesResponse(BaseModel):
+    """Registry capabilities response model."""
+
+    servers: bool = Field(..., description="Supports MCP server registry")
+    agents: bool = Field(..., description="Supports A2A agent registry")
+    skills: bool = Field(..., description="Supports skill registry")
+    prompts: bool = Field(False, description="Supports prompt registry")
+    security_scans: bool = Field(True, description="Supports security scanning")
+    incremental_sync: bool = Field(False, description="Supports incremental federation sync")
+    webhooks: bool = Field(False, description="Supports webhook notifications")
+
+
+class RegistryAuthConfigResponse(BaseModel):
+    """Registry authentication configuration response model."""
+
+    schemes: list[str] = Field(..., description="Supported auth schemes (bearer, oauth2, etc.)")
+    oauth2_issuer: str | None = Field(None, description="OAuth2 issuer URL")
+    oauth2_token_endpoint: str | None = Field(None, description="OAuth2 token endpoint URL")
+    scopes_supported: list[str] = Field(
+        default_factory=list, description="Supported OAuth2 scopes"
+    )
+
+
+class RegistryContactResponse(BaseModel):
+    """Registry contact information response model."""
+
+    email: str | None = Field(None, description="Contact email address")
+    url: str | None = Field(None, description="Contact URL")
+
+
+class RegistryCardResponse(BaseModel):
+    """Registry Card response model."""
+
+    schema_version: str = Field(..., description="Registry card schema version")
+    id: str = Field(..., description="Unique registry identifier (UUID)")
+    name: str = Field(..., description="Registry name")
+    description: str | None = Field(None, description="Registry description")
+    registry_url: str | None = Field(None, description="Base URL of this registry")
+    organization_name: str | None = Field(None, description="Organization operating this registry")
+    federation_api_version: str = Field(..., description="Federation API version")
+    federation_endpoint: str = Field(..., description="Federation endpoint URL")
+    capabilities: RegistryCapabilitiesResponse = Field(..., description="Registry capabilities")
+    authentication: RegistryAuthConfigResponse = Field(
+        ..., description="Authentication configuration"
+    )
+    visibility_policy: str = Field(..., description="Default visibility policy")
+    contact: RegistryContactResponse | None = Field(None, description="Contact information")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    created_at: str | None = Field(None, description="Creation timestamp")
+    updated_at: str | None = Field(None, description="Last update timestamp")
+
+
 # Management API Models (IAM/User Management)
 
 
@@ -1150,6 +1243,7 @@ class SkillRegistrationRequest(BaseModel):
 class SkillCard(BaseModel):
     """Response model for a skill."""
 
+    id: UUID = Field(..., description="Unique identifier (UUID) for this skill")
     name: str = Field(..., description="Skill name")
     path: str = Field(..., description="Skill path (e.g., /skills/pdf-processing)")
     description: str | None = Field(None, description="Skill description")
@@ -1281,7 +1375,7 @@ class RegistryClient:
         logger.debug(f"{method} {url}")
 
         # Determine content type based on endpoint
-        # Agent, Management, Search, Federation, Skills, Virtual Servers, version, and group import endpoints use JSON
+        # Agent, Management, Search, Federation, Skills, Virtual Servers, Registry Card, version, and group import endpoints use JSON
         # Server registration uses form data
         if (
             endpoint.startswith("/api/agents")
@@ -1291,6 +1385,8 @@ class RegistryClient:
             or endpoint.startswith("/api/peers")
             or endpoint.startswith("/api/skills")
             or endpoint.startswith("/api/virtual-servers")
+            or endpoint.startswith("/api/v1/registry")
+            or endpoint.startswith("/api/v1/health")
             or endpoint == "/api/servers/groups/import"
             or "/auth-credential" in endpoint
             or "/versions" in endpoint
@@ -1339,6 +1435,10 @@ class RegistryClient:
         # Convert tags list to comma-separated string for form encoding
         if "tags" in data and isinstance(data["tags"], list):
             data["tags"] = ",".join(data["tags"])
+
+        # Convert external_tags list to comma-separated string for form encoding
+        if "external_tags" in data and isinstance(data["external_tags"], list):
+            data["external_tags"] = ",".join(data["external_tags"])
 
         # Convert metadata dict to JSON string for form encoding
         if "metadata" in data and isinstance(data["metadata"], dict):
@@ -1497,6 +1597,100 @@ class RegistryClient:
             f"Registry config: deployment_mode={result.get('deployment_mode')}, "
             f"registry_mode={result.get('registry_mode')}"
         )
+        return result
+
+    def get_well_known_registry_card(self) -> RegistryCardResponse:
+        """
+        Get the Registry Card via .well-known discovery endpoint.
+
+        This is the standard discovery endpoint for registry federation, following
+        the .well-known convention used for service discovery (similar to
+        .well-known/openid-configuration).
+
+        Returns:
+            Registry Card response with registry metadata
+
+        Raises:
+            requests.HTTPError: If request fails or card not initialized
+        """
+        logger.info("Fetching registry card via .well-known endpoint")
+
+        response = self._make_request(method="GET", endpoint="/api/v1/registry/.well-known/registry-card")
+
+        result = RegistryCardResponse(**response.json())
+        logger.info(f"Retrieved registry card: {result.id} (name: {result.name})")
+        return result
+
+    def get_registry_card(self) -> RegistryCardResponse:
+        """
+        Get the Registry Card for this registry instance.
+
+        The Registry Card provides metadata about the registry including:
+        - Capabilities (servers, agents, skills, security scans, etc.)
+        - Authentication configuration
+        - Federation API version and endpoint
+        - Contact information
+
+        Returns:
+            Registry Card response with registry metadata
+
+        Raises:
+            requests.HTTPError: If request fails
+        """
+        logger.info("Fetching registry card")
+
+        response = self._make_request(method="GET", endpoint="/api/v1/registry/card")
+
+        result = RegistryCardResponse(**response.json())
+        logger.info(f"Retrieved registry card: {result.id} (name: {result.name})")
+        return result
+
+    def update_registry_card(self, card_data: dict[str, Any]) -> dict[str, Any]:
+        """
+        Update the Registry Card (admin only).
+
+        This replaces the entire registry card with the provided data.
+        For partial updates, use patch_registry_card() instead.
+
+        Args:
+            card_data: Complete registry card data
+
+        Returns:
+            Response with update confirmation
+
+        Raises:
+            requests.HTTPError: If update fails (e.g., insufficient permissions)
+        """
+        logger.info("Updating registry card")
+
+        response = self._make_request(method="POST", endpoint="/api/v1/registry/card", data=card_data)
+
+        result = response.json()
+        logger.info("Registry card updated successfully")
+        return result
+
+    def patch_registry_card(self, updates: dict[str, Any]) -> dict[str, Any]:
+        """
+        Partially update the Registry Card (admin only).
+
+        Only the fields provided in updates will be modified.
+        Other fields will remain unchanged.
+
+        Args:
+            updates: Partial registry card updates
+
+        Returns:
+            Response with update confirmation
+
+        Raises:
+            requests.HTTPError: If update fails (e.g., insufficient permissions)
+        """
+        logger.info(f"Patching registry card with updates: {list(updates.keys())}")
+
+        response = self._make_request(method="PATCH", endpoint="/api/v1/registry/card", data=updates)
+
+        result = response.json()
+        logger.info("Registry card patched successfully")
         return result
 
     def add_server_to_groups(self, server_name: str, group_names: list[str]) -> dict[str, Any]:

@@ -10,6 +10,7 @@ Based on: docs/design/a2a-protocol-integration.md
 import logging
 from datetime import datetime
 from typing import Any
+from uuid import UUID, uuid4
 
 from pydantic import (
     BaseModel,
@@ -18,6 +19,8 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+from registry.schemas.registry_card import LifecycleStatus
 
 # Configure logging with basicConfig
 logging.basicConfig(
@@ -357,6 +360,12 @@ class AgentCard(BaseModel):
     Note: Uses snake_case internally but serializes to camelCase for A2A compliance.
     """
 
+    # Unique identifier
+    id: UUID = Field(
+        default_factory=uuid4,
+        description="Unique identifier (UUID) for this agent",
+    )
+
     # Required A2A fields
     protocol_version: str = Field(
         "1.0",
@@ -512,6 +521,27 @@ class AgentCard(BaseModel):
         "unverified",
         alias="trustLevel",
         description="unverified, community, verified, trusted",
+    )
+
+    # Lifecycle and federation metadata
+    status: LifecycleStatus = Field(
+        default=LifecycleStatus.ACTIVE,
+        description="Lifecycle status",
+    )
+    source_created_at: datetime | None = Field(
+        default=None,
+        description="Original creation timestamp from source system",
+        alias="sourceCreatedAt",
+    )
+    source_updated_at: datetime | None = Field(
+        default=None,
+        description="Last update timestamp from source system",
+        alias="sourceUpdatedAt",
+    )
+    external_tags: list[str] = Field(
+        default_factory=list,
+        description="Tags from external/source system",
+        alias="externalTags",
     )
 
     model_config = ConfigDict(
@@ -692,6 +722,40 @@ class AgentInfo(BaseModel):
         alias="registeredBy",
         description="Username who registered the agent",
     )
+    status: str = Field(
+        "active",
+        description="Lifecycle status: active, deprecated, draft, beta",
+    )
+    provider_organization: str | None = Field(
+        None,
+        alias="providerOrganization",
+        description="Provider organization name",
+    )
+    provider_url: str | None = Field(
+        None,
+        alias="providerUrl",
+        description="Provider URL",
+    )
+    source_created_at: str | None = Field(
+        None,
+        alias="sourceCreatedAt",
+        description="Original creation timestamp from source system (ISO format)",
+    )
+    source_updated_at: str | None = Field(
+        None,
+        alias="sourceUpdatedAt",
+        description="Last update timestamp from source system (ISO format)",
+    )
+    registered_at: str | None = Field(
+        None,
+        alias="registeredAt",
+        description="Registration timestamp in this registry (ISO format)",
+    )
+    updated_at: str | None = Field(
+        None,
+        alias="updatedAt",
+        description="Last update timestamp in this registry (ISO format)",
+    )
 
     model_config = ConfigDict(
         populate_by_name=True  # Allow both snake_case and camelCase on input
@@ -764,6 +828,22 @@ class AgentRegistrationRequest(BaseModel):
         description="Visibility: public, group-restricted, or internal (default)",
     )
 
+    status: LifecycleStatus = Field(
+        default=LifecycleStatus.ACTIVE,
+        description="Lifecycle status: active, deprecated, draft, or beta",
+    )
+    source_created_at: str | None = Field(
+        None,
+        description="Original creation timestamp from source system (ISO format)",
+    )
+    source_updated_at: str | None = Field(
+        None,
+        description="Last update timestamp from source system (ISO format)",
+    )
+    external_tags: str | list[str] | None = Field(
+        None,
+        description="Comma-separated tags or list of tags from external/source system",
+    )
     model_config = ConfigDict(populate_by_name=True)
 
     @field_validator("tags", mode="before")
@@ -775,6 +855,19 @@ class AgentRegistrationRequest(BaseModel):
         """Normalize tags to comma-separated string."""
         if v is None:
             return ""
+        if isinstance(v, list):
+            return ",".join(v)
+        return v
+
+    @field_validator("external_tags", mode="before")
+    @classmethod
+    def _normalize_external_tags(
+        cls,
+        v: str | list[str] | None,
+    ) -> str | None:
+        """Normalize external_tags to comma-separated string."""
+        if v is None:
+            return None
         if isinstance(v, list):
             return ",".join(v)
         return v

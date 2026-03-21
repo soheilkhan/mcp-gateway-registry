@@ -10,11 +10,13 @@ All recommendations incorporated:
 - Progressive disclosure tier models
 - Owner field for access control
 - Content versioning fields
+- Registry Card fields (status, source timestamps, external_tags) for federation
 """
 
 import logging
 from datetime import UTC, datetime
 from enum import Enum
+from uuid import UUID, uuid4
 from typing import (
     Any,
     Literal,
@@ -27,6 +29,8 @@ from pydantic import (
     HttpUrl,
     field_validator,
 )
+
+from registry.schemas.registry_card import LifecycleStatus
 
 # Configure logging
 logging.basicConfig(
@@ -96,6 +100,12 @@ class SkillCard(BaseModel):
     """Full skill profile following Agent Skills specification."""
 
     model_config = ConfigDict(populate_by_name=True)
+
+    # Unique identifier
+    id: UUID = Field(
+        default_factory=uuid4,
+        description="Unique identifier (UUID) for this skill",
+    )
 
     # Explicit path - immutable after creation
     path: str = Field(..., description="Unique skill path (e.g., /skills/pdf-processing)")
@@ -181,6 +191,21 @@ class SkillCard(BaseModel):
     created_at: datetime = Field(default_factory=_utc_now)
     updated_at: datetime = Field(default_factory=_utc_now)
 
+    # Registry Card fields for federation
+    status: LifecycleStatus = Field(
+        default=LifecycleStatus.ACTIVE,
+        description="Lifecycle status: active, deprecated, draft, or beta",
+    )
+    source_created_at: datetime | None = Field(
+        None, description="Creation timestamp from federated source"
+    )
+    source_updated_at: datetime | None = Field(
+        None, description="Last update timestamp from federated source"
+    )
+    external_tags: list[str] = Field(
+        default_factory=list, description="Tags from external/federated registries"
+    )
+
     @field_validator("name")
     @classmethod
     def validate_name(
@@ -214,6 +239,7 @@ class SkillInfo(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
+    id: UUID = Field(..., description="Unique identifier (UUID) for this skill")
     path: str = Field(..., description="Unique skill path")
     name: str
     description: str
@@ -237,6 +263,21 @@ class SkillInfo(BaseModel):
     )
     last_checked_time: datetime | None = Field(None, description="When health was last checked")
 
+    # Registry Card fields for federation
+    status: LifecycleStatus = Field(
+        default=LifecycleStatus.ACTIVE,
+        description="Lifecycle status: active, deprecated, draft, or beta",
+    )
+    source_created_at: datetime | None = Field(
+        None, description="Creation timestamp from federated source"
+    )
+    source_updated_at: datetime | None = Field(
+        None, description="Last update timestamp from federated source"
+    )
+    external_tags: list[str] = Field(
+        default_factory=list, description="Tags from external/federated registries"
+    )
+
 
 class SkillRegistrationRequest(BaseModel):
     """Request model for skill registration."""
@@ -257,6 +298,10 @@ class SkillRegistrationRequest(BaseModel):
     tags: list[str] = Field(default_factory=list)
     visibility: VisibilityEnum = Field(default=VisibilityEnum.PUBLIC)
     allowed_groups: list[str] = Field(default_factory=list)
+    status: LifecycleStatus = Field(
+        default=LifecycleStatus.ACTIVE,
+        description="Lifecycle status: active, deprecated, draft, or beta",
+    )
 
     @field_validator("name")
     @classmethod
@@ -309,6 +354,10 @@ class SkillTier1_Metadata(BaseModel):
     tags: list[str] = Field(default_factory=list)
     compatibility: str | None = None
     target_agents: list[str] = Field(default_factory=list)
+    status: LifecycleStatus = Field(
+        default=LifecycleStatus.ACTIVE,
+        description="Lifecycle status: active, deprecated, draft, or beta",
+    )
 
 
 class SkillTier2_Instructions(BaseModel):

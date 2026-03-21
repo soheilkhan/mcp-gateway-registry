@@ -651,6 +651,7 @@ class SkillService:
 
         return [
             SkillInfo(
+                id=s.id,
                 path=s.path,
                 name=s.name,
                 description=s.description,

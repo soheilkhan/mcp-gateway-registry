@@ -9,6 +9,7 @@ import {
   ClipboardDocumentListIcon,
   CogIcon,
   ServerStackIcon,
+  IdentificationIcon,
 } from '@heroicons/react/24/outline';
 import FederationPeers from '../components/FederationPeers';
 import FederationPeerForm from '../components/FederationPeerForm';
@@ -18,6 +19,7 @@ import AuditLogsPage from './AuditLogsPage';
 import IAMGroups from '../components/IAMGroups';
 import IAMUsers from '../components/IAMUsers';
 import IAMM2M from '../components/IAMM2M';
+import RegistryCardSettings from '../components/RegistryCardSettings';
 import { useAuth } from '../contexts/AuthContext';
 import { canAccessSettings } from '../utils/permissions';
 
@@ -57,6 +59,14 @@ interface SettingsCategory {
  * Root fix: inject <base href="/"> in registry/main.py _build_cached_index_html().
  */
 const SETTINGS_CATEGORIES: SettingsCategory[] = [
+  {
+    id: 'registry',
+    label: 'Registry',
+    icon: <IdentificationIcon className="h-5 w-5" />,
+    items: [
+      { id: 'card', label: 'Registry Card', path: '/settings/registry/card' },
+    ],
+  },
   {
     id: 'audit',
     label: 'Audit',
@@ -126,7 +136,7 @@ const SettingsPage: React.FC = () => {
 
   // Track which categories are expanded - auto-expand based on current path
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => {
-    const initial = new Set(['audit']);
+    const initial = new Set(['registry']);
     // Auto-expand the category matching the current route
     for (const category of SETTINGS_CATEGORIES) {
       for (const item of category.items) {
@@ -221,6 +231,11 @@ const SettingsPage: React.FC = () => {
     // Audit > Logs
     if (path === '/settings/audit/logs' || path === '/settings/audit') {
       return <AuditLogsPage embedded />;
+    }
+
+    // Registry > Card
+    if (path === '/settings/registry/card' || path === '/settings/registry') {
+      return <RegistryCardSettings onShowToast={showToast} />;
     }
 
     // Federation > Peers list

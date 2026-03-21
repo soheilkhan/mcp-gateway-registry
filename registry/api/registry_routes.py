@@ -12,12 +12,15 @@ import logging
 from typing import Annotated
 from urllib.parse import unquote
 
+from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..auth.dependencies import nginx_proxied_auth
 from ..constants import REGISTRY_CONSTANTS
 from ..health.service import health_service
+from ..repositories.factory import get_registry_card_repository
 from ..schemas.anthropic_schema import ErrorResponse, ServerList, ServerResponse
+from ..schemas.registry_card import RegistryCard
 from ..services.server_service import server_service
 from ..services.transform_service import (
     transform_to_server_list,
@@ -304,3 +307,353 @@ async def get_server_version(
     )
 
     return server_response
+
+
+async def _auto_initialize_registry_card():
+    """
+    Auto-initialize registry card from config defaults if it doesn't exist.
+
+    Returns the existing or newly created card.
+    """
+    repo = get_registry_card_repository()
+    card = await repo.get()
+
+    if card is None:
+        # Auto-initialize from config defaults
+        from uuid import uuid4
+        from registry.core.config import settings
+        from registry.schemas.registry_card import RegistryContact
+        from registry.version import __version__
+        import random
+
+        logger.info("Registry card not found, auto-initializing from config")
+
+        # Generate UUID for registry_id if not configured
+        if settings.registry_id:
+            registry_id = settings.registry_id
+        else:
+            registry_id = str(uuid4())
+            logger.info(f"Generated UUID for registry_id: {registry_id}")
+
+        # Generate random Docker-style registry name if using default
+        if settings.registry_name != "AI Registry":
+            registry_name = settings.registry_name
+        else:
+            adjectives = ["brave", "clever", "swift", "bright", "noble", "wise", "bold", "keen"]
+            nouns = ["falcon", "dolphin", "tiger", "phoenix", "dragon", "wolf", "eagle", "lion"]
+            registry_name = f"{random.choice(adjectives)}-{random.choice(nouns)}-registry"
+            logger.info(f"Generated random registry name: {registry_name}")
+
+        # Use organization name from config (defaults to "ACME Inc.")
+        organization_name = settings.registry_organization_name
+        logger.info(f"Using organization name: {organization_name}")
+
+        # Get full API version from version module (e.g., "1.0.17")
+        version_str = __version__
+        # Remove 'v' prefix if present (e.g., "v1.0.17" -> "1.0.17")
+        if version_str.startswith("v"):
+            version_str = version_str[1:]
+        # Remove git suffix if present (e.g., "1.0.17-6-gf5c000c3-main" -> "1.0.17")
+        version_parts = version_str.split("-")[0]
+        federation_api_version = version_parts
+        logger.info(f"Using federation API version: {federation_api_version} (from app version: {__version__})")
+
+        contact = None
+        if settings.registry_contact_email or settings.registry_contact_url:
+            contact = RegistryContact(
+                email=settings.registry_contact_email,
+                url=settings.registry_contact_url,
+            )
+
+        # Build OAuth params based on auth provider
+        oauth2_issuer = None
+        oauth2_token_endpoint = None
+
+        if settings.auth_provider == "okta":
+            import os
+            okta_domain = os.getenv("OKTA_DOMAIN")
+            okta_auth_server_id = os.getenv("OKTA_AUTH_SERVER_ID", "default")
+            if okta_domain:
+                oauth2_issuer = f"https://{okta_domain}/oauth2/{okta_auth_server_id}"
+                oauth2_token_endpoint = f"https://{okta_domain}/oauth2/{okta_auth_server_id}/v1/token"
+        elif settings.auth_provider == "keycloak":
+            import os
+            keycloak_external_url = os.getenv("KEYCLOAK_EXTERNAL_URL", "http://localhost:8080")
+            keycloak_realm = os.getenv("KEYCLOAK_REALM", "mcp-gateway")
+            oauth2_issuer = f"{keycloak_external_url}/realms/{keycloak_realm}"
+            oauth2_token_endpoint = f"{keycloak_external_url}/realms/{keycloak_realm}/protocol/openid-connect/token"
+        elif settings.auth_provider == "entra":
+            import os
+            entra_tenant_id = os.getenv("ENTRA_TENANT_ID")
+            if entra_tenant_id:
+                oauth2_issuer = f"https://login.microsoftonline.com/{entra_tenant_id}/v2.0"
+                oauth2_token_endpoint = f"https://login.microsoftonline.com/{entra_tenant_id}/oauth2/v2.0/token"
+        elif settings.auth_provider == "cognito":
+            import os
+            cognito_user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+            cognito_domain = os.getenv("COGNITO_DOMAIN")
+            aws_region = os.getenv("AWS_REGION", "us-east-1")
+            if cognito_user_pool_id:
+                oauth2_issuer = f"https://cognito-idp.{aws_region}.amazonaws.com/{cognito_user_pool_id}"
+            if cognito_domain:
+                oauth2_token_endpoint = f"https://{cognito_domain}.auth.{aws_region}.amazoncognito.com/oauth2/token"
+
+        from registry.schemas.registry_card import RegistryAuthConfig
+
+        auth_config = RegistryAuthConfig(
+            oauth2_issuer=oauth2_issuer,
+            oauth2_token_endpoint=oauth2_token_endpoint,
+        )
+
+        card = RegistryCard(
+            id=registry_id,
+            name=registry_name,
+            description=settings.registry_description,
+            registry_url=settings.registry_url,
+            organization_name=organization_name,
+            federation_api_version=federation_api_version,
+            federation_endpoint=f"{settings.registry_url}/api/v1/federation",
+            authentication=auth_config,
+            contact=contact,
+        )
+
+        # Save the auto-initialized card
+        card = await repo.save(card)
+        logger.info(f"Auto-initialized registry card: {card.id}")
+
+    return card
+
+
+@router.get("/card")
+async def get_registry_card():
+    """
+    Get the Registry Card for this instance.
+
+    Auto-initializes from config if not found.
+    Public endpoint for federation discovery.
+    Returns flattened contact fields for frontend compatibility.
+    """
+    card = await _auto_initialize_registry_card()
+
+    # Serialize to dict and flatten contact fields for frontend
+    card_dict = card.model_dump(mode="json")
+    contact = card_dict.pop("contact", None)
+    if contact:
+        card_dict["contact_email"] = contact.get("email")
+        card_dict["contact_url"] = contact.get("url")
+    else:
+        card_dict["contact_email"] = None
+        card_dict["contact_url"] = None
+
+    return card_dict
+
+
+@router.post("/card", response_model=dict)
+async def update_registry_card(
+    request: dict,
+    user_context: dict = Depends(nginx_proxied_auth),
+):
+    """
+    Create or update the Registry Card.
+
+    Requires admin role. All updates are audit logged.
+    """
+    # Check admin permissions
+    username = user_context.get("username", "unknown")
+    is_admin = user_context.get("is_admin", False)
+
+    if not is_admin:
+        logger.warning(
+            "Unauthorized registry card update attempt",
+            extra={"username": username, "is_admin": is_admin},
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Admin role required to update registry card",
+        )
+
+    repo = get_registry_card_repository()
+
+    # Get existing card or create new
+    existing = await repo.get()
+    operation = "update" if existing else "create"
+
+    # Handle nested contact fields from frontend (flat) to backend (nested)
+    from registry.schemas.registry_card import RegistryContact
+    from registry.core.config import settings
+
+    if existing:
+        # Update existing card
+        card_data = existing.model_dump()
+        old_values = {k: v for k, v in card_data.items() if k in request}
+
+        if "contact_email" in request or "contact_url" in request:
+            # Build contact object from flat fields
+            existing_contact = card_data.get("contact") or {}
+            contact_data = {
+                "email": request.get("contact_email", existing_contact.get("email")),
+                "url": request.get("contact_url", existing_contact.get("url")),
+            }
+            # Only create contact if at least one field is non-null
+            if contact_data["email"] or contact_data["url"]:
+                card_data["contact"] = RegistryContact(**contact_data).model_dump()
+            else:
+                card_data["contact"] = None
+
+            # Remove flat fields
+            request_cleaned = {k: v for k, v in request.items()
+                              if k not in ["contact_email", "contact_url"]}
+            card_data.update(request_cleaned)
+        else:
+            card_data.update(request)
+
+        card = RegistryCard(**card_data)
+    else:
+        # Create new card
+        request_cleaned = request.copy()
+
+        if "contact_email" in request or "contact_url" in request:
+            # Build contact object from flat fields
+            contact_data = {
+                "email": request.get("contact_email"),
+                "url": request.get("contact_url"),
+            }
+            if contact_data["email"] or contact_data["url"]:
+                request_cleaned["contact"] = RegistryContact(**contact_data)
+
+            # Remove flat fields
+            request_cleaned.pop("contact_email", None)
+            request_cleaned.pop("contact_url", None)
+
+        card = RegistryCard(
+            registry_id=settings.registry_id or "default",
+            federation_endpoint=settings.registry_url + "/api",
+            **request_cleaned,
+        )
+        old_values = {}
+
+    saved = await repo.save(card)
+
+    # Audit log
+    logger.info(
+        f"Registry card {operation} by admin",
+        extra={
+            "operation": operation,
+            "username": username,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "registry_id": str(saved.id),
+            "changed_fields": list(request.keys()),
+            "old_values": old_values if operation == "update" else None,
+        },
+    )
+
+    # Flatten contact fields for frontend response
+    saved_dict = saved.model_dump(mode="json")
+    contact = saved_dict.pop("contact", None)
+    if contact:
+        saved_dict["contact_email"] = contact.get("email")
+        saved_dict["contact_url"] = contact.get("url")
+    else:
+        saved_dict["contact_email"] = None
+        saved_dict["contact_url"] = None
+
+    return {
+        "message": f"Registry card {operation}d successfully",
+        "registry_card": saved_dict,
+    }
+
+
+@router.patch("/card", response_model=dict)
+async def patch_registry_card(
+    request: dict,
+    user_context: dict = Depends(nginx_proxied_auth),
+):
+    """
+    Partially update the Registry Card.
+
+    Requires admin role. Only updates provided fields.
+    """
+    # Check admin permissions
+    username = user_context.get("username", "unknown")
+    is_admin = user_context.get("is_admin", False)
+
+    if not is_admin:
+        logger.warning(
+            "Unauthorized registry card update attempt",
+            extra={"username": username, "is_admin": is_admin},
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Admin role required to update registry card",
+        )
+
+    repo = get_registry_card_repository()
+
+    # Get existing card
+    existing = await repo.get()
+    if not existing:
+        raise HTTPException(
+            status_code=404,
+            detail="Registry card not found. Use POST to create.",
+        )
+
+    # Partial update
+    card_data = existing.model_dump()
+    old_values = {k: v for k, v in card_data.items() if k in request}
+
+    # Handle nested contact fields from frontend (flat) to backend (nested)
+    from registry.schemas.registry_card import RegistryContact
+
+    if "contact_email" in request or "contact_url" in request:
+        # Build contact object from flat fields
+        existing_contact = card_data.get("contact") or {}
+        contact_data = {
+            "email": request.get("contact_email", existing_contact.get("email")),
+            "url": request.get("contact_url", existing_contact.get("url")),
+        }
+        # Only create contact if at least one field is non-null
+        if contact_data["email"] or contact_data["url"]:
+            card_data["contact"] = RegistryContact(**contact_data).model_dump()
+        else:
+            card_data["contact"] = None
+
+        # Remove flat fields from request before updating
+        request_cleaned = {k: v for k, v in request.items()
+                          if k not in ["contact_email", "contact_url"]}
+        card_data.update(request_cleaned)
+    else:
+        card_data.update(request)
+
+    card = RegistryCard(**card_data)
+
+    saved = await repo.save(card)
+
+    # Audit log
+    logger.info(
+        "Registry card partially updated by admin",
+        extra={
+            "operation": "patch",
+            "username": username,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "registry_id": str(saved.id),
+            "changed_fields": list(request.keys()),
+            "old_values": old_values,
+        },
+    )
+
+    # Flatten contact fields for frontend response
+    saved_dict = saved.model_dump(mode="json")
+    contact = saved_dict.pop("contact", None)
+    if contact:
+        saved_dict["contact_email"] = contact.get("email")
+        saved_dict["contact_url"] = contact.get("url")
+    else:
+        saved_dict["contact_email"] = None
+        saved_dict["contact_url"] = None
+
+    return {
+        "message": "Registry card updated successfully",
+        "registry_card": saved_dict,
+    }
+
+

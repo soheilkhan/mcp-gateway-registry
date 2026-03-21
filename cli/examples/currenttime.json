@@ -6,5 +6,7 @@
   "auth_scheme": "none",
   "tags": ["time", "timezone", "datetime", "api", "utility"],
   "num_tools": 1,
-  "license": "MIT-0"
+  "license": "MIT-0",
+  "status": "active",
+  "visibility": "public"
 }

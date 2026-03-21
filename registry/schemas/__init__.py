@@ -19,6 +19,13 @@ from .anthropic_schema import (
     StdioTransport,
     StreamableHttpTransport,
 )
+from .registry_card import (
+    LifecycleStatus,
+    RegistryAuthConfig,
+    RegistryCapabilities,
+    RegistryCard,
+    RegistryContact,
+)
 
 __all__ = [
     "Repository",
@@ -36,4 +43,9 @@ __all__ = [
     "AgentCard",
     "AgentInfo",
     "AgentRegistrationRequest",
+    "LifecycleStatus",
+    "RegistryCapabilities",
+    "RegistryAuthConfig",
+    "RegistryContact",
+    "RegistryCard",
 ]

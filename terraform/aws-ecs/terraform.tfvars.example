@@ -280,6 +280,31 @@ registry_api_token = "m3zT65wREARMVDToKosg_DgNkKqS_434hNxy3sslGPY"
 # max_tokens_per_user_per_hour = 100
 
 # ============================================================================
+# REGISTRY CARD CONFIGURATION (Federation Metadata)
+# ============================================================================
+
+# Registry identity and metadata for federation and discovery
+# These values populate the registry card shown in federated environments
+
+# Human-readable registry name (display name for your registry)
+# If not set, a random Docker-style name will be generated (e.g., "brave-falcon-registry")
+# Displayed in federated registry listings and UI headers
+# registry_name = "AI Gateway Registry"
+
+# Organization that operates this registry
+# If not set, defaults to "ACME Inc."
+# registry_organization_name = "ACME Inc."
+
+# Registry description for federation
+# registry_description = "Central registry for all your AI assets"
+
+# Contact email for registry administrators (leave empty if not publicly shared)
+# registry_contact_email = ""
+
+# Documentation or support URL for this registry (leave empty if not available)
+# registry_contact_url = ""
+
+# ============================================================================
 # FEDERATION CONFIGURATION (Peer-to-Peer Registry Sync)
 # ============================================================================
 

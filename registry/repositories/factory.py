@@ -11,6 +11,7 @@ from .interfaces import (
     BackendSessionRepositoryBase,
     FederationConfigRepositoryBase,
     PeerFederationRepositoryBase,
+    RegistryCardRepositoryBase,
     ScopeRepositoryBase,
     SearchRepositoryBase,
     SecurityScanRepositoryBase,
@@ -35,6 +36,7 @@ _skill_repo: SkillRepositoryBase | None = None
 _virtual_server_repo: VirtualServerRepositoryBase | None = None
 _backend_session_repo: BackendSessionRepositoryBase | None = None
 _skill_security_scan_repo: SkillSecurityScanRepositoryBase | None = None
+_registry_card_repo: RegistryCardRepositoryBase | None = None
 
 
 def get_server_repository() -> ServerRepositoryBase:
@@ -314,6 +316,23 @@ def get_backend_session_repository() -> BackendSessionRepositoryBase | None:
     return _backend_session_repo
 
 
+def get_registry_card_repository() -> RegistryCardRepositoryBase:
+    """
+    Get Registry Card repository instance (singleton).
+
+    Uses DocumentDB storage for all deployments.
+    """
+    global _registry_card_repo
+
+    if _registry_card_repo is None:
+        from .documentdb.registry_card_repository import DocumentDBRegistryCardRepository
+
+        _registry_card_repo = DocumentDBRegistryCardRepository()
+        logger.info("Initialized Registry Card repository (DocumentDB)")
+
+    return _registry_card_repo
+
+
 def reset_repositories() -> None:
     """Reset all repository singletons. USE ONLY IN TESTS."""
     global \
@@ -328,7 +347,8 @@ def reset_repositories() -> None:
         _skill_repo, \
         _virtual_server_repo, \
         _backend_session_repo, \
-        _skill_security_scan_repo
+        _skill_security_scan_repo, \
+        _registry_card_repo
     _server_repo = None
     _agent_repo = None
     _scope_repo = None
@@ -341,3 +361,4 @@ def reset_repositories() -> None:
     _virtual_server_repo = None
     _backend_session_repo = None
     _skill_security_scan_repo = None
+    _registry_card_repo = None

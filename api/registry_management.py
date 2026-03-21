@@ -166,6 +166,19 @@ Virtual MCP Server Management:
     # Get virtual server rating
     uv run python registry_management.py vs-rating --path /virtual/dev-tools
 
+Registry Card Management:
+    # Get registry card
+    uv run python registry_management.py registry-card-get
+
+    # Update registry card
+    uv run python registry_management.py registry-card-update --name "My Registry" --description "Production registry"
+
+    # Update contact information
+    uv run python registry_management.py registry-card-update --contact-email admin@example.com --contact-url https://example.com
+
+    # Get health status
+    uv run python registry_management.py health
+
 Global Options (can be set via environment variables or command-line arguments):
     --registry-url URL       Registry base URL (overrides REGISTRY_URL env var)
     --aws-region REGION      AWS region (overrides AWS_REGION env var)
@@ -552,6 +565,11 @@ def cmd_register(args: argparse.Namespace) -> int:
             mcp_endpoint=config.get("mcp_endpoint"),
             sse_endpoint=config.get("sse_endpoint"),
             metadata=config.get("metadata", {}),
+            provider_organization=config.get("provider_organization"),
+            provider_url=config.get("provider_url"),
+            source_created_at=config.get("source_created_at"),
+            source_updated_at=config.get("source_updated_at"),
+            external_tags=config.get("external_tags"),
         )
 
         client = _create_client(args)
@@ -1593,6 +1611,15 @@ def cmd_agent_list(args: argparse.Namespace) -> int:
     """
     try:
         client = _create_client(args)
+
+        # Print raw JSON if requested - fetch directly from API to get all fields
+        if hasattr(args, "json") and args.json:
+            import json
+
+            raw_response = client._make_request(method="GET", endpoint="/api/agents")
+            print(json.dumps(raw_response.json(), indent=2, default=str))
+            return 0
+
         response = client.list_agents(
             query=args.query if hasattr(args, "query") else None,
             enabled_only=args.enabled_only if hasattr(args, "enabled_only") else False,
@@ -2098,7 +2125,7 @@ def cmd_skill_list(args: argparse.Namespace) -> int:
             tag=args.tag if hasattr(args, "tag") else None,
         )
 
-        if args.debug:
+        if hasattr(args, "json") and args.json:
             print(json.dumps([s.model_dump() for s in response.skills], indent=2, default=str))
             return 0
 
@@ -3939,6 +3966,86 @@ def cmd_vs_rating(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_registry_card_get(args: argparse.Namespace) -> int:
+    """
+    Get the registry card.
+
+    Args:
+        args: Command arguments
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        client = _create_client(args)
+        card = client.get_registry_card()
+        print(json.dumps(card.model_dump(), indent=2))
+        return 0
+
+    except Exception as e:
+        logger.error(f"Get registry card failed: {e}")
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_registry_card_discover(args: argparse.Namespace) -> int:
+    """
+    Discover registry card via .well-known endpoint.
+
+    Args:
+        args: Command arguments
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        client = _create_client(args)
+        card = client.get_well_known_registry_card()
+        print(json.dumps(card.model_dump(), indent=2))
+        return 0
+
+    except Exception as e:
+        logger.error(f"Registry card discovery failed: {e}")
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_registry_card_update(args: argparse.Namespace) -> int:
+    """
+    Update the registry card.
+
+    Args:
+        args: Command arguments
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        client = _create_client(args)
+
+        updates = {}
+        if args.name:
+            updates["name"] = args.name
+        if args.description:
+            updates["description"] = args.description
+        if args.contact_email:
+            updates["contact"] = updates.get("contact", {})
+            updates["contact"]["email"] = args.contact_email
+        if args.contact_url:
+            updates["contact"] = updates.get("contact", {})
+            updates["contact"]["url"] = args.contact_url
+
+        result = client.patch_registry_card(updates)
+        print(f"Success: {result['message']}")
+        print(json.dumps(result["registry_card"], indent=2))
+        return 0
+
+    except Exception as e:
+        logger.error(f"Update registry card failed: {e}")
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
 def main() -> int:
     """
     Main entry point for the CLI.
@@ -4216,6 +4323,9 @@ Examples:
     agent_list_parser.add_argument(
         "--visibility", choices=["public", "private", "internal"], help="Filter by visibility level"
     )
+    agent_list_parser.add_argument(
+        "--json", action="store_true", help="Output raw JSON response"
+    )
 
     # Agent get command
     agent_get_parser = subparsers.add_parser("agent-get", help="Get agent details")
@@ -4332,6 +4442,7 @@ Examples:
         "--include-disabled", action="store_true", help="Include disabled skills"
     )
     skill_list_parser.add_argument("--tag", help="Filter by tag")
+    skill_list_parser.add_argument("--json", action="store_true", help="Output raw JSON response")
 
     # Skill get command
     skill_get_parser = subparsers.add_parser("skill-get", help="Get skill details")
@@ -4784,6 +4895,29 @@ Examples:
     )
     vs_rating_parser.add_argument("--path", required=True, help="Virtual server path")
 
+    # ==========================================
+    # Registry Card Management Commands
+    # ==========================================
+
+    # Get registry card command
+    registry_card_get_parser = subparsers.add_parser(
+        "registry-card-get", help="Get the registry card"
+    )
+
+    # Discover registry card via .well-known endpoint
+    registry_card_discover_parser = subparsers.add_parser(
+        "registry-card-discover", help="Discover registry card via .well-known endpoint"
+    )
+
+    # Update registry card command
+    registry_card_update_parser = subparsers.add_parser(
+        "registry-card-update", help="Update the registry card"
+    )
+    registry_card_update_parser.add_argument("--name", help="Registry name")
+    registry_card_update_parser.add_argument("--description", help="Registry description")
+    registry_card_update_parser.add_argument("--contact-email", help="Contact email address")
+    registry_card_update_parser.add_argument("--contact-url", help="Contact URL")
+
     args = parser.parse_args()
 
     # Enable debug logging if requested
@@ -4884,6 +5018,10 @@ Examples:
         "vs-toggle": cmd_vs_toggle,
         "vs-rate": cmd_vs_rate,
         "vs-rating": cmd_vs_rating,
+        # Registry card commands
+        "registry-card-get": cmd_registry_card_get,
+        "registry-card-discover": cmd_registry_card_discover,
+        "registry-card-update": cmd_registry_card_update,
     }
 
     handler = command_handlers.get(args.command)

@@ -473,6 +473,10 @@ module "ecs_service_registry" {
 
       environment = [
         {
+          name  = "REGISTRY_URL"
+          value = var.domain_name != "" ? "https://${var.domain_name}" : "http://${module.alb.dns_name}"
+        },
+        {
           name  = "GATEWAY_ADDITIONAL_SERVER_NAMES"
           value = join(" ", compact([var.domain_name, var.additional_server_names]))
         },
@@ -636,6 +640,26 @@ module "ecs_service_registry" {
         {
           name  = "REGISTRY_ID"
           value = var.registry_id
+        },
+        {
+          name  = "REGISTRY_NAME"
+          value = var.registry_name
+        },
+        {
+          name  = "REGISTRY_ORGANIZATION_NAME"
+          value = var.registry_organization_name
+        },
+        {
+          name  = "REGISTRY_DESCRIPTION"
+          value = var.registry_description
+        },
+        {
+          name  = "REGISTRY_CONTACT_EMAIL"
+          value = var.registry_contact_email
+        },
+        {
+          name  = "REGISTRY_CONTACT_URL"
+          value = var.registry_contact_url
         },
         {
           name  = "FEDERATION_STATIC_TOKEN_AUTH_ENABLED"
