@@ -821,8 +821,8 @@ The following major features span multiple milestones and represent significant 
 - **[#556 - AI Gateway & Registry Rebrand](https://github.com/agentic-community/mcp-gateway-registry/issues/556)** 📅 **PLANNED** (March 2026 Week 4)
   Rename "MCP Gateway Registry" to "AI Gateway & Registry" to reflect expanded support for agents and tools beyond MCP.
 
-- **[#557-559 - Observability & Telemetry Suite](https://github.com/agentic-community/mcp-gateway-registry/issues/557)** 🚧 **IN PROGRESS** (March 2026 Week 2)
-  Comprehensive telemetry infrastructure with server-side collector, client-side instrumentation, and lightweight anonymous adoption tracking.
+- **[#557-559 - Observability & Telemetry Suite](https://github.com/agentic-community/mcp-gateway-registry/issues/557)** ✅ **COMPLETED**
+  Comprehensive telemetry infrastructure with server-side collector ([#674](https://github.com/agentic-community/mcp-gateway-registry/pull/674)), client-side instrumentation ([#659](https://github.com/agentic-community/mcp-gateway-registry/pull/659)), and end-to-end enhancements ([#702](https://github.com/agentic-community/mcp-gateway-registry/pull/702)). [Telemetry docs](docs/TELEMETRY.md).
 
 - **[#129 - Virtual MCP Server Support](https://github.com/agentic-community/mcp-gateway-registry/issues/129)** ✅ **COMPLETED**
   Dynamic tool aggregation and intelligent routing using Lua scripting. Enables logical grouping of tools from multiple backend servers into a single virtual endpoint.
