@@ -1,0 +1,163 @@
+"""GitHub authentication provider for private repository access.
+
+Provides auth headers for httpx requests to GitHub, supporting:
+- Personal Access Token (PAT) -- static, user-scoped
+- GitHub App installation token -- ephemeral, org-scoped
+
+Auth headers are only sent to explicitly allowed hosts.
+"""
+
+import logging
+import time
+from urllib.parse import urlparse
+
+import httpx
+import jwt
+
+from ..core.config import settings
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s,p%(process)s,{%(filename)s:%(lineno)d},%(levelname)s,%(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# Default GitHub hosts that receive auth headers
+_DEFAULT_GITHUB_HOSTS: frozenset[str] = frozenset({
+    "github.com",
+    "raw.githubusercontent.com",
+})
+
+
+class GitHubAuthProvider:
+    """Provides auth headers for GitHub API requests.
+
+    Supports two credential tiers with automatic fallback:
+    1. GitHub App (installation token, ephemeral, org-scoped)
+    2. Personal Access Token (static, user-scoped)
+
+    Auth headers are only sent to explicitly allowed hosts.
+    """
+
+    def __init__(self) -> None:
+        self._allowed_hosts = self._build_allowed_hosts()
+        self._cached_token: str | None = None
+        self._token_expires_at: float = 0.0
+        self._log_active_tier()
+
+    def _build_allowed_hosts(self) -> frozenset[str]:
+        """Build allowed hosts from defaults + github_extra_hosts config."""
+        extra_raw = settings.github_extra_hosts
+        extra = frozenset(
+            h.strip().lower() for h in extra_raw.split(",") if h.strip()
+        )
+        return _DEFAULT_GITHUB_HOSTS | extra
+
+    def _is_allowed_host(self, url: str) -> bool:
+        """Check if URL hostname is in the allowed GitHub hosts set."""
+        parsed = urlparse(url)
+        hostname = (parsed.hostname or "").lower()
+        return hostname in self._allowed_hosts
+
+    def _log_active_tier(self) -> None:
+        """Log which auth tier is active at initialization."""
+        if self._has_app_credentials():
+            logger.info("GitHub auth: GitHub App credentials configured")
+        elif settings.github_pat:
+            logger.info("GitHub auth: Personal Access Token configured")
+        else:
+            logger.info("GitHub auth: No credentials configured (unauthenticated access)")
+
+    def _has_app_credentials(self) -> bool:
+        """Check if all GitHub App credentials are present."""
+        return bool(
+            settings.github_app_id
+            and settings.github_app_installation_id
+            and settings.github_app_private_key
+        )
+
+    async def get_auth_headers(self, url: str) -> dict[str, str]:
+        """Return auth headers if url matches an allowed GitHub host.
+
+        Returns empty dict if:
+        - URL host is not in the allowed hosts set
+        - No credentials are configured
+        - Token exchange fails (logged, falls back gracefully)
+        """
+        if not self._is_allowed_host(url):
+            return {}
+
+        # Tier 2: GitHub App
+        if self._has_app_credentials():
+            token = await self._get_github_app_token()
+            if token:
+                return {"Authorization": f"Bearer {token}"}
+            logger.warning("GitHub App token exchange failed, falling back to PAT")
+
+        # Tier 1: PAT
+        if settings.github_pat:
+            return {"Authorization": f"Bearer {settings.github_pat}"}
+
+        # Tier 0: Unauthenticated
+        return {}
+
+    def _create_jwt(self) -> str:
+        """Create signed JWT for GitHub App authentication.
+
+        Uses RS256 algorithm per GitHub's requirements.
+        Claims: iat (now - 60s for clock skew), exp (now + 600s), iss (app_id).
+        """
+        now = int(time.time())
+        payload = {
+            "iat": now - 60,
+            "exp": now + 600,
+            "iss": settings.github_app_id,
+        }
+        return jwt.encode(payload, settings.github_app_private_key, algorithm="RS256")
+
+    async def _get_github_app_token(self) -> str | None:
+        """Get or refresh cached GitHub App installation token.
+
+        1. Check in-memory cache (token + expiry timestamp)
+        2. If expired or missing: sign JWT, POST to GitHub API, cache result
+        3. Return token or None on failure
+        """
+        # Check cache (5-minute early expiry buffer)
+        if self._cached_token and time.time() < self._token_expires_at - 300:
+            return self._cached_token
+
+        try:
+            app_jwt = self._create_jwt()
+            installation_id = settings.github_app_installation_id
+            url = f"https://api.github.com/app/installations/{installation_id}/access_tokens"
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {app_jwt}",
+                        "Accept": "application/vnd.github+json",
+                    },
+                    timeout=10,
+                )
+
+            if response.status_code != 201:
+                logger.error(
+                    "GitHub App token exchange failed: HTTP %d - %s",
+                    response.status_code,
+                    response.text[:200],
+                )
+                return None
+
+            data = response.json()
+            self._cached_token = data.get("token")
+            # Cache for 1 hour (GitHub's token lifetime)
+            self._token_expires_at = time.time() + 3600
+
+            logger.debug("GitHub App installation token refreshed successfully")
+            return self._cached_token
+
+        except (httpx.RequestError, KeyError, ValueError) as e:
+            logger.error("GitHub App token exchange error: %s", e)
+            return None
