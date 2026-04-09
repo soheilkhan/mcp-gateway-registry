@@ -2765,13 +2765,22 @@ async def oauth2_callback(
         redirect_url = temp_session_data.get(
             "redirect_uri", OAUTH2_CONFIG.get("registry", {}).get("success_redirect", "/")
         )
-        # Validate redirect_url to prevent open redirect attacks
-        # The redirect_uri originates from user input; allow relative URLs
-        # and same-origin URLs only
-        request_host = request.headers.get("host", "localhost")
-        # Strip port from host for hostname comparison
-        request_hostname = request_host.split(":")[0] if request_host else "localhost"
-        if not _is_safe_redirect_url(redirect_url, allowed_hosts={request_hostname}):
+        # Validate redirect_url to prevent open redirect attacks.
+        # Allow relative URLs and absolute URLs within the deployment's cookie domain.
+        # SESSION_COOKIE_DOMAIN (e.g., ".example.com") defines the trust boundary —
+        # any service sharing the session cookie is a safe redirect target.
+        cookie_domain = os.environ.get("SESSION_COOKIE_DOMAIN", "").strip()
+        redirect_parsed = urlparse(redirect_url)
+        redirect_is_safe = False
+        if not redirect_parsed.scheme and not redirect_parsed.netloc:
+            # Relative URL — always safe
+            redirect_is_safe = True
+        elif redirect_parsed.scheme in ("http", "https"):
+            redirect_hostname = redirect_parsed.hostname or ""
+            if cookie_domain and redirect_hostname.endswith(cookie_domain):
+                # Redirect is within the deployment's cookie domain
+                redirect_is_safe = True
+        if not redirect_is_safe:
             logger.warning(
                 f"Blocked unsafe redirect URL: {redirect_url}, falling back to /"
             )
