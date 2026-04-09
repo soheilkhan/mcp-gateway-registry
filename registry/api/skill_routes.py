@@ -51,7 +51,7 @@ from ..services.skill_service import (
 )
 from ..services.tool_validation_service import get_tool_validation_service
 from ..utils.path_utils import normalize_skill_path
-from ..services.github_auth import GitHubAuthProvider
+from ..services.github_auth import github_auth_provider as _github_auth
 
 # Configure logging
 logging.basicConfig(
@@ -59,9 +59,6 @@ logging.basicConfig(
     format="%(asctime)s,p%(process)s,{%(filename)s:%(lineno)d},%(levelname)s,%(message)s",
 )
 logger = logging.getLogger(__name__)
-
-# GitHub auth provider for private repository access
-_github_auth = GitHubAuthProvider()
 
 
 class RatingRequest(BaseModel):

@@ -7,8 +7,10 @@ Provides auth headers for httpx requests to GitHub, supporting:
 Auth headers are only sent to explicitly allowed hosts.
 """
 
+import asyncio
 import logging
 import time
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 import httpx
@@ -44,6 +46,7 @@ class GitHubAuthProvider:
         self._allowed_hosts = self._build_allowed_hosts()
         self._cached_token: str | None = None
         self._token_expires_at: float = 0.0
+        self._token_lock = asyncio.Lock()
         self._log_active_tier()
 
     def _build_allowed_hosts(self) -> frozenset[str]:
@@ -119,62 +122,67 @@ class GitHubAuthProvider:
         return jwt.encode(payload, private_key, algorithm="RS256")
 
     async def _get_github_app_token(self) -> str | None:
-        """Get or refresh cached GitHub App installation token.
-
-        1. Check in-memory cache (token + expiry timestamp)
-        2. If expired or missing: sign JWT, POST to GitHub API, cache result
-        3. Return token or None on failure
-        """
-        # Check cache (5-minute early expiry buffer)
+        """Get or refresh cached GitHub App installation token."""
+        # Fast path: valid cache (no lock needed)
         if self._cached_token and time.time() < self._token_expires_at - 300:
             return self._cached_token
 
-        try:
-            app_jwt = self._create_jwt()
-            installation_id = settings.github_app_installation_id
-            url = f"https://api.github.com/app/installations/{installation_id}/access_tokens"
+        async with self._token_lock:
+            # Double-check after acquiring lock
+            if self._cached_token and time.time() < self._token_expires_at - 300:
+                return self._cached_token
 
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    url,
-                    headers={
-                        "Authorization": f"Bearer {app_jwt}",
-                        "Accept": "application/vnd.github+json",
-                    },
-                    timeout=10,
-                )
+            try:
+                app_jwt = self._create_jwt()
+                installation_id = settings.github_app_installation_id
+                # NOTE: GitHub App token exchange always uses api.github.com.
+                # GitHub Enterprise Server requires a separate github_api_base_url config (future enhancement).
+                url = f"https://api.github.com/app/installations/{installation_id}/access_tokens"
 
-            if response.status_code != 201:
-                logger.error(
-                    "GitHub App token exchange failed: HTTP %d - %s",
-                    response.status_code,
-                    response.text[:200],
-                )
-                return None
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        url,
+                        headers={
+                            "Authorization": f"Bearer {app_jwt}",
+                            "Accept": "application/vnd.github+json",
+                        },
+                        timeout=10,
+                    )
 
-            data = response.json()
-            token = data.get("token")
-            if not token:
-                logger.error("GitHub App token response missing 'token' field")
-                return None
+                if response.status_code != 201:
+                    logger.error(
+                        "GitHub App token exchange failed: HTTP %d - %s",
+                        response.status_code,
+                        response.text[:200],
+                    )
+                    return None
 
-            self._cached_token = token
+                data = response.json()
+                token = data.get("token")
+                if not token:
+                    logger.error("GitHub App token response missing 'token' field")
+                    return None
 
-            # Parse expiry from response, fall back to 1 hour
-            expires_at = data.get("expires_at")
-            if expires_at:
-                from datetime import UTC, datetime
-                try:
-                    expiry_dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-                    self._token_expires_at = expiry_dt.timestamp()
-                except ValueError:
+                self._cached_token = token
+
+                # Parse expiry from response, fall back to 1 hour
+                expires_at = data.get("expires_at")
+                if expires_at:
+                    try:
+                        expiry_dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                        self._token_expires_at = expiry_dt.timestamp()
+                    except ValueError:
+                        self._token_expires_at = time.time() + 3600
+                else:
                     self._token_expires_at = time.time() + 3600
-            else:
-                self._token_expires_at = time.time() + 3600
 
-            logger.debug("GitHub App installation token refreshed successfully")
-            return self._cached_token
+                logger.debug("GitHub App installation token refreshed successfully")
+                return self._cached_token
 
-        except (httpx.RequestError, KeyError, ValueError) as e:
-            logger.error("GitHub App token exchange error: %s", e)
-            return None
+            except (httpx.RequestError, KeyError, ValueError) as e:
+                logger.error("GitHub App token exchange error: %s", e)
+                return None
+
+
+# Module-level singleton -- shared across all consumers
+github_auth_provider = GitHubAuthProvider()

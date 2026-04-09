@@ -39,7 +39,7 @@ from ..schemas.skill_models import (
 )
 from ..utils.path_utils import normalize_skill_path
 from ..utils.url_utils import translate_skill_url
-from .github_auth import GitHubAuthProvider
+from .github_auth import github_auth_provider as _github_auth
 
 # Configure logging
 logging.basicConfig(
@@ -47,9 +47,6 @@ logging.basicConfig(
     format="%(asctime)s,p%(process)s,{%(filename)s:%(lineno)d},%(levelname)s,%(message)s",
 )
 logger = logging.getLogger(__name__)
-
-# GitHub auth provider for private repository access
-_github_auth = GitHubAuthProvider()
 
 # Constants
 URL_VALIDATION_TIMEOUT: int = 10
