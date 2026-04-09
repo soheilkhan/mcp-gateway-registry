@@ -2,8 +2,6 @@
 
 from unittest.mock import patch
 
-import pytest
-
 
 class TestDomainMatching:
     """Tests for _is_allowed_host and host allowlist logic."""
@@ -69,3 +67,69 @@ class TestDomainMatching:
         provider = GitHubAuthProvider()
         assert provider._is_allowed_host("https://github.com/owner/repo") is True
         assert provider._is_allowed_host("https://example.com/foo") is False
+
+
+class TestPATAuth:
+    """Tests for Personal Access Token authentication."""
+
+    @patch("registry.services.github_auth.settings")
+    async def test_pat_returns_bearer_header(self, mock_settings):
+        """PAT produces Authorization: Bearer header."""
+        mock_settings.github_pat = "ghp_test_token_123"
+        mock_settings.github_app_id = ""
+        mock_settings.github_app_installation_id = ""
+        mock_settings.github_app_private_key = ""
+        mock_settings.github_extra_hosts = ""
+
+        from registry.services.github_auth import GitHubAuthProvider
+
+        provider = GitHubAuthProvider()
+        headers = await provider.get_auth_headers("https://github.com/owner/repo")
+        assert headers == {"Authorization": "Bearer ghp_test_token_123"}
+
+    @patch("registry.services.github_auth.settings")
+    async def test_no_credentials_returns_empty(self, mock_settings):
+        """No credentials configured returns empty headers."""
+        mock_settings.github_pat = ""
+        mock_settings.github_app_id = ""
+        mock_settings.github_app_installation_id = ""
+        mock_settings.github_app_private_key = ""
+        mock_settings.github_extra_hosts = ""
+
+        from registry.services.github_auth import GitHubAuthProvider
+
+        provider = GitHubAuthProvider()
+        headers = await provider.get_auth_headers("https://github.com/owner/repo")
+        assert headers == {}
+
+    @patch("registry.services.github_auth.settings")
+    async def test_non_github_host_returns_empty_even_with_pat(self, mock_settings):
+        """PAT is not sent to non-GitHub hosts."""
+        mock_settings.github_pat = "ghp_test_token_123"
+        mock_settings.github_app_id = ""
+        mock_settings.github_app_installation_id = ""
+        mock_settings.github_app_private_key = ""
+        mock_settings.github_extra_hosts = ""
+
+        from registry.services.github_auth import GitHubAuthProvider
+
+        provider = GitHubAuthProvider()
+        headers = await provider.get_auth_headers("https://gitlab.com/owner/repo")
+        assert headers == {}
+
+    @patch("registry.services.github_auth.settings")
+    async def test_pat_works_with_raw_githubusercontent(self, mock_settings):
+        """PAT is sent to raw.githubusercontent.com."""
+        mock_settings.github_pat = "ghp_test_token_123"
+        mock_settings.github_app_id = ""
+        mock_settings.github_app_installation_id = ""
+        mock_settings.github_app_private_key = ""
+        mock_settings.github_extra_hosts = ""
+
+        from registry.services.github_auth import GitHubAuthProvider
+
+        provider = GitHubAuthProvider()
+        headers = await provider.get_auth_headers(
+            "https://raw.githubusercontent.com/owner/repo/main/SKILL.md"
+        )
+        assert headers == {"Authorization": "Bearer ghp_test_token_123"}
