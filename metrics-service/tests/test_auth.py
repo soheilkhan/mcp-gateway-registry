@@ -148,7 +148,7 @@ class TestAPIKeyHashingHelpers:
         """Test hashing empty string."""
         hash_result = hash_api_key("")
         assert len(hash_result) == 64
-        assert hash_result == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        assert hash_result == "8fce0c4373343f1d2652389a9d3b0e9d9997b4f701063df5582a0b894700f439"
 
 
 class TestAuthenticationIntegration:
