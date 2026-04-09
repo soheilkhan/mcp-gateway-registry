@@ -120,6 +120,28 @@ class Settings(BaseSettings):
     skill_scanner_virustotal_api_key: str = ""  # Optional VirusTotal API key
     skill_scanner_ai_defense_api_key: str = ""  # Optional Cisco AI Defense API key
 
+    # GitHub Private Repository Access (SKILL.md fetching)
+    github_pat: str = Field(
+        default="",
+        description="GitHub Personal Access Token for private repo SKILL.md access",
+    )
+    github_app_id: str = Field(
+        default="",
+        description="GitHub App ID for installation-based auth",
+    )
+    github_app_installation_id: str = Field(
+        default="",
+        description="GitHub App Installation ID",
+    )
+    github_app_private_key: str = Field(
+        default="",
+        description="GitHub App private key (PEM format, newlines as \\n)",
+    )
+    github_extra_hosts: str = Field(
+        default="",
+        description="Comma-separated extra GitHub hosts for auth (e.g. github.mycompany.com,raw.github.mycompany.com)",
+    )
+
     # Federation settings
     registry_id: str | None = None  # Unique identifier for this registry instance in federation
     federation_static_token_auth_enabled: bool = False  # Enable federation static token auth
