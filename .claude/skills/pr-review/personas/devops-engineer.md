@@ -41,6 +41,18 @@
 - Log aggregation
 - Secret management
 
+### 6. Configuration Parameter Propagation
+
+**CRITICAL CHECK**: Any new configuration parameter introduced in the application must be propagated to **all 5 surfaces**. When a PR adds new settings to `registry/core/config.py`, verify they are present in:
+
+1. **`.env.example`** -- Documented with description, default value, and usage examples
+2. **Terraform ECS** (`terraform/aws-ecs/variables.tf` + `terraform/aws-ecs/ecs.tf`) -- Variable definition with description and default, passed to ECS task definition container environment. Sensitive values (tokens, private keys) must use AWS Secrets Manager references.
+3. **Helm charts** (`charts/mcpgw/values.yaml` + templates) -- Default values and template mapping to container env vars. Sensitive values must support `secretKeyRef` for Kubernetes secrets.
+4. **Backend Config API** (`registry/api/config_routes.py`) -- Add the new field(s) to the appropriate group in the `CONFIG_GROUPS` dict (or create a new group). Each entry is a tuple of `(field_name, display_label, is_sensitive)`. Sensitive fields (tokens, keys, secrets) must have `is_sensitive=True` so they are masked in the API response via `_mask_sensitive_value()`.
+5. **Frontend Config Display** -- The `ConfigPanel.tsx` component auto-renders fields from the `/api/config/full` API response, so adding to `CONFIG_GROUPS` is usually sufficient. But if the new parameters require special UI treatment (toggles, grouped display, etc.), the frontend component may also need updates.
+
+If a PR adds config params to only some of these locations, flag it as a **blocker** or require a follow-up issue to track the missing propagation before merge.
+
 ## Review Questions to Ask
 
 - What's the infrastructure cost impact?
@@ -98,6 +110,7 @@
 - [ ] Resource requirements estimated
 - [ ] Security groups properly configured
 - [ ] Secrets properly managed
+- [ ] New config params propagated to all 5 surfaces (.env.example, Terraform, Helm, Config API, Frontend)
 
 ### Strengths
 - {Positive aspects from DevOps perspective}
