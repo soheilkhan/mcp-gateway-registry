@@ -39,6 +39,7 @@ Based on the files changed, determine which personas should review:
 |---------------|-------------------|
 | `/frontend/**` | Merge Specialist, Frontend Developer, Chief Architect |
 | `/registry/**` | Merge Specialist, Backend Developer, Security Engineer, SRE, Chief Architect |
+| `/registry/core/config.py`, `/registry/api/config_routes.py` | Merge Specialist, Backend Developer, **DevOps Engineer**, Security Engineer, Chief Architect |
 | `/auth_server/**` | Merge Specialist, Backend Developer, Security Engineer, Chief Architect |
 | `/terraform/**`, `/charts/**`, `/docker/**` | Merge Specialist, DevOps Engineer, SRE, Chief Architect |
 | `/agents/**`, `/servers/**` | Merge Specialist, AI/Agent Developer, Backend Developer, Chief Architect |
@@ -46,6 +47,7 @@ Based on the files changed, determine which personas should review:
 | `*.md`, `docs/**` | Merge Specialist, Chief Architect |
 | `pyproject.toml`, `requirements*.txt` | Merge Specialist, DevOps Engineer, Security Engineer, Chief Architect |
 | `tests/**` | Merge Specialist, Backend Developer, Chief Architect |
+| `.env.example` | Merge Specialist, **DevOps Engineer**, Chief Architect |
 
 **Note:** Merge Specialist and Chief Architect always participate in every review.
 
