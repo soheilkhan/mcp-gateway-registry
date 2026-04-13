@@ -141,6 +141,10 @@ class Settings(BaseSettings):
         default="",
         description="Comma-separated extra GitHub hosts for auth (e.g. github.mycompany.com,raw.github.mycompany.com)",
     )
+    github_api_base_url: str = Field(
+        default="https://api.github.com",
+        description="GitHub API base URL for App token exchange (for GHES: https://github.mycompany.com/api/v3)",
+    )
 
     # Federation settings
     registry_id: str | None = None  # Unique identifier for this registry instance in federation

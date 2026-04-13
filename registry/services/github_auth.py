@@ -10,7 +10,7 @@ Auth headers are only sent to explicitly allowed hosts.
 import asyncio
 import logging
 import time
-from datetime import UTC, datetime
+from datetime import datetime
 from urllib.parse import urlparse
 
 import httpx
@@ -46,6 +46,7 @@ class GitHubAuthProvider:
         self._allowed_hosts = self._build_allowed_hosts()
         self._cached_token: str | None = None
         self._token_expires_at: float = 0.0
+        self._failure_retry_after: float = 0.0
         self._token_lock = asyncio.Lock()
         self._log_active_tier()
 
@@ -61,7 +62,10 @@ class GitHubAuthProvider:
         """Check if URL hostname is in the allowed GitHub hosts set."""
         parsed = urlparse(url)
         hostname = (parsed.hostname or "").lower()
-        return hostname in self._allowed_hosts
+        allowed = hostname in self._allowed_hosts
+        if not allowed:
+            logger.debug("GitHub auth: host '%s' not in allowed hosts, skipping auth", hostname)
+        return allowed
 
     def _log_active_tier(self) -> None:
         """Log which auth tier is active at initialization."""
@@ -123,9 +127,15 @@ class GitHubAuthProvider:
 
     async def _get_github_app_token(self) -> str | None:
         """Get or refresh cached GitHub App installation token."""
+        now = time.time()
+
         # Fast path: valid cache (no lock needed)
-        if self._cached_token and time.time() < self._token_expires_at - 300:
+        if self._cached_token and now < self._token_expires_at - 300:
             return self._cached_token
+
+        # Negative cache: avoid hammering GitHub API on sustained misconfiguration
+        if not self._cached_token and now < self._failure_retry_after:
+            return None
 
         async with self._token_lock:
             # Double-check after acquiring lock
@@ -135,9 +145,8 @@ class GitHubAuthProvider:
             try:
                 app_jwt = self._create_jwt()
                 installation_id = settings.github_app_installation_id
-                # NOTE: GitHub App token exchange always uses api.github.com.
-                # GitHub Enterprise Server requires a separate github_api_base_url config (future enhancement).
-                url = f"https://api.github.com/app/installations/{installation_id}/access_tokens"
+                base_url = settings.github_api_base_url.rstrip("/")
+                url = f"{base_url}/app/installations/{installation_id}/access_tokens"
 
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
@@ -155,12 +164,14 @@ class GitHubAuthProvider:
                         response.status_code,
                         response.text[:200],
                     )
+                    self._failure_retry_after = time.time() + 60
                     return None
 
                 data = response.json()
                 token = data.get("token")
                 if not token:
                     logger.error("GitHub App token response missing 'token' field")
+                    self._failure_retry_after = time.time() + 60
                     return None
 
                 self._cached_token = token
@@ -181,6 +192,7 @@ class GitHubAuthProvider:
 
             except (httpx.RequestError, KeyError, ValueError) as e:
                 logger.error("GitHub App token exchange error: %s", e)
+                self._failure_retry_after = time.time() + 60
                 return None
 
 

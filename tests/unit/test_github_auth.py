@@ -4,6 +4,30 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import jwt
+import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+
+@pytest.fixture()
+def rsa_private_key_pem() -> str:
+    """Generate a fresh RSA private key in PEM format for testing."""
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return private_key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ).decode()
+
+
+def _mock_app_settings(mock_settings, pem: str, pat: str = "") -> None:
+    """Configure mock_settings for GitHub App auth tests."""
+    mock_settings.github_pat = pat
+    mock_settings.github_app_id = "12345"
+    mock_settings.github_app_installation_id = "67890"
+    mock_settings.github_app_private_key = pem
+    mock_settings.github_extra_hosts = ""
+    mock_settings.github_api_base_url = "https://api.github.com"
 
 
 class TestDomainMatching:
@@ -142,55 +166,25 @@ class TestJWTCreation:
     """Tests for GitHub App JWT creation."""
 
     @patch("registry.services.github_auth.settings")
-    def test_jwt_has_correct_claims(self, mock_settings):
+    def test_jwt_has_correct_claims(self, mock_settings, rsa_private_key_pem):
         """JWT contains iat, exp, iss claims."""
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric import rsa
-
-        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        pem = private_key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption(),
-        ).decode()
-
-        mock_settings.github_pat = ""
-        mock_settings.github_app_id = "12345"
-        mock_settings.github_app_installation_id = "67890"
-        mock_settings.github_app_private_key = pem
-        mock_settings.github_extra_hosts = ""
+        _mock_app_settings(mock_settings, rsa_private_key_pem)
 
         from registry.services.github_auth import GitHubAuthProvider
 
         provider = GitHubAuthProvider()
         token = provider._create_jwt()
 
-        # Decode without verification to check claims
         claims = jwt.decode(token, options={"verify_signature": False})
         assert claims["iss"] == "12345"
         assert "iat" in claims
         assert "exp" in claims
-        # exp should be ~10 minutes after iat
-        assert claims["exp"] - claims["iat"] <= 660  # 10 min + 60s skew
+        assert claims["exp"] - claims["iat"] <= 660
 
     @patch("registry.services.github_auth.settings")
-    def test_jwt_uses_rs256(self, mock_settings):
+    def test_jwt_uses_rs256(self, mock_settings, rsa_private_key_pem):
         """JWT is signed with RS256 algorithm."""
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric import rsa
-
-        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        pem = private_key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption(),
-        ).decode()
-
-        mock_settings.github_pat = ""
-        mock_settings.github_app_id = "12345"
-        mock_settings.github_app_installation_id = "67890"
-        mock_settings.github_app_private_key = pem
-        mock_settings.github_extra_hosts = ""
+        _mock_app_settings(mock_settings, rsa_private_key_pem)
 
         from registry.services.github_auth import GitHubAuthProvider
 
@@ -205,23 +199,9 @@ class TestTokenExchange:
     """Tests for GitHub App token exchange and caching."""
 
     @patch("registry.services.github_auth.settings")
-    async def test_successful_token_exchange(self, mock_settings):
+    async def test_successful_token_exchange(self, mock_settings, rsa_private_key_pem):
         """Successful token exchange returns bearer header."""
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric import rsa
-
-        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        pem = private_key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption(),
-        ).decode()
-
-        mock_settings.github_pat = "ghp_fallback"
-        mock_settings.github_app_id = "12345"
-        mock_settings.github_app_installation_id = "67890"
-        mock_settings.github_app_private_key = pem
-        mock_settings.github_extra_hosts = ""
+        _mock_app_settings(mock_settings, rsa_private_key_pem, pat="ghp_fallback")
 
         from registry.services.github_auth import GitHubAuthProvider
 
@@ -242,23 +222,9 @@ class TestTokenExchange:
             assert headers == {"Authorization": "Bearer ghs_installation_token_abc"}
 
     @patch("registry.services.github_auth.settings")
-    async def test_cached_token_reused(self, mock_settings):
+    async def test_cached_token_reused(self, mock_settings, rsa_private_key_pem):
         """Second call within TTL reuses cached token."""
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric import rsa
-
-        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        pem = private_key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption(),
-        ).decode()
-
-        mock_settings.github_pat = ""
-        mock_settings.github_app_id = "12345"
-        mock_settings.github_app_installation_id = "67890"
-        mock_settings.github_app_private_key = pem
-        mock_settings.github_extra_hosts = ""
+        _mock_app_settings(mock_settings, rsa_private_key_pem)
 
         from registry.services.github_auth import GitHubAuthProvider
 
@@ -275,34 +241,17 @@ class TestTokenExchange:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            # First call -- fetches token
             headers1 = await provider.get_auth_headers("https://github.com/owner/repo")
-            # Second call -- should reuse cache, no new POST
             headers2 = await provider.get_auth_headers("https://github.com/owner/repo")
 
             assert headers1 == {"Authorization": "Bearer ghs_cached_token"}
             assert headers2 == {"Authorization": "Bearer ghs_cached_token"}
-            # POST should only be called once
             assert mock_client.post.call_count == 1
 
     @patch("registry.services.github_auth.settings")
-    async def test_exchange_failure_falls_back_to_pat(self, mock_settings):
+    async def test_exchange_failure_falls_back_to_pat(self, mock_settings, rsa_private_key_pem):
         """Failed token exchange falls back to PAT."""
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric import rsa
-
-        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        pem = private_key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption(),
-        ).decode()
-
-        mock_settings.github_pat = "ghp_fallback_token"
-        mock_settings.github_app_id = "12345"
-        mock_settings.github_app_installation_id = "67890"
-        mock_settings.github_app_private_key = pem
-        mock_settings.github_extra_hosts = ""
+        _mock_app_settings(mock_settings, rsa_private_key_pem, pat="ghp_fallback_token")
 
         from registry.services.github_auth import GitHubAuthProvider
 
@@ -323,23 +272,9 @@ class TestTokenExchange:
             assert headers == {"Authorization": "Bearer ghp_fallback_token"}
 
     @patch("registry.services.github_auth.settings")
-    async def test_exchange_failure_no_pat_returns_empty(self, mock_settings):
+    async def test_exchange_failure_no_pat_returns_empty(self, mock_settings, rsa_private_key_pem):
         """Failed token exchange with no PAT returns empty headers."""
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric import rsa
-
-        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        pem = private_key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption(),
-        ).decode()
-
-        mock_settings.github_pat = ""
-        mock_settings.github_app_id = "12345"
-        mock_settings.github_app_installation_id = "67890"
-        mock_settings.github_app_private_key = pem
-        mock_settings.github_extra_hosts = ""
+        _mock_app_settings(mock_settings, rsa_private_key_pem)
 
         from registry.services.github_auth import GitHubAuthProvider
 
@@ -354,3 +289,41 @@ class TestTokenExchange:
 
             headers = await provider.get_auth_headers("https://github.com/owner/repo")
             assert headers == {}
+
+    @patch("registry.services.github_auth.settings")
+    async def test_custom_api_base_url_used_in_exchange(
+        self, mock_settings, rsa_private_key_pem
+    ):
+        """Custom github_api_base_url is used for token exchange requests."""
+        _mock_app_settings(mock_settings, rsa_private_key_pem)
+        mock_settings.github_api_base_url = "https://github.mycompany.com/api/v3"
+
+        from registry.services.github_auth import GitHubAuthProvider
+
+        provider = GitHubAuthProvider()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"token": "ghs_enterprise_token"}
+
+        with patch("registry.services.github_auth.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_response
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            # Need to allow the enterprise host for auth headers
+            mock_settings.github_extra_hosts = "github.mycompany.com"
+            provider._allowed_hosts = provider._build_allowed_hosts()
+
+            headers = await provider.get_auth_headers(
+                "https://github.mycompany.com/org/repo"
+            )
+            assert headers == {"Authorization": "Bearer ghs_enterprise_token"}
+
+            # Verify the POST was made to the custom API URL
+            post_call = mock_client.post.call_args
+            assert post_call.args[0] == (
+                "https://github.mycompany.com/api/v3/app/installations/67890/access_tokens"
+            )

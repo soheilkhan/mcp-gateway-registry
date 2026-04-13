@@ -48,6 +48,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 # Constants
 URL_VALIDATION_TIMEOUT: int = 10
 
