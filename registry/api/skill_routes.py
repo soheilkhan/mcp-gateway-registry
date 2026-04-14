@@ -158,7 +158,9 @@ async def list_skills(
     is_admin = user_context.get("is_admin", False) if user_context else False
     accessible_agent_list = user_context.get("accessible_agents", []) if user_context else []
     is_unrestricted = is_admin or "all" in accessible_agent_list
-    has_field_filters = bool(tag or include_disabled)
+    # include_disabled=False (default) means "exclude disabled" which IS a filter.
+    # Only include_disabled=True (show all) with no tag requires no filtering.
+    has_field_filters = bool(tag or not include_disabled)
 
     # Dual-path pagination:
     # - Fast path: DB-level skip/limit for unrestricted users without field filters
