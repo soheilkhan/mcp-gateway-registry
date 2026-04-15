@@ -52,6 +52,7 @@ from ..services.skill_service import (
 )
 from ..services.tool_validation_service import get_tool_validation_service
 from ..utils.path_utils import normalize_skill_path
+from ..services.github_auth import github_auth_provider as _github_auth
 
 # Configure logging
 logging.basicConfig(
@@ -388,7 +389,8 @@ async def get_skill_content(
         import httpx
 
         async with httpx.AsyncClient() as client:
-            response = await client.get(str(raw_url), follow_redirects=True, timeout=30.0)
+            headers = await _github_auth.get_auth_headers(str(raw_url))
+            response = await client.get(str(raw_url), headers=headers, follow_redirects=True, timeout=30.0)
 
             # SSRF protection: validate final URL after redirects
             final_url = str(response.url)
