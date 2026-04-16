@@ -219,6 +219,62 @@ SESSION_COOKIE_DOMAIN=  # Empty string or unset
 | `SRE_GATEWAY_AUTH_TOKEN` | SRE Gateway auth token | Auto-populated from credentials | - |
 | `ANTHROPIC_API_KEY` | Anthropic API key for Claude models | `sk-ant-api03-...` | For AI functionality |
 
+### GitHub Private Repository Access
+
+Enable authenticated access to SKILL.md files hosted in private GitHub repositories. Two authentication methods are supported: Personal Access Token (simple) or GitHub App (recommended for organizations). If both are configured, GitHub App takes priority.
+
+#### Environment Variables
+
+| Variable | Description | Example | Default |
+|----------|-------------|---------|---------|
+| `GITHUB_PAT` | Personal Access Token with `repo` scope (or fine-grained PAT with `contents: read`) | `ghp_your_token_here` | Empty (disabled) |
+| `GITHUB_APP_ID` | GitHub App ID | `123456` | Empty |
+| `GITHUB_APP_INSTALLATION_ID` | GitHub App Installation ID | `78901234` | Empty |
+| `GITHUB_APP_PRIVATE_KEY` | GitHub App private key in PEM format (newlines as `\n`) | `-----BEGIN RSA PRIVATE KEY-----\n...` | Empty |
+| `GITHUB_EXTRA_HOSTS` | Comma-separated extra GitHub hosts for auth header injection | `github.mycompany.com,raw.github.mycompany.com` | Empty |
+| `GITHUB_API_BASE_URL` | GitHub API base URL (for GHES token exchange) | `https://github.mycompany.com/api/v3` | `https://api.github.com` |
+
+**Security:** Auth headers are only sent to `github.com`, `raw.githubusercontent.com`, and hosts explicitly listed in `GITHUB_EXTRA_HOSTS`.
+
+#### Terraform/ECS Configuration
+
+```hcl
+# Option 1: Personal Access Token
+# github_pat = "ghp_your_token_here"
+
+# Option 2: GitHub App authentication
+# github_app_id              = "123456"
+# github_app_installation_id = "78901234"
+# github_app_private_key     = "-----BEGIN RSA PRIVATE KEY-----\\n...\\n-----END RSA PRIVATE KEY-----"
+
+# GitHub Enterprise Server support
+# github_extra_hosts  = "github.mycompany.com,raw.github.mycompany.com"
+# github_api_base_url = "https://github.mycompany.com/api/v3"
+```
+
+#### Helm Configuration
+
+```yaml
+app:
+  # Option 1: PAT (plain value or Kubernetes secret)
+  githubPat: ""
+  githubPatExistingSecret: ""           # K8s secret name
+  githubPatExistingSecretKey: "GITHUB_PAT"
+
+  # Option 2: GitHub App
+  githubAppId: ""
+  githubAppInstallationId: ""
+  githubAppPrivateKey: ""
+  githubAppPrivateKeyExistingSecret: ""  # K8s secret name
+  githubAppPrivateKeyExistingSecretKey: "GITHUB_APP_PRIVATE_KEY"
+
+  # GitHub Enterprise Server
+  githubExtraHosts: ""
+  githubApiBaseUrl: "https://api.github.com"
+```
+
+For Helm deployments, use `ExistingSecret` fields to inject credentials from Kubernetes secrets rather than plain values.
+
 ### Storage Backend Configuration
 
 The MCP Gateway Registry supports three storage backends for servers, agents, and scopes management.
