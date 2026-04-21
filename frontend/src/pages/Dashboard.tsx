@@ -1384,7 +1384,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeFilter = 'all', setActiveFi
         name: skill.name,
         description: skill.description || '',
         skill_md_url: skill.skill_md_url || '',
-        repository_url: '',
+        repository_url: skill.repository_url || '',
         version: skill.version || '',
         visibility: skill.visibility || 'public',
         tags: (skill.tags || []).join(', '),
@@ -1432,6 +1432,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeFilter = 'all', setActiveFi
           description: data.description || prev.description,
           version: data.version || prev.version,
           tags: data.tags?.length > 0 ? data.tags.join(', ') : prev.tags,
+          repository_url: data.repository_url || prev.repository_url,
         }));
         showToast('Parsed SKILL.md successfully!', 'success');
       } else {

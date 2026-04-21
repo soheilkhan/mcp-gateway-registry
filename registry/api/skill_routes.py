@@ -181,6 +181,7 @@ async def list_skills(
                 description=s.description,
                 skill_md_url=str(s.skill_md_url),
                 skill_md_raw_url=str(s.skill_md_raw_url) if s.skill_md_raw_url else None,
+                repository_url=s.repository_url,
                 tags=s.tags,
                 author=s.metadata.author if s.metadata else None,
                 version=s.metadata.version if s.metadata else None,
@@ -250,6 +251,7 @@ async def parse_skill_md(
             "content_version": result.get("content_version"),
             "skill_md_url": result.get("skill_md_url"),
             "skill_md_raw_url": result.get("skill_md_raw_url"),
+            "repository_url": result.get("repository_url"),
         }
     except SkillUrlValidationError as e:
         raise HTTPException(

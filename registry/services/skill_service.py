@@ -38,7 +38,10 @@ from ..schemas.skill_models import (
     VisibilityEnum,
 )
 from ..utils.path_utils import normalize_skill_path
-from ..utils.url_utils import translate_skill_url
+from ..utils.url_utils import (
+    extract_repository_url,
+    translate_skill_url,
+)
 from .github_auth import github_auth_provider as _github_auth
 
 # Configure logging
@@ -242,6 +245,9 @@ async def _parse_skill_md_content(
     # Translate URL to get both user-provided and raw URL
     user_url, raw_url = translate_skill_url(url)
 
+    # Extract the repository URL from the user-provided URL
+    repository_url = extract_repository_url(url)
+
     # Normalize to string for further validation
     raw_url_str = str(raw_url)
 
@@ -284,6 +290,7 @@ async def _parse_skill_md_content(
                 "content_version": hashlib.sha256(response.content).hexdigest()[:16],
                 "skill_md_url": user_url,
                 "skill_md_raw_url": raw_url,
+                "repository_url": repository_url,
             }
 
             # Try to parse YAML frontmatter from multiple formats:
@@ -662,6 +669,7 @@ class SkillService:
                 description=s.description,
                 skill_md_url=str(s.skill_md_url),
                 skill_md_raw_url=str(s.skill_md_raw_url) if s.skill_md_raw_url else None,
+                repository_url=s.repository_url,
                 tags=s.tags,
                 author=s.metadata.author if s.metadata else None,
                 version=s.metadata.version if s.metadata else None,
