@@ -95,6 +95,10 @@ module "ecs_service_auth" {
           value = "https://${var.domain_name}"
         },
         {
+          name  = "BIND_HOST"
+          value = var.bind_host
+        },
+        {
           name  = "AUTH_SERVER_URL"
           value = "http://auth-server:8888"
         },
@@ -577,6 +581,10 @@ module "ecs_service_registry" {
         {
           name  = "REGISTRY_URL"
           value = var.domain_name != "" ? "https://${var.domain_name}" : "http://${module.alb.dns_name}"
+        },
+        {
+          name  = "BIND_HOST"
+          value = var.bind_host
         },
         {
           name  = "GATEWAY_ADDITIONAL_SERVER_NAMES"
@@ -1274,6 +1282,10 @@ module "ecs_service_currenttime" {
           value = "8000"
         },
         {
+          name  = "HOST"
+          value = var.bind_host
+        },
+        {
           name  = "MCP_TRANSPORT"
           value = "streamable-http"
         }
@@ -1396,6 +1408,10 @@ module "ecs_service_mcpgw" {
         {
           name  = "PORT"
           value = "8003"
+        },
+        {
+          name  = "HOST"
+          value = var.bind_host
         },
         {
           name  = "REGISTRY_BASE_URL"

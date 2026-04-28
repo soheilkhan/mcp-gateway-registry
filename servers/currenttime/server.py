@@ -137,8 +137,9 @@ def get_config() -> str:
 
 
 def main():
-    # Use configurable host - "::" enables dual-stack IPv4+IPv6
-    host = os.environ.get("HOST", "::")
+    # Use configurable host with secure default (127.0.0.1)
+    # Set HOST=:: in Docker/Helm deployments for dual-stack IPv4+IPv6.
+    host = os.environ.get("HOST", "127.0.0.1")
 
     # Log startup information
     logger.info(f"Starting CurrentTime server on {host}:{args.port}")

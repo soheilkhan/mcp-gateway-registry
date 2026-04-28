@@ -12,6 +12,7 @@ app:
   envSecretName: mcpgw-secret
   existingSecret: ""  # If set, use this existing secret instead of creating one
   port: 8000
+  bindHost: "::"
 
   # Registry connection
   registryUrl: http://registry:8080

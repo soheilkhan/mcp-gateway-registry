@@ -106,6 +106,7 @@ module "mcp_gateway" {
   # Session cookie security configuration
   session_cookie_secure = var.session_cookie_secure
   session_cookie_domain = var.session_cookie_domain
+  bind_host             = var.bind_host
 
   # DocumentDB configuration
   storage_backend                   = var.storage_backend
@@ -211,8 +212,8 @@ module "mcp_gateway" {
   # Application log configuration
   app_log_centralized_enabled  = var.app_log_centralized_enabled
   app_log_centralized_ttl_days = var.app_log_centralized_ttl_days
-  app_log_level            = var.app_log_level
-  app_log_excluded_loggers = var.app_log_excluded_loggers
+  app_log_level                = var.app_log_level
+  app_log_excluded_loggers     = var.app_log_excluded_loggers
 
   # Deployment mode configuration
   deployment_mode = var.deployment_mode
