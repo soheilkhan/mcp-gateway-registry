@@ -27,6 +27,7 @@ from registry.api.agent_routes import router as agent_router
 from registry.api.ans_routes import router as ans_router
 from registry.api.auth0_m2m_routes import router as auth0_m2m_router
 from registry.api.config_routes import router as config_router
+from registry.api.export_routes import router as export_router
 from registry.api.federation_export_routes import router as federation_export_router
 from registry.api.federation_routes import router as federation_router
 from registry.api.internal_routes import router as internal_router
@@ -60,6 +61,7 @@ from registry.auth.routes import router as auth_router
 
 # Import core configuration
 from registry.core.config import (
+    MONGODB_BACKENDS,
     RegistryMode,
     _print_config_warning_banner,
     _validate_mode_combination,
@@ -407,7 +409,7 @@ async def lifespan(app: FastAPI):
 
         # Get repository based on STORAGE_BACKEND configuration
         search_repo = get_search_repository()
-        backend_name = "DocumentDB" if settings.storage_backend == "documentdb" else "FAISS"
+        backend_name = "DocumentDB" if settings.storage_backend in MONGODB_BACKENDS else "FAISS"
 
         logger.info(f"🔍 Initializing {backend_name} search service...")
         await search_repo.initialize()
@@ -431,9 +433,9 @@ async def lifespan(app: FastAPI):
         await agent_service.load_agents_and_state()
 
         logger.info(f"📊 Updating {backend_name} index with all registered agents...")
-        all_agents = agent_service.list_agents()
+        all_agents = await agent_service.list_agents()
         for agent_card in all_agents:
-            is_enabled = agent_service.is_agent_enabled(agent_card.path)
+            is_enabled = await agent_service.is_agent_enabled(agent_card.path)
             try:
                 await search_repo.index_agent(agent_card.path, agent_card, is_enabled)
                 logger.debug(f"Updated {backend_name} index for agent: {agent_card.path}")
@@ -816,9 +818,8 @@ if settings.audit_log_enabled:
 
     # Get audit repository if MongoDB is enabled
     _audit_repository = None
-    _mongodb_enabled = settings.audit_log_mongodb_enabled and settings.storage_backend in (
-        "documentdb",
-        "mongodb-ce",
+    _mongodb_enabled = (
+        settings.audit_log_mongodb_enabled and settings.storage_backend in MONGODB_BACKENDS
     )
     if _mongodb_enabled:
         from registry.repositories.factory import get_audit_repository
@@ -868,6 +869,7 @@ app.include_router(federation_export_router)
 app.include_router(peer_management_router)
 app.include_router(audit_router, prefix="/api", tags=["Audit Logs"])
 app.include_router(log_router, prefix="/api", tags=["Application Logs"])
+app.include_router(export_router, tags=["Data Export"])
 app.include_router(registry_management_router, prefix="/api")
 
 # Register IdP M2M management routers (Okta and Auth0)
@@ -981,7 +983,14 @@ _ROOT_PATH: str = os.environ.get("ROOT_PATH", "")
 
 
 def _build_cached_index_html() -> str | None:
-    """Read index.html and inject <base> tag if ROOT_PATH is set.
+    """Read index.html and inject <base> tag and rewrite absolute asset paths.
+
+    Create React App (with homepage="/") emits absolute asset URLs like
+    /static/js/main.*.js and /favicon.ico. A <base> tag alone does not affect
+    absolute paths, so when ROOT_PATH is set (path-based routing) we must also
+    rewrite those URLs to include the prefix. Without this, the browser
+    requests e.g. https://host/static/js/... which bypasses the ingress rule
+    that only routes /<ROOT_PATH>/* to the app, and 404s.
 
     Returns:
         Modified HTML string if ROOT_PATH is set, None otherwise.
@@ -996,9 +1005,15 @@ def _build_cached_index_html() -> str | None:
     with open(index_path) as f:
         html_content = f.read()
 
-    # Inject <base> tag if not already present
+    prefix = _ROOT_PATH.rstrip("/")
+
+    # Rewrite absolute asset references to include ROOT_PATH
+    html_content = html_content.replace('="/static/', f'="{prefix}/static/')
+    html_content = html_content.replace('="/favicon.ico"', f'="{prefix}/favicon.ico"')
+
+    # Inject <base> tag if not already present (for React Router relative links)
     if "<base" not in html_content:
-        base_href = _ROOT_PATH if _ROOT_PATH.endswith("/") else f"{_ROOT_PATH}/"
+        base_href = f"{prefix}/"
         base_tag = f'<base href="{base_href}">'
         html_content = html_content.replace("<head>", f"<head>\n    {base_tag}")
 

@@ -53,8 +53,8 @@ async def _get_current_sync_generation() -> int:
             if await server_service.is_service_enabled(path):
                 enabled_server_count += 1
 
-        all_agents = await agent_service.get_all_agents()
-        enabled_agent_count = len([a for a in all_agents if agent_service.is_agent_enabled(a.path)])
+        agent_states = await agent_service.get_all_agent_states()
+        enabled_agent_count = sum(1 for enabled in agent_states.values() if enabled)
 
         generation = max(1, enabled_server_count + enabled_agent_count)
         return generation
@@ -542,8 +542,9 @@ async def export_agents(
     # Get all agents (enabled and disabled)
     all_agents = await agent_service.get_all_agents()
 
-    # Filter out disabled agents - never sync disabled agents
-    enabled_agents = [a for a in all_agents if agent_service.is_agent_enabled(a.path)]
+    # Filter out disabled agents, never sync disabled agents
+    agent_states = await agent_service.get_all_agent_states()
+    enabled_agents = [a for a in all_agents if agent_states.get(a.path, False)]
 
     # Extract peer groups from JWT for visibility filtering
     peer_groups = user_context.get("groups", [])
